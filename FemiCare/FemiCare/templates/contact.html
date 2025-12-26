@@ -1,0 +1,135 @@
+{% load static %} {% include 'components/navbar.html' %}
+
+<head>
+<!-- Gogogle Font -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Raleway:ital,wght@0,100..900;1,100..900&display=swap"
+  rel="stylesheet"
+/>
+<!-- Phosphor Icons -->
+<link
+  rel="stylesheet"
+  type="text/css"
+  href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/regular/style.css"
+/>
+
+<link
+  rel="stylesheet"
+  type="text/css"
+  href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/fill/style.css"
+/>
+<!-- CSS -->
+<link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+
+
+<body>
+<section class="contact-wrapper">
+
+ <!-- Background decorations -->
+  <div class="contact-bg decoration-1"></div>
+  <div class="contact-bg decoration-2"></div>
+  <div style="text-align: center;">
+      <span class="section-badge">Contact Us</span>
+      </div>
+
+    <!-- CONTACT TITLE -->
+  <div class="contact-title-area">
+    <h2 class="contact-main-title">Get in touch with us!</h2>
+    <p class="contact-subtitle">
+      Reach out to us through any of the options below. Your comfort and privacy matter to us.
+    </p>
+  </div>
+
+  <!-- CONTACT CARDS -->
+  <div class="contact-cards">
+
+    <!-- EMAIL -->
+    <div class="contact-card">
+      <div class="contact-icon"><i class="ph ph-envelope-simple"></i></div>
+      <h3>Email Support</h3>
+      <p>
+        Have questions or feedback?<br>
+        Write to us anytime.
+      </p>
+      <span class="contact-info">support@femicare.com</span>
+    </div>
+
+    <!-- PHONE -->
+    <div class="contact-card">
+      <div class="contact-icon"><i class="ph ph-phone-call"></i></div>
+      <h3>Call Us</h3>
+      <p>
+        Need urgent assistance?<br>
+        Our support line is available.
+      </p>
+      <span class="contact-info">+977 98XXXXXXX</span>
+    </div>
+
+    <!-- LOCATION -->
+    <div class="contact-card">
+      <div class="contact-icon"><i class="ph ph-map-pin-simple"></i></div>
+      <h3>Location</h3>
+      <p>
+        We operate remotely<br>
+        with trusted healthcare partners.
+      </p>
+      <span class="contact-info">Itahari, Nepal</span>
+    </div>
+
+  </div>
+
+
+  <div class="contact-layout">
+
+    <!-- LEFT CONTENT -->
+    <div class="contact-content">
+      <h2 class="contact-main-title">We’re Here <br>to Help</h2>
+      <p class="contact-subtitle">
+        Whether you have a question, need support, or want to learn more about
+        <strong>FemiCare</strong>, our team is always ready to listen and guide you.
+      </p>
+      <!-- Social Icons using Phosphor -->
+  <div class="social-icons">
+    <i class="ph ph-facebook-logo"></i>
+    <i class="ph ph-instagram-logo"></i>
+    <i class="ph ph-x-logo"></i>
+    <i class="ph ph-tiktok-logo"></i>
+  </div>
+    </div>
+
+    <!-- RIGHT FORM -->
+    <div class="contact-form-wrapper">
+      <form class="contact-form">
+        <div class="form-group">
+          <label>Your Name</label>
+          <input type="text" placeholder="Enter your name" required>
+        </div>
+
+        <div class="form-group">
+          <label>Email Address</label>
+          <input type="email" placeholder="Enter your email" required>
+        </div>
+
+        <div class="form-group">
+          <label>Message</label>
+          <textarea rows="5" placeholder="Write your message..." required></textarea>
+        </div>
+
+        <button type="submit" class="contact-btn">
+          Send Message
+        </button>
+      </form>
+    </div>
+
+  </div>
+
+
+
+</section>
+
+    {% include 'components/footer.html' %}
+
+</body>

@@ -1,0 +1,83 @@
+{% load static %}
+
+<head>
+  <!-- Google Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;600;700&family=Open+Sans:wght@400;600&display=swap"
+    rel="stylesheet"
+  />
+
+  <!-- Phosphor Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/regular/style.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/fill/style.css" />
+
+  <!-- CSS -->
+  <link rel="stylesheet" href="{% static 'css/component.css' %}">
+</head>
+
+<section class="signup">
+  <div class="signup-container">
+
+    <!-- LEFT SIDE FULL IMAGE -->
+    <div class="signup-left">
+        <!-- BACK BUTTON -->
+  <a href="{% url 'main' %}" class="back-btn">
+    <i class="ph ph-arrow-left"></i>
+  </a>
+      <img src="{% static 'images/splash-img.jpg' %}" alt="Wellbeing Image">
+    </div>
+
+    <!-- RIGHT SIDE -->
+    <div class="signup-right">
+
+      <!-- WHITE CARD -->
+      <div class="signup-card">
+        
+      <div class="logo">
+        <img src="{% static 'images/logo1.png' %}" alt="Logo">
+      </div>
+
+        <h1>Create Your Account</h1>
+
+<form class="signup-form">
+  <div class="form-grid">
+    <div class="form-group">
+      <label>Name</label>
+      <input type="text" placeholder="Jessica Raut" required>
+    </div>
+
+    <div class="form-group">
+      <label>Email</label>
+      <input type="email" placeholder="jessica@example.com" required>
+    </div>
+
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" placeholder="********" required>
+    </div>
+
+    <div class="form-group">
+      <label>Confirm Password</label>
+      <input type="password" placeholder="********" required>
+    </div>
+  </div>
+
+  <button class="signup-btn">Create Account</button>
+</form>
+
+        <p class="login-link">Already have an account? <a href="{% url 'login' %}">Login</a></p>
+
+        <p class="or">or</p>
+
+        <!-- GOOGLE SIGNUP -->
+        <button class="google-btn">
+          <i class="ph ph-google-logo"></i>
+          Sign up with Google
+        </button>
+
+      </div>
+    </div>
+  </div>
+</section>

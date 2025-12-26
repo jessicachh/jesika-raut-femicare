@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FemiCare - Welcome</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;700&display=swap" rel="stylesheet" />
+
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      width: 100%;
+      display: flex;
+      background: #fff;
+      overflow: hidden;
+      font-family: "Raleway", sans-serif;
+    }
+
+    /* ---------------- LEFT SECTION ---------------- */
+    .left-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 40px;
+            background-image: url("{% static 'images/splash-img.jpg' %}");
+        background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+    }
+
+    /* ---------------- RIGHT SECTION ---------------- */
+    .right-panel {
+      flex: 1;
+      padding: 60px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      color: #ffffff;
+      background-color: #b92222;
+      padding-left: 5%;
+    }
+
+    .welcome-logo {
+      width: 180px;
+      margin-bottom: 25px;
+    }
+
+    .welcome-title {
+      font-size: 5rem;
+      font-weight: 700;
+      margin: 0 0 15px 0;
+      color: #ffffff;
+    }
+
+    .welcome-text {
+      font-size: 1rem;
+      line-height: 1.6;
+      max-width: 420px;
+      margin-bottom: 30px;
+    }
+/* TYPEWRITER BOX */
+.typewriter-box {
+  margin: 20px 0;
+  padding: 12px 18px;
+  border: 2px solid #ffffff;
+  border-radius: 5px;
+  display: inline-block;
+  background: #ffffff;
+    max-width: 300px;   /* <-- limit the width */
+  text-align: left;    /* optional, align text inside */
+  overflow: hidden;    /* ensures text doesn’t overflow */
+  white-space: nowrap;
+}
+
+.static-text {
+  color: #b92222;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+#typewriter {
+  color: #b92222;
+  font-weight: 700;
+  font-size: 1.1rem;
+  border-right: 2px solid #b92222;
+  padding-right: 4px;
+  animation: blink 0.7s infinite;
+}
+
+@keyframes blink {
+  0% { border-color: #b92222; }
+  50% { border-color: transparent; }
+  100% { border-color: #b92222; }
+}
+    .cta-group {
+      display: flex;
+      gap: 15px;
+    }
+
+    .cta-btn {
+      padding: 14px 24px;
+      border-radius: 30px;
+      border: none;
+      cursor: pointer;
+      font-weight: 700;
+      transition: 0.3s;
+      font-size: 1rem;
+    }
+
+    .primary-btn {
+      background: #ffffff;
+      color: #b92222;
+    }
+    .primary-btn:hover { 
+      opacity: 0.85; 
+    }
+
+    .outline-btn {
+      background: transparent;
+      border: 2px solid #ffffff;
+      color: #ffffff;
+
+    }
+    .outline-btn:hover { background: #ffffff; color: #b92222; }
+
+    /* ---------------- BLINDS ---------------- */
+    #blinds-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr); 
+  grid-auto-rows: 100%; 
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0;
+  transition: opacity 0.3s ease-in;
+    }
+.blind {
+  height: 100%;       
+  width: 100%;
+}
+    #blinds-overlay.active {
+      opacity: 1;
+    }
+
+    #blinds-overlay div {
+      background: #ffffff;
+      transform: translateY(100%);
+    }
+
+    @keyframes blindReveal {
+      to { transform: translateY(0); }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Blinds -->
+  <div id="blinds-overlay"></div>
+
+  <!-- LEFT SIDE -->
+  <div class="right-panel">
+    <!-- <img src="{% static 'images/logo1.png' %}" class="welcome-logo" /> -->
+
+    <h1 class="welcome-title">Welcome <br> to FemiCare</h1>
+<div class="typewriter-box">
+  <span class="static-text">With us, you will </span>
+  <span id="typewriter"></span>
+</div>
+    <p class="welcome-text">
+      Your all-in-one women’s wellness companion. Track your cycle, understand your body better, and access services designed for your full wellbeing.
+    </p>
+
+    <div class="cta-group">
+      <button class="cta-btn primary-btn" onclick="goToPage('/signup')">Sign Up</button>
+      <button class="cta-btn outline-btn" onclick="goToPage('/home')">Get Started</button>
+    </div>
+  </div>
+  <!-- RIGHT SIDE -->
+ 
+ <div class="left-panel">
+    <div class="service-box">
+    </div>
+  </div>
+
+  <script>
+    const overlay = document.getElementById("blinds-overlay");
+
+    // build blinds
+    for (let i = 0; i < 12; i++) {
+      const blind = document.createElement("div");
+      blind.style.animation = `blindReveal 0.7s ease-out forwards`;
+      blind.style.animationDelay = `${i * 0.08}s`;
+      blind.style.animationPlayState = "paused";
+      overlay.appendChild(blind);
+    }
+
+    // CTA click → blinds → redirect
+    function goToPage(url) {
+      overlay.classList.add("active");
+      document.querySelectorAll("#blinds-overlay div").forEach((blind) => {
+        blind.style.animationPlayState = "running";
+      });
+
+      setTimeout(() => {
+        window.location.href = url;
+      }, 1500);
+    }
+
+
+
+     const messages = [
+    "know your cycle",
+    "track your flow",
+    "predict fertile days",
+    "stay prepared",
+    "follow your goals"
+  ];
+
+  let index = 0;
+  let charIndex = 0;
+  const speed = 80;
+  const hold = 1000;
+  const typewriter = document.getElementById("typewriter");
+
+  function typeText() {
+    const message = messages[index];
+    typewriter.textContent = message.substring(0, charIndex);
+    charIndex++;
+
+    if (charIndex <= message.length) {
+      setTimeout(typeText, speed);
+    } else {
+      setTimeout(eraseText, hold);
+    }
+  }
+
+  function eraseText() {
+    const message = messages[index];
+    typewriter.textContent = message.substring(0, charIndex);
+    charIndex--;
+
+    if (charIndex >= 0) {
+      setTimeout(eraseText, 50);
+    } else {
+      index = (index + 1) % messages.length;
+      setTimeout(typeText, 300);
+    }
+  }
+
+  typeText();
+  </script>
+
+</body>
+</html>

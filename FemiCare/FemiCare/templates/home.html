@@ -1,0 +1,394 @@
+{% load static %} {% include 'components/navbar.html' %}
+<head>
+<!-- Gogogle Font -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Raleway:ital,wght@0,100..900;1,100..900&display=swap"
+  rel="stylesheet"
+/>
+<!-- Phosphor Icons -->
+<link
+  rel="stylesheet"
+  type="text/css"
+  href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/regular/style.css"
+/>
+<link
+  rel="stylesheet"
+  type="text/css"
+  href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/fill/style.css"
+/>
+<!-- CSS -->
+<link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+
+
+<body>
+  <div class="home-wrapper">
+    <div class="hero-img">
+      <img src="{% static 'images/hero2.jpg' %}" alt="Hero-Img" />
+      <!-- Text overlay -->
+      <div class="hero-content">
+        <h1>Wellness Made Simple for Women</h1>
+        <p>
+          FemiCare makes wellness simple for every woman. Track your cycle, get personalized 
+          health insights, and understand your body like never before. Explore tools and tips 
+          designed to help you feel your best every day.
+        </p>
+        <div class="cta-btn">
+          <span class="icon-wrapper">
+            <i class="ph ph-arrow-right"></i>
+          </span>
+          <span class="btn-text">See How It Works</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+
+<section class="what-we-offer" id="what-we-offer">
+<div class="offer-left parallax">
+  <div class="offer-left-content">
+    <h2>
+      <span>What</span><br>
+      <span>We Offer</span>
+    </h2>
+    <p class="offer-description">
+      Explore our wide range of services designed to help you undersntand your body and stay healthy.
+    </p>
+  </div>
+</div>
+  <div class="offer-right">
+    <div class="service">
+      <div class="service-icon">
+        <i class="ph ph-calendar"></i>
+      </div>
+      <div class="service-text">
+        <h3>Track Your Cycle</h3>
+        <p>Log your cycle, predict upcoming periods, and get reminders for your health.</p>
+      </div>
+    </div>
+
+    <div class="service">
+      <div class="service-icon">
+        <i class="ph ph-chart-line"></i>
+      </div>
+      <div class="service-text">
+        <h3>Personalized Insights</h3>
+        <p>Receive tailored insights based on your body’s patterns and health data.</p>
+      </div>
+    </div>
+
+    <div class="service">
+      <div class="service-icon">
+        <i class="ph ph-stethoscope"></i>
+      </div>
+      <div class="service-text">
+        <h3>Connect with Experts</h3>
+        <p>Book one-on-one consultations with certified doctors anytime.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<h2 class="horizontal-section-title">How It Works</h2>
+<!-- Navigation Dots -->
+  <div class="nav-dots">
+    <div class="nav-dot active" data-step="Track" data-index="0"></div>
+    <div class="nav-dot" data-step="Analyze" data-index="1"></div>
+    <div class="nav-dot" data-step="Insights" data-index="2"></div>
+    <div class="nav-dot" data-step="Guidance" data-index="3"></div>
+  </div>
+
+  <!-- HOW IT WORKS -->
+  <section class="horizontal-steps">
+    <div class="steps-wrapper">
+      
+      <div class="step-card active">
+        <div class="step-left">
+          <h2>Step 1: Track Your Cycle</h2>
+          <p>Log your symptoms, moods, flow, and daily health vitals.</p>
+          <div class="step-features">
+            <div class="step-feature-tag">📅 Daily Logs</div>
+            <div class="step-feature-tag">💭 Mood Tracking</div>
+            <div class="step-feature-tag">❤️ Health Vitals</div>
+          </div>
+        </div>
+        <div class="step-right">
+          <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='420' viewBox='0 0 420 420'%3E%3Crect fill='%23fff' width='420' height='420' rx='20'/%3E%3Cg transform='translate(100,100)'%3E%3Ccircle cx='110' cy='110' r='90' fill='%23ffb3c1' opacity='0.3'/%3E%3Ccircle cx='110' cy='110' r='60' fill='%23ff8fa3' opacity='0.5'/%3E%3Cpath d='M80,110 L110,140 L160,70' stroke='%23d32f2f' stroke-width='8' fill='none' stroke-linecap='round'/%3E%3C/g%3E%3Ctext x='210' y='360' font-family='Arial' font-size='24' fill='%23d32f2f' text-anchor='middle' font-weight='bold'%3ETrack%3C/text%3E%3C/svg%3E" alt="Track">
+          <div class="floating-icon icon-1">📊</div>
+          <div class="floating-icon icon-2">💗</div>
+        </div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-left">
+          <h2>Step 2: Analyze Patterns</h2>
+          <p>We detect your hormonal patterns and predict accurate cycles.</p>
+          <div class="step-features">
+            <div class="step-feature-tag">🔍 Pattern Detection</div>
+            <div class="step-feature-tag">🎯 Predictions</div>
+            <div class="step-feature-tag">📈 Insights</div>
+          </div>
+        </div>
+        <div class="step-right">
+          <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='420' viewBox='0 0 420 420'%3E%3Crect fill='%23fff' width='420' height='420' rx='20'/%3E%3Cg transform='translate(60,80)'%3E%3Cpath d='M50,200 Q100,100 150,150 T250,100' stroke='%23d32f2f' stroke-width='6' fill='none'/%3E%3Ccircle cx='50' cy='200' r='8' fill='%23ff8fa3'/%3E%3Ccircle cx='150' cy='150' r='8' fill='%23ff8fa3'/%3E%3Ccircle cx='250' cy='100' r='8' fill='%23ff8fa3'/%3E%3C/g%3E%3Ctext x='210' y='360' font-family='Arial' font-size='24' fill='%23d32f2f' text-anchor='middle' font-weight='bold'%3EAnalyze%3C/text%3E%3C/svg%3E" alt="Analyze">
+          <div class="floating-icon icon-1">📉</div>
+          <div class="floating-icon icon-3">🧬</div>
+        </div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-left">
+          <h2>Step 3: Personalized Insights</h2>
+          <p>Get insights tailored to your body's rhythm and health changes.</p>
+          <div class="step-features">
+            <div class="step-feature-tag">✨ Custom Tips</div>
+            <div class="step-feature-tag">📊 Reports</div>
+            <div class="step-feature-tag">🎯 Recommendations</div>
+          </div>
+        </div>
+        <div class="step-right">
+          <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='420' viewBox='0 0 420 420'%3E%3Crect fill='%23fff' width='420' height='420' rx='20'/%3E%3Cg transform='translate(110,110)'%3E%3Cpath d='M100,50 L100,150 M50,100 L150,100' stroke='%23d32f2f' stroke-width='6' stroke-linecap='round'/%3E%3Ccircle cx='100' cy='100' r='70' stroke='%23ffb3c1' stroke-width='4' fill='none'/%3E%3Cpath d='M100,30 L110,50 L90,50 Z' fill='%23ff8fa3'/%3E%3C/g%3E%3Ctext x='210' y='360' font-family='Arial' font-size='24' fill='%23d32f2f' text-anchor='middle' font-weight='bold'%3EInsights%3C/text%3E%3C/svg%3E" alt="Insights">
+          <div class="floating-icon icon-2">💡</div>
+          <div class="floating-icon icon-3">⚡</div>
+        </div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-left">
+          <h2>Step 4: Expert Guidance</h2>
+          <p>Access tips backed by women's health experts anytime.</p>
+          <div class="step-features">
+            <div class="step-feature-tag">👩‍⚕️ Expert Advice</div>
+            <div class="step-feature-tag">📚 Resources</div>
+            <div class="step-feature-tag">💬 24/7 Support</div>
+          </div>
+        </div>
+        <div class="step-right">
+          <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='420' viewBox='0 0 420 420'%3E%3Crect fill='%23fff' width='420' height='420' rx='20'/%3E%3Cg transform='translate(140,120)'%3E%3Ccircle cx='70' cy='50' r='30' fill='%23ffb3c1'/%3E%3Cpath d='M20,100 Q70,80 120,100 L120,150 Q70,170 20,150 Z' fill='%23ff8fa3'/%3E%3Cpath d='M50,130 L90,130 M60,145 L80,145' stroke='%23d32f2f' stroke-width='3' stroke-linecap='round'/%3E%3C/g%3E%3Ctext x='210' y='360' font-family='Arial' font-size='24' fill='%23d32f2f' text-anchor='middle' font-weight='bold'%3EGuidance%3C/text%3E%3C/svg%3E" alt="Guidance">
+          <div class="floating-icon icon-1">🩺</div>
+          <div class="floating-icon icon-2">📱</div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+<section class="features-section">
+  <!-- Header -->
+  <div class="features-header">
+    <h2 class="features-title">What Makes This Platform Different</h2>
+    <p class="features-subtitle">
+      Designed with care, simplicity, and trusted guidance to support
+      everyday women’s health needs.
+    </p>
+  </div>
+
+  <!-- Layout -->
+  <div class="features-layout">
+
+    <!-- LEFT COLUMN -->
+    <div class="features-column">
+      <div class="feature-card">
+        <div class="feature-icon">
+          <i class="ph ph-heart"></i>
+        </div>
+        <h3 class="feature-title">Designed for Women</h3>
+        <p class="feature-description">
+          Built around real female health needs with comfort, clarity,
+          and everyday usability in mind.
+        </p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">
+          <i class="ph ph-lock"></i>
+        </div>
+        <h3 class="feature-title">Privacy-First</h3>
+        <p class="feature-description">
+          Personal health data is protected so users feel safe, respected,
+          and in control at all times.
+        </p>
+      </div>
+    </div>
+
+    <!-- CENTER IMAGE -->
+    <div class="features-center">
+      <img src="{% static 'images/why-us.jpg' %}" alt="Health platform preview">
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div class="features-column">
+      <div class="feature-card">
+        <div class="feature-icon">
+          <i class="ph ph-hand-pointing"></i>
+        </div>
+        <h3 class="feature-title">Simple & Easy to Use</h3>
+        <p class="feature-description">
+          Clear layouts and simple language make the platform easy for
+          everyone to understand.
+        </p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">
+          <i class="ph ph-stethoscope"></i>
+        </div>
+        <h3 class="feature-title">Expert-Backed</h3>
+        <p class="feature-description">
+          Insights are informed by trusted medical knowledge and expert
+          health guidance.
+        </p>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+{% include 'components/footer.html' %}
+
+
+</body>
+<script>
+
+  const container = document.querySelector(".horizontal-steps");
+    const wrapper = document.querySelector(".steps-wrapper");
+    const cards = document.querySelectorAll(".step-card");
+    const dots = document.querySelectorAll(".nav-dot");
+
+    let currentStep = 0;
+    let totalSteps = cards.length;
+    let isScrolling = false;
+    let canScrollOut = false; // Track if we can scroll out of section
+
+    function activateStep(index) {
+      cards.forEach((card, i) => {
+        card.classList.toggle("active", i === index);
+      });
+
+      dots.forEach((dot, i) => {
+        dot.classList.toggle("active", i === index);
+      });
+    }
+
+    function goToStep(index) {
+      if (index < 0 || index >= totalSteps || isScrolling) return;
+      
+      isScrolling = true;
+      currentStep = index;
+      wrapper.style.transform = `translateX(-${currentStep * 100}vw)`;
+      activateStep(currentStep);
+      
+      setTimeout(() => {
+        isScrolling = false;
+        canScrollOut = false; // Reset after transition
+      }, 700);
+    }
+
+    // Wheel navigation with scroll out capability
+    window.addEventListener("wheel", function (e) {
+      const rect = container.getBoundingClientRect();
+      const inView = rect.top <= 0 && rect.bottom > 0;
+
+      if (!inView) return;
+
+      if (isScrolling) {
+        e.preventDefault();
+        return;
+      }
+
+      // At first step, scrolling up
+      if (currentStep === 0 && e.deltaY < 0) {
+        if (canScrollOut) {
+          // Allow natural scroll out
+          return;
+        } else {
+          e.preventDefault();
+          canScrollOut = true;
+          return;
+        }
+      }
+
+      // At last step, scrolling down
+      if (currentStep === totalSteps - 1 && e.deltaY > 0) {
+        if (canScrollOut) {
+          // Allow natural scroll out
+          return;
+        } else {
+          e.preventDefault();
+          canScrollOut = true;
+          return;
+        }
+      }
+
+      // Normal navigation
+      e.preventDefault();
+      canScrollOut = false;
+
+      if (e.deltaY > 0 && currentStep < totalSteps - 1) {
+        goToStep(currentStep + 1);
+      } else if (e.deltaY < 0 && currentStep > 0) {
+        goToStep(currentStep - 1);
+      }
+    }, { passive: false });
+
+    // Dot navigation
+    dots.forEach(dot => {
+      dot.addEventListener("click", () => {
+        const index = parseInt(dot.getAttribute("data-index"));
+        goToStep(index);
+      });
+    });
+
+    // Keyboard navigation
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+        if (currentStep < totalSteps - 1) goToStep(currentStep + 1);
+      } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+        if (currentStep > 0) goToStep(currentStep - 1);
+      }
+    });
+
+    // Touch support for mobile
+    let touchStartX = 0;
+    let touchEndX = 0;
+
+    container.addEventListener("touchstart", (e) => {
+      touchStartX = e.changedTouches[0].screenX;
+    });
+
+    container.addEventListener("touchend", (e) => {
+      touchEndX = e.changedTouches[0].screenX;
+      handleSwipe();
+    });
+
+    function handleSwipe() {
+      const swipeThreshold = 50;
+      if (touchStartX - touchEndX > swipeThreshold && currentStep < totalSteps - 1) {
+        goToStep(currentStep + 1);
+      } else if (touchEndX - touchStartX > swipeThreshold && currentStep > 0) {
+        goToStep(currentStep - 1);
+      }
+    }
+const sectionTitle = document.querySelector(".horizontal-section-title");
+const navDots = document.querySelector(".nav-dots");
+
+function checkVisibility() {
+  const rect = container.getBoundingClientRect();
+  const inView = rect.top <= window.innerHeight * 0.3 && rect.bottom > window.innerHeight * 0.3;
+
+  if (inView) {
+    sectionTitle.classList.add("visible");
+    navDots.classList.add("visible");
+  } else {
+    sectionTitle.classList.remove("visible");
+    navDots.classList.remove("visible");
+  }
+}
+
+window.addEventListener("scroll", checkVisibility);
+checkVisibility();
+    activateStep(0);
+</script>

@@ -1,0 +1,59 @@
+{% load static %}
+
+<head>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;600;700&family=Open+Sans:wght@300;400;600&display=swap" rel="stylesheet" />
+
+  <!-- Phosphor Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/regular/style.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/fill/style.css" />
+
+  <!-- CSS -->
+  <link rel="stylesheet" href="{% static 'css/component.css' %}">
+</head>
+
+<section class="login">
+  <div class="login-container">
+    
+    <!-- LEFT SIDE (FORM) -->
+    <div class="login-left">
+      <div class="login-card">
+        <div class="logo">
+        <img src="{% static 'images/logo1.png' %}" alt="Logo">
+
+        </div>
+        <h1>Welcome Back</h1>
+
+        <form class="login-form">
+          <label>Email</label>
+          <input type="email" placeholder="you@example.com" required>
+
+          <label>Password</label>
+          <input type="password" placeholder="********" required>
+  <!-- Forgot Password -->
+  <a href="#" class="forgot-password">Forgot Password?</a>
+          <button class="login-btn">Log In</button>
+        </form>
+
+        <p class="signup-redirect">
+          Don't have an account? <a href="{% url 'signup' %}">Sign Up</a>
+        </p>
+        <p class="or">or</p>
+
+        <button class="google-login-btn">
+          <i class="ph ph-google-logo"></i>
+          Continue with Google
+        </button>
+
+      </div>
+    </div>
+
+    <!-- RIGHT SIDE (IMAGE) -->
+    <div class="login-right">
+      <img src="{% static 'images/splash-img.jpg' %}" alt="Mindfulness Image">
+    </div>
+
+  </div>
+</section>
