@@ -207,10 +207,14 @@ form {
   display: flex;
   flex-direction: column;
 }
-
 label {
   margin-bottom: 6px;
   font-weight: 500;
+}
+select{
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
 }
 
 input {

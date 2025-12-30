@@ -26,16 +26,30 @@
         </div>
         <h1>Welcome Back</h1>
 
-        <form class="login-form">
-          <label>Email</label>
-          <input type="email" placeholder="you@example.com" required>
+        <form method="post" action="{% url 'login' %}" class="login-form">
+  {% csrf_token %}
 
-          <label>Password</label>
-          <input type="password" placeholder="********" required>
+  <label>Username</label>
+  <input type="text" name="username" placeholder="you@example.com" required>
+
+  <label>Password</label>
+  <input type="password" name="password" placeholder="********" required>
+
   <!-- Forgot Password -->
   <a href="#" class="forgot-password">Forgot Password?</a>
-          <button class="login-btn">Log In</button>
-        </form>
+
+  <button class="login-btn" type="submit">Log In</button>
+</form>
+
+<!-- Messages -->
+{% if messages %}
+  <div class="messages">
+    {% for message in messages %}
+      <p class="message"  style="color: red;">{{ message }}</p>
+    {% endfor %}
+  </div>
+{% endif %}
+
 
         <p class="signup-redirect">
           Don't have an account? <a href="{% url 'signup' %}">Sign Up</a>

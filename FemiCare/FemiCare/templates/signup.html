@@ -41,31 +41,51 @@
 
         <h1>Create Your Account</h1>
 
-<form class="signup-form">
+<form method="post" action="{% url 'signup' %}" class="signup-form">
+  {% csrf_token %}
+
   <div class="form-grid">
     <div class="form-group">
-      <label>Name</label>
-      <input type="text" placeholder="Jessica Raut" required>
+      <label>Username</label>
+      <input type="text" name="username" placeholder="JessicaRaut" required>
     </div>
 
     <div class="form-group">
       <label>Email</label>
-      <input type="email" placeholder="jessica@example.com" required>
+      <input type="email" name="email" placeholder="jessica@example.com" required>
     </div>
 
     <div class="form-group">
       <label>Password</label>
-      <input type="password" placeholder="********" required>
+      <input type="password" name="password" placeholder="********" required>
     </div>
+    
+    <div class="form-group">
+  <label>Confirm Password</label>
+  <input type="password" name="confirm_password" placeholder="********" required>
+</div>
 
     <div class="form-group">
-      <label>Confirm Password</label>
-      <input type="password" placeholder="********" required>
+      <label>Role</label>
+      <select name="role" class="form-select-user">
+        <option value="user">User</option>
+        <option value="doctor">Doctor</option>
+      </select>
     </div>
   </div>
 
-  <button class="signup-btn">Create Account</button>
+  <button class="signup-btn" type="submit">Create Account</button>
 </form>
+
+<!-- Messages -->
+{% if messages %}
+  <div class="messages">
+    {% for message in messages %}
+      <p class="message" style="color: red;">{{ message }}</p>
+    {% endfor %}
+  </div>
+{% endif %}
+
 
         <p class="login-link">Already have an account? <a href="{% url 'login' %}">Login</a></p>
 

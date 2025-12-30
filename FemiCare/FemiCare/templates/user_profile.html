@@ -1,0 +1,94 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>User Profile Setup</title>
+      <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;600;700&family=Open+Sans:wght@300;400;600&display=swap" rel="stylesheet" />
+
+  <!-- Phosphor Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/regular/style.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/fill/style.css" />
+
+    <style>
+        body {
+            font-family:'Raleway';
+            background-image: url("{% static 'images/user_profile.jpg' %}");
+        background-size: cover;          /* ✅ fills entire screen */
+        background-repeat: no-repeat;
+        background-position: center;     /* ✅ keeps image centered */
+        background-attachment: fixed;
+        }
+        .container {
+            max-width: 450px;
+            margin: 60px auto;
+            background: #fff;
+            padding: 25px;
+            border-radius: 8px;
+        }
+        .logo{
+            text-align: center;
+        }
+        .logo img{
+         height: 35px;
+        }
+        h2 {
+            text-align: center;
+            margin-bottom: 20px;
+            
+        }
+        label {
+            display: block;
+            margin-top: 15px;
+            font-family: 'Open Sans';
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            margin-top: 6px;
+            font-family: 'Open Sans';
+
+        }
+        button {
+            margin-top: 25px;
+            width: 100%;
+            padding: 10px;
+            background: #b92222;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: 'Open Sans';
+
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="logo">
+        <img src="{% static 'images/logo1.png' %}" alt="Logo">
+        </div>
+    <h2>Complete Your Profile</h2>
+
+  <form method="post">
+  {% csrf_token %}
+
+  <label>Date of Birth</label>
+  <input type="date" name="dob" required>
+
+  <label>Cycle Length (days)</label>
+  <input type="number" name="cycle_length" required>
+
+  <label>Last Period Date</label>
+  <input type="date" name="last_period_date" required>
+
+  <button type="submit">Save Profile</button>
+</form>
+</div>
+
+</body>
+</html>
