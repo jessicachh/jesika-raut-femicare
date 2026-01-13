@@ -1,0 +1,219 @@
+{% load static %} {% include 'components/navbar.html' %}
+
+<head>
+<!-- Gogogle Font -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Raleway:ital,wght@0,100..900;1,100..900&display=swap"
+  rel="stylesheet"
+/>
+<!-- Phosphor Icons -->
+<link
+  rel="stylesheet"
+  type="text/css"
+  href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/regular/style.css"
+/>
+<link
+  rel="stylesheet"
+  type="text/css"
+  href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/fill/style.css"
+/>
+<!-- CSS -->
+<link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+
+
+<body>
+<section class="how-it-works-vertical">
+  
+  <div class="section-header">
+    <span class="section-badge">The Process</span>
+    <h2 class="section-title">How It Works</h2>
+    <p class="section-subtitle">
+      A simple step-by-step journey designed to understand and support your body with personalized care.
+    </p>
+  </div>
+
+  <div class="timeline">
+
+    <!-- STEP 1 -->
+    <div class="timeline-step" data-step="1">
+      <div class="step-content left">
+        <div class="step-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+          </svg>
+        </div>
+        <h3>Track Your Cycle</h3>
+        <p>
+          Log your periods, moods, symptoms, and daily health habits.
+          Consistent tracking helps understand your body better over time.
+        </p>
+        <div class="step-features">
+          <span class="feature-tag">Daily Logs</span>
+          <span class="feature-tag">Mood Tracking</span>
+          <span class="feature-tag">Symptoms</span>
+        </div>
+      </div>
+
+      <div class="timeline-center">
+        <div class="step-number-wrapper">
+          <span class="step-number">1</span>
+          <div class="pulse-ring"></div>
+        </div>
+        <div class="timeline-line"></div>
+        <span class="arrow">↓</span>
+      </div>
+
+      <div class="step-image right">
+        <div class="image-wrapper">
+          <img src="{% static 'images/step1.png' %}" alt="Track Your Cycle">
+          <div class="image-glow"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 2 -->
+    <div class="timeline-step reverse" data-step="2">
+      <div class="step-image left">
+        <div class="image-wrapper">
+          <img src="{% static 'images/step2.png' %}" alt="Analyze Patterns">
+          <div class="image-glow"></div>
+        </div>
+      </div>
+
+      <div class="timeline-center">
+        <div class="step-number-wrapper">
+          <span class="step-number">2</span>
+          <div class="pulse-ring"></div>
+        </div>
+        <div class="timeline-line"></div>
+        <span class="arrow">↓</span>
+      </div>
+
+      <div class="step-content right">
+        <div class="step-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+          </svg>
+        </div>
+        <h3>Analyze Patterns</h3>
+        <p>
+          Your data is analyzed to identify hormonal and cycle patterns,
+          helping predict upcoming changes and trends with AI-powered insights.
+        </p>
+        <div class="step-features">
+          <span class="feature-tag">Pattern Detection</span>
+          <span class="feature-tag">Predictions</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 3 -->
+    <div class="timeline-step" data-step="3">
+      <div class="step-content left">
+        <div class="step-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+          </svg>
+        </div>
+        <h3>Personalized Insights</h3>
+        <p>
+          Receive easy-to-understand insights and suggestions tailored
+          to your body's unique rhythm and health changes.
+        </p>
+        <div class="step-features">
+          <span class="feature-tag">Custom Tips</span>
+          <span class="feature-tag">Recommendations</span>
+        </div>
+      </div>
+
+      <div class="timeline-center">
+        <div class="step-number-wrapper">
+          <span class="step-number">3</span>
+          <div class="pulse-ring"></div>
+        </div>
+        <div class="timeline-line"></div>
+        <span class="arrow">↓</span>
+      </div>
+
+      <div class="step-image right">
+        <div class="image-wrapper">
+          <img src="{% static 'images/step3.png' %}" alt="Personalized Insights">
+          <div class="image-glow"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 4 -->
+    <div class="timeline-step reverse" data-step="4">
+      <div class="step-image left">
+        <div class="image-wrapper">
+          <img src="{% static 'images/step4.png' %}" alt="Expert Guidance">
+          <div class="image-glow"></div>
+        </div>
+      </div>
+
+      <div class="timeline-center">
+        <div class="step-number-wrapper">
+          <span class="step-number">4</span>
+          <div class="pulse-ring"></div>
+        </div>
+      </div>
+
+      <div class="step-content right">
+        <div class="step-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+          </svg>
+        </div>
+        <h3>Expert Guidance</h3>
+        <p>
+          Get access to trusted advice and resources backed by
+          women's health experts whenever you need support.
+        </p>
+        <div class="step-features">
+          <span class="feature-tag">24/7 Support</span>
+          <span class="feature-tag">Expert Articles</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Decorative Background Elements -->
+  <div class="bg-decoration decoration-1"></div>
+  <div class="bg-decoration decoration-2"></div>
+  <div class="bg-decoration decoration-3"></div>
+
+</section>
+{% include 'components/footer.html' %}
+
+</body>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const steps = document.querySelectorAll('.timeline-step');
+  
+  const observerOptions = {
+    threshold: 0.2,
+    rootMargin: '0px 0px -100px 0px'
+  };
+  
+  const observer = new IntersectionObserver(function(entries) {
+    entries.forEach((entry, index) => {
+      if (entry.isIntersecting) {
+        // Stagger animation
+        setTimeout(() => {
+          entry.target.classList.add('show');
+        }, index * 100);
+      }
+    });
+  }, observerOptions);
+  
+  steps.forEach(step => {
+    observer.observe(step);
+  });
+});
+</script>
