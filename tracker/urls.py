@@ -25,7 +25,8 @@ urlpatterns = [
     path('doctor/dashboard/', views.doctor_dashboard, name='doctor_dashboard'),
     path('doctor/details/', views.doctor_details, name='doctor_details'),
 
-    path('admin/', admin.site.urls),
+    path('dashboard/add-cycle-log/', views.add_cycle_log, name='add_cycle_log'),
+
     
      path(
         'password-reset/',

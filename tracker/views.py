@@ -4,7 +4,11 @@ from django.contrib import messages
 from .models import User
 from django.contrib.auth.decorators import login_required
 from .models import UserProfile, DoctorProfile
-
+from .forms import CycleLogForm
+from .models import CycleLog
+from datetime import date
+from tracker.ml.predict import predict_cycle
+from datetime import timedelta
 
 # -----------------------------
 # Public pages
@@ -47,9 +51,15 @@ def signup_view(request):
             password=password,
             role=role
         )
+        
+        # Automatically log the user in
+        auth_login(request, user)
 
-        messages.success(request, "Account created successfully. Please login.")
-        return redirect('login')   # redirect only
+        # Direct first-time user to their profile page
+        if role == 'doctor':
+            return redirect('doctor_details')
+        else:
+            return redirect('user_profile')
 
     return render(request, 'signup.html')
 
@@ -152,9 +162,23 @@ from django.contrib.auth.decorators import login_required
 
 @login_required
 def dashboard_home(request):
-    if request.user.role != 'user':
-        return redirect('login')
-    return render(request, 'dashboard/first.html')
+    form = CycleLogForm()
+    logs = CycleLog.objects.filter(user=request.user)
+    latest_cycle = logs.first()
+
+    show_prediction = False
+
+    if "show_prediction_modal" in request.session:
+        show_prediction = True
+        del request.session["show_prediction_modal"]
+
+    return render(request, "dashboard/first.html", {
+        "form": form,
+        "logs": logs,
+        "cycle": latest_cycle,
+        "show_prediction": show_prediction
+    })
+
 
 @login_required
 def appointment(request):
@@ -167,3 +191,52 @@ def doctor_dashboard(request):
     if request.user.role != 'doctor':
         return redirect('login')
     return render(request, 'dashboard/doctor_dashboard.html')
+
+
+@login_required
+def add_cycle_log(request):
+    if request.method == "POST":
+        form = CycleLogForm(request.POST)
+
+        if form.is_valid():
+            cycle = form.save(commit=False)
+            cycle.user = request.user
+
+            # ---- BMI calculation ----
+            if cycle.height_cm and cycle.weight_kg:
+                height_m = cycle.height_cm / 100
+                cycle.bmi = round(cycle.weight_kg / (height_m ** 2), 2)
+
+            # ---- ML FEATURES (UNCHANGED) ----
+            features = [
+                cycle.length_of_cycle,
+                cycle.length_of_menses,
+                cycle.mean_menses_length,
+                cycle.total_menses_score,
+                cycle.mean_bleeding_intensity,
+                int(cycle.unusual_bleeding),
+                cycle.bmi,
+            ]
+
+            predicted_days = round(predict_cycle(features))
+
+            # ---- DATE CALCULATIONS ----
+            if cycle.last_period_start:
+                cycle.predicted_next_period = (
+                    cycle.last_period_start + timedelta(days=predicted_days)
+                )
+
+                # Ovulation ≈ 14 days before next period
+                cycle.estimated_ovulation_day = (
+                    cycle.predicted_next_period - timedelta(days=14)
+                )
+
+                # Fertile window: 5 days before ovulation + ovulation day
+                cycle.fertile_window_start = (
+                    cycle.estimated_ovulation_day - timedelta(days=5)
+                )
+                cycle.fertile_window_end = cycle.estimated_ovulation_day
+
+            cycle.save()
+
+            return redirect("/dashboard/?predicted=1")

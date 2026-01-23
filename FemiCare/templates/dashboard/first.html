@@ -3,14 +3,26 @@
 
 {% block dashboard_content %}
 
-  <div class="dashboard-card">
-    <h3>Dashboard Overview</h3>
-    <p>Your health summary and recent activity will appear here.</p>
-  </div>
+<button type="button"
+        class="fab-add-cycle"
+        data-bs-toggle="modal"
+        data-bs-target="#cycleModal">
+  <span class="fab-icon">＋</span>
+  <span class="fab-text">Add Cycle</span>
+</button>
 
-  <div class="dashboard-card">
-    <h3>Quick Actions</h3>
-    <p>Book appointments, start chats, and track updates.</p>
-  </div>
+<!-- Previous Logs -->
+<div class="dashboard-card">
+  <h3>Previous Cycle Logs</h3>
 
+  {% for log in logs %}
+    <div class="cycle-log-item">
+      <span>{{ log.created_at|date:"M d, Y" }}</span>
+      <span>{{ log.length_of_cycle }} days</span>
+      <span>BMI: {{ log.bmi }}</span>
+    </div>
+  {% empty %}
+    <p class="text-muted">No cycle data logged yet.</p>
+  {% endfor %}
+</div>
 {% endblock %}
