@@ -4,8 +4,13 @@ from django.contrib import messages
 from .models import User
 from django.contrib.auth.decorators import login_required
 from .models import UserProfile, DoctorProfile
-
-
+from .forms import CycleLogForm
+from .models import CycleLog
+from datetime import date
+from tracker.ml.predict import predict_cycle
+from datetime import timedelta
+from django.urls import reverse
+from urllib.parse import urlencode
 # -----------------------------
 # Public pages
 # -----------------------------
@@ -27,11 +32,11 @@ def contact(request):
 
 def signup_view(request):
     if request.method == 'POST':
-        username = request.POST['username']
-        email = request.POST['email']
-        password = request.POST['password']
-        confirm = request.POST['confirm_password']
-        role = request.POST['role']
+        username = request.POST.get('username')
+        email = request.POST.get('email')
+        password = request.POST.get('password')
+        confirm = request.POST.get('confirm_password')
+        role = request.POST.get('role')
 
         if password != confirm:
             messages.error(request, "Passwords do not match")
@@ -47,7 +52,7 @@ def signup_view(request):
             password=password,
             role=role
         )
-
+        
         # Automatically log the user in
         auth_login(request, user)
 
@@ -63,36 +68,36 @@ def signup_view(request):
 
 def login_view(request):
     if request.method == 'POST':
-        username = request.POST['username']
-        password = request.POST['password']
+        username = request.POST.get('username')
+        password = request.POST.get('password')
 
         user = authenticate(request, username=username, password=password)
 
-        if not user:
-            messages.error(request, "Invalid credentials")
+        # Step 1: Check if authentication failed
+        if user is None:
+            messages.error(request, "Invalid username or password")
             return redirect('login')
 
-        # Log in the user
-        auth_login(request, user)
-
-
+        # Step 2: Doctor verification check
         if user.role == 'doctor':
             try:
-                profile = DoctorProfile.objects.get(user=user)
+                doctor_profile = DoctorProfile.objects.get(user=user)
             except DoctorProfile.DoesNotExist:
-                # Doctor has not filled profile yet
                 messages.info(request, "Please fill your doctor profile for verification.")
                 return redirect('doctor_details')
 
-            if not user.is_verified:
-                # Doctor profile filled but account not verified
+            if not doctor_profile.is_verified:
+                messages.error(request, "Your account is not verified yet.")
                 return render(request, 'doctor_pending.html')
 
-            # Verified doctor
-            return redirect('doctor_dashboard')
+        # Step 3: Login the user
+        auth_login(request, user)
 
+        # Step 4: Redirect based on role
+        if user.role == 'doctor':
+            return redirect('doctor_dashboard')
         else:
-            # Normal user (no verification needed)
+            # Normal user
             profile, created = UserProfile.objects.get_or_create(user=user)
             if created or not profile.date_of_birth:
                 return redirect('user_profile')
@@ -100,7 +105,6 @@ def login_view(request):
                 return redirect('dashboard_home')
 
     return render(request, 'login.html')
-
 
 
 @login_required
@@ -159,9 +163,30 @@ from django.contrib.auth.decorators import login_required
 
 @login_required
 def dashboard_home(request):
-    if request.user.role != 'user':
-        return redirect('login')
-    return render(request, 'dashboard/first.html')
+    logs = CycleLog.objects.filter(user=request.user)
+    latest_cycle = logs.first()
+
+    # 👇 ONE-TIME session trigger (KEEP THIS)
+    show_prediction = request.session.pop("show_prediction", False)
+    last_cycle_id = request.session.pop("last_cycle_id", None)
+
+    cycle = latest_cycle
+    if last_cycle_id:
+        cycle = CycleLog.objects.filter(
+            id=last_cycle_id,
+            user=request.user
+        ).first()
+
+    return render(request, "dashboard/first.html", {
+        # ✅ ONLY CHANGE IS HERE
+        "form": CycleLogForm(user=request.user),
+
+        "logs": logs,
+        "cycle": cycle,
+        "show_prediction": show_prediction,
+    })
+
+
 
 @login_required
 def appointment(request):
@@ -174,3 +199,56 @@ def doctor_dashboard(request):
     if request.user.role != 'doctor':
         return redirect('login')
     return render(request, 'dashboard/doctor_dashboard.html')
+
+
+@login_required
+def add_cycle_log(request):
+    if request.method == "POST":
+        form = CycleLogForm(request.POST)
+
+        if form.is_valid():
+            cycle = form.save(commit=False)
+            cycle.user = request.user
+
+            # ---- BMI calculation ----
+            if cycle.height_cm and cycle.weight_kg:
+                height_m = cycle.height_cm / 100
+                cycle.bmi = round(cycle.weight_kg / (height_m ** 2), 2)
+
+            # ---- ML FEATURES (UNCHANGED) ----
+            features = [
+                cycle.length_of_cycle,
+                cycle.length_of_menses,
+                cycle.mean_menses_length,
+                cycle.total_menses_score,
+                cycle.mean_bleeding_intensity,
+                int(cycle.unusual_bleeding),
+                cycle.bmi,
+            ]
+
+            predicted_days = round(predict_cycle(features))
+
+            # ---- DATE CALCULATIONS ----
+            if cycle.last_period_start:
+                cycle.predicted_next_period = (
+                    cycle.last_period_start + timedelta(days=predicted_days)
+                )
+
+                # Ovulation ≈ 14 days before next period
+                cycle.estimated_ovulation_day = (
+                    cycle.predicted_next_period - timedelta(days=14)
+                )
+
+                # Fertile window: 5 days before ovulation + ovulation day
+                cycle.fertile_window_start = (
+                    cycle.estimated_ovulation_day - timedelta(days=5)
+                )
+                cycle.fertile_window_end = cycle.estimated_ovulation_day
+
+            cycle.save()
+
+            # Save trigger in session
+            request.session["show_prediction"] = True
+            request.session["last_cycle_id"] = cycle.id
+
+            return redirect("dashboard_home")

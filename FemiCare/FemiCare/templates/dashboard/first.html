@@ -3,14 +3,134 @@
 
 {% block dashboard_content %}
 
-  <div class="dashboard-card">
-    <h3>Dashboard Overview</h3>
-    <p>Your health summary and recent activity will appear here.</p>
-  </div>
+<button type="button"
+        class="fab-add-cycle"
+        data-bs-toggle="modal"
+        data-bs-target="#cycleModal">
+  <span class="fab-icon">＋</span>
+  <span class="fab-text">Add Cycle</span>
+</button>
 
-  <div class="dashboard-card">
-    <h3>Quick Actions</h3>
-    <p>Book appointments, start chats, and track updates.</p>
+<!-- Previous Logs -->
+<section class="cycle-history">
+ <div class="d-flex align-items-center gap-3 mb-3">
+  <h4 class="mb-0">Your Cycle Logs</h4>
+
+  <button
+    class="btn btn-sm btn-outline-danger"
+    id="toggleHistoryBtn"
+    type="button"
+  >
+    View
+  </button>
+</div>
+
+
+<div id="cycleHistory" style="display: none;">
+  <div class="row">
+
+    {% for log in logs %}
+      <div class="col-md-6 col-lg-4 mb-4">
+
+        <!-- CARD -->
+        <div
+          class="card shadow-sm cycle-card"
+          role="button"
+          data-bs-toggle="modal"
+          data-bs-target="#historyModal{{ log.id }}"
+          title="Click to view full details"
+        >
+          <div class="card-body">
+            <h6 class="card-title mb-2">
+              🩸 Last period
+            </h6>
+
+            <p class="mb-1">
+              <strong>Started:</strong> {{ log.last_period_start }}
+            </p>
+
+            <p class="mb-1">
+              <strong>Next:</strong> {{ log.predicted_next_period }}
+            </p>
+
+            <p class="text-muted small mt-2">
+              Click to view full details →
+            </p>
+          </div>
+        </div>
+
+        <!-- MODAL (FULL DETAILS, READ-ONLY) -->
+        <div class="modal fade" id="historyModal{{ log.id }}" tabindex="-1">
+          <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+
+              <div class="modal-header">
+                <h5 class="modal-title">Cycle Details</h5>
+                <button class="btn-close" data-bs-dismiss="modal"></button>
+              </div>
+
+              <div class="modal-body">
+                <h6 class="mb-3">🧾 What you logged</h6>
+
+                <p><strong>Last period start:</strong> {{ log.last_period_start }}</p>
+                <p><strong>Cycle length:</strong> {{ log.length_of_cycle }} days</p>
+                <p><strong>Menses length:</strong> {{ log.length_of_menses }} days</p>
+                <p><strong>Bleeding intensity:</strong> {{ log.get_mean_bleeding_intensity_display }}</p>
+                <p><strong>Unusual bleeding:</strong> {{ log.unusual_bleeding|yesno:"Yes,No" }}</p>
+
+                <hr>
+
+                <h6 class="mb-3">🔮 Predictions</h6>
+
+                <p><strong>Next period:</strong> {{ log.predicted_next_period }}</p>
+                <p><strong>Ovulation day:</strong> {{ log.estimated_ovulation_day }}</p>
+                <p>
+                  <strong>Fertile window:</strong>
+                  {{ log.fertile_window_start }} → {{ log.fertile_window_end }}
+                </p>
+              </div>
+
+              <div class="modal-footer">
+                <small class="text-muted me-auto">
+                  🔒 This data is read-only
+                </small>
+                <button class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                  Close
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+      </div>
+    {% empty %}
+      <p class="text-muted">No cycle history yet.</p>
+    {% endfor %}
+
   </div>
+</div>
+
+
+</section>
+
+
+
+
+<script>
+document.getElementById("toggleHistoryBtn").addEventListener("click", function () {
+  const history = document.getElementById("cycleHistory");
+
+  if (history.style.display === "none") {
+    history.style.display = "block";
+    this.innerText = "Hide";
+  } else {
+    history.style.display = "none";
+    this.innerText = "View";
+  }
+});
+</script>
+
+
 
 {% endblock %}

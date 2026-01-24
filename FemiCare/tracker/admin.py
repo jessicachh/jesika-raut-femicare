@@ -1,5 +1,8 @@
 from django.contrib import admin
 from .models import User, DoctorProfile, UserProfile
+from django.core.mail import send_mail
+from django.contrib.sites.shortcuts import get_current_site
+from django.urls import reverse
 
 
 @admin.register(DoctorProfile)
@@ -7,33 +10,35 @@ class DoctorAdmin(admin.ModelAdmin):
     list_display = (
         'user',
         'specialization',
-        'get_is_verified',  # ✅ display verification status
+        'is_verified',      # ✅ direct field
         'experience_years',
         'created_at',
     )
 
-    list_filter = ('user__is_verified', 'specialization')
+    list_filter = ('is_verified', 'specialization')
     search_fields = ('user__username', 'license_number')
 
     actions = ['approve_doctors', 'reject_doctors']
 
-    # Custom display for is_verified
-    def get_is_verified(self, obj):
-        return obj.user.is_verified
-    get_is_verified.boolean = True
-    get_is_verified.short_description = 'Verified'
-
-    # Actions for admin
+    # ✅ ADMIN ACTIONS
     def approve_doctors(self, request, queryset):
         for doctor in queryset:
-            doctor.user.is_verified = True
+            doctor.is_verified = True
+            doctor.is_rejected = False
+            doctor.user.is_verified = True   # allow login
             doctor.user.save()
+            doctor.save()                    # 🔥 triggers signal
+
     approve_doctors.short_description = "Approve selected doctors"
 
     def reject_doctors(self, request, queryset):
         for doctor in queryset:
+            doctor.is_verified = False
+            doctor.is_rejected = True
             doctor.user.is_verified = False
             doctor.user.save()
+            doctor.save()
+
     reject_doctors.short_description = "Reject selected doctors"
 
 
@@ -44,4 +49,4 @@ class UserProfileAdmin(admin.ModelAdmin):
 
 @admin.register(User)
 class UserAdmin(admin.ModelAdmin):
-    list_display = ('username', 'email', 'role', 'is_active')
+    list_display = ('username', 'email', 'role', 'is_active', 'is_verified')

@@ -30,6 +30,64 @@ class UserProfile(models.Model):
         return self.user.username
 
 
+class CycleLog(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+
+    log_date = models.DateField(auto_now_add=True)
+    last_period_start = models.DateField(
+    null=True,
+    blank=True,
+    help_text="First day of last period"
+    )
+    
+    # Cycle basics (USER INPUT)
+    length_of_cycle = models.IntegerField(
+        help_text="Average number of days between periods"
+    )
+    length_of_menses = models.IntegerField(
+        help_text="How many days bleeding lasts"
+    )
+
+    mean_menses_length = models.IntegerField()
+
+    mean_bleeding_intensity = models.IntegerField(
+        choices=[
+            (1, 'Light'),
+            (2, 'Moderate'),
+            (3, 'Heavy'),
+        ]
+    )
+
+    unusual_bleeding = models.BooleanField(default=False)
+
+    total_menses_score = models.IntegerField(
+        choices=[
+            (0, 'None'),
+            (3, 'As Regular'),
+            (6, 'Moderate'),
+            (9, 'Severe'),
+        ]
+    )
+
+    # Body metrics
+    height_cm = models.FloatField()
+    weight_kg = models.FloatField()
+    bmi = models.FloatField(null=True, blank=True)
+
+    # 🔮 PREDICTIONS (SYSTEM GENERATED)
+    predicted_next_period = models.DateField(null=True, blank=True)
+    estimated_ovulation_day = models.DateField(null=True, blank=True)
+    fertile_window_start = models.DateField(null=True, blank=True)
+    fertile_window_end = models.DateField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+
+
+
 class DoctorProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
 

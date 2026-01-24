@@ -26,3 +26,26 @@ window.addEventListener('resize', function() {
     sidebar.classList.remove('open');
   }
 });
+
+
+document.querySelectorAll(".cycle-card").forEach(card => {
+  card.addEventListener("click", () => {
+    const body = document.getElementById("cycleDetailsBody");
+
+    body.innerHTML = `
+      <p><strong>🩸 Last period started:</strong> ${card.dataset.lastPeriod}</p>
+      <p><strong>📆 Cycle length:</strong> ${card.dataset.cycleLength} days</p>
+      <p><strong>⏱ Menses length:</strong> ${card.dataset.mensesLength} days</p>
+      <p><strong>💧 Bleeding intensity:</strong> ${card.dataset.bleeding}</p>
+      <p><strong>⚠️ Unusual bleeding:</strong> ${card.dataset.unusual === "True" ? "Yes" : "No"}</p>
+    `;
+
+    const modal = new bootstrap.Modal(
+      document.getElementById("viewCycleModal")
+    );
+    modal.show();
+  });
+});
+document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
+  new bootstrap.Tooltip(el);
+});

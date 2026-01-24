@@ -20,40 +20,43 @@
     <!-- LEFT SIDE (FORM) -->
     <div class="login-left">
       <div class="login-card">
-        <div class="logo">
-        <img src="{% static 'images/logo1.png' %}" alt="Logo">
 
+        <div class="logo">
+          <img src="{% static 'images/logo1.png' %}" alt="Logo">
         </div>
+
         <h1>Welcome Back</h1>
 
         <form method="post" action="{% url 'login' %}" class="login-form">
-  {% csrf_token %}
+          {% csrf_token %}
 
-  <label>Username</label>
-  <input type="text" name="username" placeholder="you@example.com" required>
+          <label>Username</label>
+          <input type="text" name="username" placeholder="yourusername" required>
 
-  <label>Password</label>
-  <input type="password" name="password" placeholder="********" required>
+          <label>Password</label>
+          <input type="password" name="password" placeholder="********" required>
 
-  <!-- Forgot Password -->
-  <a href="#" class="forgot-password">Forgot Password?</a>
+          <!-- ✅ FIXED FORGOT PASSWORD -->
+          <a href="{% url 'password_reset' %}" class="forgot-password">
+            Forgot Password?
+          </a>
 
-  <button class="login-btn" type="submit">Log In</button>
-</form>
+          <button class="login-btn" type="submit">Log In</button>
+        </form>
 
-<!-- Messages -->
-{% if messages %}
-  <div class="messages">
-    {% for message in messages %}
-      <p class="message"  style="color: red;">{{ message }}</p>
-    {% endfor %}
-  </div>
-{% endif %}
-
+        <!-- Messages -->
+        {% if messages %}
+          <div class="messages">
+            {% for message in messages %}
+              <p class="message" style="color: red;">{{ message }}</p>
+            {% endfor %}
+          </div>
+        {% endif %}
 
         <p class="signup-redirect">
           Don't have an account? <a href="{% url 'signup' %}">Sign Up</a>
         </p>
+
         <p class="or">or</p>
 
         <button class="google-login-btn">
