@@ -1,0 +1,132 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Doctor Dashboard</title>
+
+  <!-- Same dashboard CSS -->
+  <link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  >
+</head>
+
+<body>
+
+  <!-- SAME HEADER -->
+  {% include 'components/header.html' %}
+
+  <div class="dashboard-container">
+
+    <!-- DOCTOR SIDEBAR -->
+    {% include 'doctor/sidebar_doctor.html' %}
+
+    <!-- MAIN CONTENT -->
+    <main class="dashboard-main">
+      <h2 class="mb-4">Doctor Dashboard</h2>
+
+      <div class="card">
+        <div class="card-body">
+          <h5>Welcome, Dr. {{ request.user.username }}</h5>
+
+          {% if request.user.doctorprofile.is_verified %}
+            <span class="badge bg-success">Verified Doctor</span>
+          {% else %}
+            <span class="badge bg-warning">Verification Pending</span>
+          {% endif %}
+        </div>
+      </div>
+
+
+
+      
+  <h4 class="mt-4">🗓 Availability</h4>
+
+<table class="table table-bordered mt-2">
+  <thead>
+    <tr>
+      <th>Day</th>
+      <th>Time</th>
+      <th>Status</th>
+      <th>Action</th>
+    </tr>
+  </thead>
+<tbody>
+  {% for slot in availabilities %}
+    <tr>
+      <td>{{ slot.date|date:"l, d M Y" }}</td>
+      <td>{{ slot.start_time }} – {{ slot.end_time }}</td>
+      <td>
+        {% if slot.is_active %}
+          <span class="badge bg-success">Active</span>
+        {% else %}
+          <span class="badge bg-secondary">Inactive</span>
+        {% endif %}
+      </td>
+      <td>
+        <a href="{% url 'toggle_availability' slot.id %}" class="btn btn-sm btn-warning">
+          Toggle
+        </a>
+        <a href="{% url 'delete_availability' slot.id %}" class="btn btn-sm btn-danger">
+          Delete
+        </a>
+      </td>
+    </tr>
+  {% empty %}
+    <tr>
+      <td colspan="4" class="text-center">No availability added yet</td>
+    </tr>
+  {% endfor %}
+</tbody>
+</table>
+
+<hr>
+
+<h5>Add New Slot</h5>
+<form method="POST" action="{% url 'add_availability' %}">
+  {% csrf_token %}
+
+  <div class="row">
+    <div class="col-md-4">
+      <label>Date</label>
+      <input type="date" name="date" class="form-control" required>
+    </div>
+
+    <div class="col-md-3">
+      <label>Start Time</label>
+      <input type="time" name="start_time" class="form-control" required>
+    </div>
+
+    <div class="col-md-3">
+      <label>End Time</label>
+      <input type="time" name="end_time" class="form-control" required>
+    </div>
+
+    <div class="col-md-2 d-flex align-items-end">
+      <button class="btn btn-success w-100">Add</button>
+    </div>
+  </div>
+</form>
+
+
+
+{% if messages %}
+  {% for message in messages %}
+    <div class="alert alert-{{ message.tags }}">
+      {{ message }}
+    </div>
+  {% endfor %}
+{% endif %}
+    </main>
+
+
+
+
+  </div>
+
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

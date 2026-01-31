@@ -98,14 +98,45 @@
   </div>
 </div>
 
+<!-- LOADING MODAL -->
+<div class="modal fade" id="loadingModal" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content text-center p-4">
+
+      <div class="modal-body">
+        <div class="spinner-border text-danger mb-3" role="status"></div>
+        <p class="fw-semibold">Analyzing your cycle data…</p>
+        <small class="text-muted">
+          This may take a few seconds
+        </small>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
 {% if show_prediction %}
 <script>
-  document.addEventListener("DOMContentLoaded", function () {
-    const modal = new bootstrap.Modal(
-      document.getElementById("predictionModal")
-    );
-    modal.show();
-  });
+document.addEventListener("DOMContentLoaded", function () {
+
+  const loadingModal = new bootstrap.Modal(
+    document.getElementById("loadingModal")
+  );
+
+  const predictionModal = new bootstrap.Modal(
+    document.getElementById("predictionModal")
+  );
+
+  // Step 1: show loading
+  loadingModal.show();
+
+  // Step 2: wait 3.5 seconds, then show prediction
+  setTimeout(() => {
+    loadingModal.hide();
+    predictionModal.show();
+  }, 3500); // ⏳ 3.5 seconds
+});
 </script>
 {% endif %}
 

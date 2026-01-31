@@ -1,14 +1,14 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login as auth_login, logout as auth_logout
 from django.contrib import messages
 from .models import User
 from django.contrib.auth.decorators import login_required
-from .models import UserProfile, DoctorProfile
+from .models import UserProfile, DoctorProfile, DoctorAvailability
 from .forms import CycleLogForm
 from .models import CycleLog
-from datetime import date
 from tracker.ml.predict import predict_cycle
-from datetime import timedelta
+from datetime import timedelta, datetime
+from django.utils import timezone
 
 # -----------------------------
 # Public pages
@@ -133,9 +133,11 @@ def doctor_details(request):
     profile, created = DoctorProfile.objects.get_or_create(user=request.user)
 
     if request.method == 'POST':
+        profile.full_name = request.POST.get("full_name")
         profile.specialization = request.POST.get('specialization')
         profile.license_number = request.POST.get('license')
         profile.experience_years = request.POST.get('experience_years')
+        profile.hospital_name = request.POST.get("hospital_name")
         if request.FILES.get('certificate'):
             profile.certificate = request.FILES['certificate']
         profile.save()
@@ -145,6 +147,30 @@ def doctor_details(request):
 
     return render(request, 'doctor_details.html', {'profile': profile})
 
+
+@login_required
+def doctor_profile(request):
+    profile = get_object_or_404(DoctorProfile, user=request.user)
+
+    if request.method == "POST":
+        if "certificate" in request.FILES:
+            profile.certificate = request.FILES["certificate"]
+            
+        # Update photo only if uploaded
+        if request.FILES.get("photo"):
+            profile.photo = request.FILES["photo"]
+
+        # Update bio safely
+        profile.bio = request.POST.get("bio", "").strip()
+
+        profile.save()
+
+        messages.success(request, "Profile updated successfully")
+        return redirect("doctor_profile")
+
+    return render(request, "doctor/doctor_profile.html", {
+        "profile": profile
+    })
 
 
 
@@ -162,22 +188,29 @@ from django.contrib.auth.decorators import login_required
 
 @login_required
 def dashboard_home(request):
-    form = CycleLogForm()
     logs = CycleLog.objects.filter(user=request.user)
     latest_cycle = logs.first()
 
-    show_prediction = False
+    # 👇 ONE-TIME session trigger (KEEP THIS)
+    show_prediction = request.session.pop("show_prediction", False)
+    last_cycle_id = request.session.pop("last_cycle_id", None)
 
-    if "show_prediction_modal" in request.session:
-        show_prediction = True
-        del request.session["show_prediction_modal"]
+    cycle = latest_cycle
+    if last_cycle_id:
+        cycle = CycleLog.objects.filter(
+            id=last_cycle_id,
+            user=request.user
+        ).first()
 
     return render(request, "dashboard/first.html", {
-        "form": form,
+        # ✅ ONLY CHANGE IS HERE
+        "form": CycleLogForm(user=request.user),
+
         "logs": logs,
-        "cycle": latest_cycle,
-        "show_prediction": show_prediction
+        "cycle": cycle,
+        "show_prediction": show_prediction,
     })
+
 
 
 @login_required
@@ -188,10 +221,95 @@ def appointment(request):
 
 @login_required
 def doctor_dashboard(request):
-    if request.user.role != 'doctor':
-        return redirect('login')
-    return render(request, 'dashboard/doctor_dashboard.html')
+    user = request.user
 
+    if user.role != 'doctor':
+        return redirect('home')
+
+    availabilities = DoctorAvailability.objects.filter(
+        doctor=user
+    ).order_by('-date', '-start_time')
+
+    return render(request, 'doctor/doctor_dashboard.html', {
+        'availabilities': availabilities,
+    })
+
+@login_required
+def add_availability(request):
+    if request.method == "POST":
+        date = request.POST.get("date")
+        start_time = request.POST.get("start_time")
+        end_time = request.POST.get("end_time")
+
+        date_obj = datetime.strptime(date, "%Y-%m-%d").date()
+        start_time_obj = datetime.strptime(start_time, "%H:%M").time()
+        end_time_obj = datetime.strptime(end_time, "%H:%M").time()
+
+        start_dt = timezone.make_aware(
+            datetime.combine(date_obj, start_time_obj)
+        )
+        end_dt = timezone.make_aware(
+            datetime.combine(date_obj, end_time_obj)
+        )
+
+        # Past date/time not allowed
+        if start_dt < timezone.now():
+            messages.error(request, "Cannot add availability in the past.")
+            return redirect("doctor_dashboard")
+
+        # End before start
+        if start_time_obj >= end_time_obj:
+            messages.error(request, "End time must be after start time.")
+            return redirect("doctor_dashboard")
+
+        # Overlapping check
+        overlap = DoctorAvailability.objects.filter(
+            doctor=request.user,
+            date=date_obj,
+            start_time__lt=end_time_obj,
+            end_time__gt=start_time_obj,
+            is_active=True
+        )
+
+        if overlap.exists():
+            messages.error(request, "This time slot overlaps an existing availability.")
+            return redirect("doctor_dashboard")
+
+        DoctorAvailability.objects.create(
+            doctor=request.user,
+            date=date_obj,
+            start_time=start_time_obj,
+            end_time=end_time_obj
+        )
+
+        messages.success(request, "Availability added successfully.")
+        return redirect("doctor_dashboard")
+
+@login_required
+def toggle_availability(request, pk):
+    slot = get_object_or_404(
+        DoctorAvailability,
+        pk=pk,
+        doctor=request.user
+    )
+
+    slot.is_active = not slot.is_active
+    slot.save()
+
+    messages.success(request, "Availability status updated.")
+    return redirect("doctor_dashboard")
+
+@login_required
+def delete_availability(request, pk):
+    slot = get_object_or_404(
+        DoctorAvailability,
+        pk=pk,
+        doctor=request.user
+    )
+
+    slot.delete()
+    messages.success(request, "Availability deleted.")
+    return redirect("doctor_dashboard")
 
 @login_required
 def add_cycle_log(request):
@@ -239,4 +357,8 @@ def add_cycle_log(request):
 
             cycle.save()
 
-            return redirect("/dashboard/?predicted=1")
+            # Save trigger in session
+            request.session["show_prediction"] = True
+            request.session["last_cycle_id"] = cycle.id
+
+            return redirect("dashboard_home")

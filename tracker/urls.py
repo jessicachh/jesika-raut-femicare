@@ -2,7 +2,7 @@ from django.urls import path
 from . import views
 from django.contrib import admin
 from django.contrib.auth import views as auth_views
-
+from .views import (add_availability,toggle_availability,delete_availability,)
 
 urlpatterns = [
     # Public pages
@@ -21,9 +21,14 @@ urlpatterns = [
     path('dashboard/', views.dashboard_home, name='dashboard_home'),
     path('dashboard/appointments/', views.appointment, name='appointment'),
 
-    # Optional: doctor dashboard
+    # doctor dashboard
     path('doctor/dashboard/', views.doctor_dashboard, name='doctor_dashboard'),
     path('doctor/details/', views.doctor_details, name='doctor_details'),
+    path('doctor/profile/', views.doctor_profile, name='doctor_profile'),
+    path("doctor/availability/add/", add_availability, name="add_availability"),
+    path("doctor/availability/toggle/<int:pk>/", toggle_availability, name="toggle_availability"),
+    path("doctor/availability/delete/<int:pk>/", delete_availability, name="delete_availability"),
+
 
     path('dashboard/add-cycle-log/', views.add_cycle_log, name='add_cycle_log'),
 

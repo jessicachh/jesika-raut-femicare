@@ -1,5 +1,6 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.utils import timezone
 
 class User(AbstractUser):
     ROLE_CHOICES = (
@@ -63,7 +64,7 @@ class CycleLog(models.Model):
     total_menses_score = models.IntegerField(
         choices=[
             (0, 'None'),
-            (3, 'Mild'),
+            (3, 'As Regular'),
             (6, 'Moderate'),
             (9, 'Severe'),
         ]
@@ -87,20 +88,63 @@ class CycleLog(models.Model):
 
 
 
-
 class DoctorProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
 
+    # already existing verified fields
+    full_name = models.CharField(max_length=255, blank=True)
+    license_number = models.CharField(max_length=100)
     specialization = models.CharField(max_length=100)
-    experience_years = models.IntegerField(default=0)
+    experience_years = models.PositiveIntegerField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    hospital_name = models.CharField(max_length=255, blank=True)
+    certificate = models.FileField(upload_to="doctor_certificates/",null=True,blank=True)
+    # NEW
+    photo = models.ImageField(
+        upload_to="doctor_photos/",
+        blank=True,
+        null=True
+    )
 
-    license_number = models.CharField(max_length=50)
-    certificate = models.FileField(upload_to='certificates/', null=True, blank=True)
+    bio = models.TextField(blank=True)
 
     is_verified = models.BooleanField(default=False)
-    is_rejected = models.BooleanField(default=False)
+
+    def __str__(self):
+        return self.user.get_full_name()
+
+
+
+# Appointment Model
+class DoctorAvailability(models.Model):
+    DAYS_OF_WEEK = (
+        (0, 'Monday'),
+        (1, 'Tuesday'),
+        (2, 'Wednesday'),
+        (3, 'Thursday'),
+        (4, 'Friday'),
+        (5, 'Saturday'),
+        (6, 'Sunday'),
+    )
+    doctor = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        limit_choices_to={'role': 'doctor'},
+        related_name="availabilities"
+    )
+    date = models.DateField(default=timezone.now)
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    is_active = models.BooleanField(default=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
 
+    def is_expired(self):
+        """Check if availability is in the past"""
+        end_datetime = timezone.make_aware(
+            timezone.datetime.combine(self.date, self.end_time)
+        )
+        return end_datetime < timezone.now()
+
     def __str__(self):
-        return f"Dr. {self.user.username}"
+        return f"{self.doctor.username} | {self.date} {self.start_time}-{self.end_time}"
