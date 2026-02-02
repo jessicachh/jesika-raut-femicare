@@ -10,6 +10,7 @@ urlpatterns = [
     path('home/', views.home, name='home'),
     path('service/', views.service, name='service'),
     path('contact/', views.contact, name='contact'),
+    path('doctor/', views.explore_doctors, name='explore_doctors'),
 
     # Authentication
     path('signup/', views.signup_view, name='signup'),  # Updated view
@@ -20,6 +21,9 @@ urlpatterns = [
     # Dashboard pages (login required)
     path('dashboard/', views.dashboard_home, name='dashboard_home'),
     path('dashboard/appointments/', views.appointment, name='appointment'),
+
+    # Public doctor profile (USER)
+    path('doctors/<int:pk>/', views.public_doctor_profile, name='public_doctor_profile'),
 
     # doctor dashboard
     path('doctor/dashboard/', views.doctor_dashboard, name='doctor_dashboard'),

@@ -25,19 +25,30 @@
 
     <!-- MAIN CONTENT -->
     <main class="dashboard-main">
-      <h2 class="mb-4">Doctor Dashboard</h2>
+      <!-- <h2 class="mb-4">Doctor Dashboard</h2> -->
 
-      <div class="card">
-        <div class="card-body">
-          <h5>Welcome, Dr. {{ request.user.username }}</h5>
+<div class="card">
+  <div class="card-body d-flex justify-content-between align-items-center flex-wrap">
 
-          {% if request.user.doctorprofile.is_verified %}
-            <span class="badge bg-success">Verified Doctor</span>
-          {% else %}
-            <span class="badge bg-warning">Verification Pending</span>
-          {% endif %}
-        </div>
-      </div>
+    <h5 class="mb-0">
+      Welcome, Dr. {{ request.user.username }}
+    </h5>
+
+    <div class="d-flex gap-2 mt-2 mt-md-0">
+      {% if request.user.doctorprofile.is_verified %}
+        <span class="badge bg-success px-3 py-2">Verified</span>
+      {% else %}
+        <span class="badge bg-warning text-dark px-3 py-2">Verification Pending</span>
+      {% endif %}
+
+      {% if request.user.doctorprofile.is_profile_complete %}
+        <span class="badge bg-success px-3 py-2">Profile Complete</span>
+      {% else %}
+        <span class="badge bg-danger px-3 py-2">Profile Incomplete</span>
+      {% endif %}
+    </div>
+</div>
+ </div>
 
 
 
@@ -110,6 +121,11 @@
   </div>
 </form>
 
+{% if show_profile_warning %}
+  <div class="alert alert-warning mt-3">
+    ⚠ Please complete your profile (photo, bio & details) to be visible to users.
+  </div>
+{% endif %}
 
 
 {% if messages %}

@@ -1,0 +1,98 @@
+{% load static %}
+{% include 'components/navbar.html' %}
+<head>
+<!-- Gogogle Font -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Raleway:ital,wght@0,100..900;1,100..900&display=swap"
+  rel="stylesheet"
+/>
+<!-- Phosphor Icons -->
+<link
+  rel="stylesheet"
+  type="text/css"
+  href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/regular/style.css"
+/>
+<link
+  rel="stylesheet"
+  type="text/css"
+  href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/fill/style.css"
+/>
+<!-- CSS -->
+<link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+
+<body>
+    
+<section class="doctors-section">
+<div class="public-doctor-container">
+
+  <!-- PROFILE HEADER -->
+  <div class="doctor-header">
+    <img
+      src="{{ doctor.photo.url }}"
+      class="doctor-avatar"
+      alt="Doctor photo"
+    />
+
+    <div class="doctor-header-info">
+      <h2>Dr. {{ doctor.full_name }}</h2>
+
+      <p class="doctor-specialization">
+        {{ doctor.specialization }}
+      </p>
+
+      <span class="verified-pill">
+        ✔ Verified Doctor
+      </span>
+    </div>
+  </div>
+  <!-- DETAILS -->
+<div class="doctor-card doctor-details-card">
+  <div class="doctor-detail-item">
+    <strong>License No:</strong>
+    <span>{{ doctor.license_number }}</span>
+  </div>
+
+  <div class="doctor-detail-item">
+    <strong>Hospital:</strong>
+    <span>{{ doctor.hospital_name }}</span>
+  </div>
+
+  <div class="doctor-detail-item">
+    <strong>Experience:</strong>
+    <span>{{ doctor.experience_years }} years</span>
+  </div>
+</div>
+
+  <!-- BIO -->
+  <div class="doctor-card">
+    <h4>About Doctor</h4>
+    <p>{{ doctor.bio }}</p>
+  </div>
+
+  <!-- AVAILABILITY -->
+  <div class="doctor-card">
+    <h4>Available Time Slots</h4>
+
+    {% if availabilities %}
+      <div class="availability-grid">
+        {% for slot in availabilities %}
+          <div class="availability-slot">
+            <strong>{{ slot.date }}</strong>
+            <span>
+              {{ slot.start_time }} – {{ slot.end_time }}
+            </span>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="text-muted">No availability added yet.</p>
+    {% endif %}
+  </div>
+
+</div>
+</section>
+{% include 'components/footer.html' %}
+</body>

@@ -3,13 +3,13 @@ from django.contrib.auth import authenticate, login as auth_login, logout as aut
 from django.contrib import messages
 from .models import User
 from django.contrib.auth.decorators import login_required
-from .models import UserProfile, DoctorProfile, DoctorAvailability
+from .models import UserProfile, DoctorProfile, DoctorAvailability, Appointment
 from .forms import CycleLogForm
 from .models import CycleLog
 from tracker.ml.predict import predict_cycle
 from datetime import timedelta, datetime
 from django.utils import timezone
-
+from django.core.paginator import Paginator
 # -----------------------------
 # Public pages
 # -----------------------------
@@ -25,6 +25,24 @@ def service(request):
 def contact(request):
     return render(request, 'contact.html')
 
+
+def explore_doctors(request):
+    doctors = DoctorProfile.objects.filter(
+        is_verified=True,
+        is_profile_complete=True
+    )
+
+    specialization = request.GET.get('specialization')
+    if specialization:
+        doctors = doctors.filter(specialization__icontains=specialization)
+
+    paginator = Paginator(doctors, 6)
+    page = request.GET.get('page')
+    doctors = paginator.get_page(page)
+
+    return render(request, 'doctor.html', {
+        'doctors': doctors
+    })
 # -----------------------------
 # Authentication
 # -----------------------------
@@ -147,6 +165,46 @@ def doctor_details(request):
 
     return render(request, 'doctor_details.html', {'profile': profile})
 
+@login_required
+def public_doctor_profile(request, pk):
+    doctor = get_object_or_404(
+        DoctorProfile,
+        pk=pk,
+        is_verified=True,
+        is_profile_complete=True
+    )
+
+    availabilities = DoctorAvailability.objects.filter(
+        doctor=doctor.user,
+        date__gte=timezone.now().date(),
+        is_active=True
+    ).order_by('date', 'start_time')
+
+    return render(request, 'doctor_profile.html', {
+        'doctor': doctor,
+        'availabilities': availabilities
+    })
+
+@login_required
+def book_appointment(request, slot_id):
+    slot = get_object_or_404(
+        DoctorAvailability,
+        pk=slot_id,
+        is_active=True
+    )
+
+    Appointment.objects.create(
+        user=request.user,
+        doctor=slot.doctor,
+        availability=slot
+    )
+
+    slot.is_active = False
+    slot.save()
+
+    messages.success(request, "Appointment booked successfully!")
+    return redirect('dashboard_home')
+
 
 @login_required
 def doctor_profile(request):
@@ -226,12 +284,21 @@ def doctor_dashboard(request):
     if user.role != 'doctor':
         return redirect('home')
 
+    profile = user.doctorprofile
+
     availabilities = DoctorAvailability.objects.filter(
         doctor=user
     ).order_by('-date', '-start_time')
 
+    # 🔔 Profile completion warning logic
+    show_profile_warning = (
+        profile.is_verified and not profile.is_profile_complete
+    )
+
     return render(request, 'doctor/doctor_dashboard.html', {
         'availabilities': availabilities,
+        'show_profile_warning': show_profile_warning,
+        'profile': profile,
     })
 
 @login_required

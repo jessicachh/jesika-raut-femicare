@@ -109,7 +109,17 @@ class DoctorProfile(models.Model):
     bio = models.TextField(blank=True)
 
     is_verified = models.BooleanField(default=False)
+    is_profile_complete = models.BooleanField(default=False)
 
+    def check_profile_complete(self):
+        required_fields = [
+            self.photo,
+            self.bio,
+            self.specialization,
+            self.experience_years
+        ]
+        return all(required_fields)
+    
     def __str__(self):
         return self.user.get_full_name()
 
@@ -148,3 +158,20 @@ class DoctorAvailability(models.Model):
 
     def __str__(self):
         return f"{self.doctor.username} | {self.date} {self.start_time}-{self.end_time}"
+
+
+
+
+class Appointment(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    doctor = models.ForeignKey(User, on_delete=models.CASCADE, related_name='appointments')
+    availability = models.ForeignKey(DoctorAvailability, on_delete=models.CASCADE)
+
+    STATUS = (
+        ('pending', 'Pending'),
+        ('confirmed', 'Confirmed'),
+        ('cancelled', 'Cancelled'),
+    )
+
+    status = models.CharField(max_length=20, choices=STATUS, default='pending')
+    created_at = models.DateTimeField(auto_now_add=True)
