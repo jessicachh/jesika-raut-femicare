@@ -1,9 +1,9 @@
 from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth import authenticate, login as auth_login, logout as auth_logout
+from django.contrib.auth import authenticate, login as auth_login, logout as auth_logout, logout
 from django.contrib import messages
 from .models import User
 from django.contrib.auth.decorators import login_required
-from .models import UserProfile, DoctorProfile, DoctorAvailability, Appointment
+from .models import UserProfile, DoctorProfile, DoctorAvailability, Appointment, DoctorReview
 from .forms import CycleLogForm
 from .models import CycleLog
 from tracker.ml.predict import predict_cycle
@@ -160,6 +160,9 @@ def doctor_details(request):
             profile.certificate = request.FILES['certificate']
         profile.save()
 
+        profile.is_profile_complete = profile.check_profile_complete()
+        profile.save()
+
         # Instead of login redirect, show pending page
         return render(request, 'doctor_pending.html')
 
@@ -173,6 +176,7 @@ def public_doctor_profile(request, pk):
         is_verified=True,
         is_profile_complete=True
     )
+    reviews = doctor.reviews.select_related("patient")
 
     availabilities = DoctorAvailability.objects.filter(
         doctor=doctor.user,
@@ -180,9 +184,10 @@ def public_doctor_profile(request, pk):
         is_active=True
     ).order_by('date', 'start_time')
 
-    return render(request, 'doctor_profile.html', {
-        'doctor': doctor,
-        'availabilities': availabilities
+    return render(request, "doctor_profile.html", {
+        "doctor": doctor,
+        "availabilities": availabilities,
+        "reviews": reviews,
     })
 
 @login_required
@@ -221,6 +226,18 @@ def doctor_profile(request):
         # Update bio safely
         profile.bio = request.POST.get("bio", "").strip()
 
+        profile.qualifications = request.POST.get("qualifications", "").strip()
+        profile.clinic_address = request.POST.get("clinic_address", "").strip()
+        profile.languages_spoken = request.POST.get("languages_spoken", "").strip()
+        profile.working_hours = request.POST.get("working_hours", "").strip()
+
+        fee = request.POST.get("consultation_fee")
+        if fee:
+            profile.consultation_fee = fee
+
+        profile.save()
+        # 🔥 ADD THIS
+        profile.is_profile_complete = profile.check_profile_complete()
         profile.save()
 
         messages.success(request, "Profile updated successfully")
@@ -231,13 +248,41 @@ def doctor_profile(request):
     })
 
 
+@login_required
+def submit_doctor_review(request, pk):
+    doctor = get_object_or_404(
+        DoctorProfile,
+        pk=pk,
+        is_verified=True,
+        is_profile_complete=True
+    )
 
+    if request.user.role != "user":
+        # messages.error(request, "Only patients can leave reviews")
+        return redirect("public_doctor_profile", pk=pk)
+
+    if request.method == "POST":
+        rating = request.POST.get("rating")
+        comment = request.POST.get("comment", "").strip()
+
+        DoctorReview.objects.update_or_create(
+            doctor=doctor,
+            patient=request.user,
+            defaults={
+                "rating": rating,
+                "comment": comment
+            }
+        )
+
+        messages.success(request, "Review submitted successfully")
+        return redirect("public_doctor_profile", pk=pk)
+
+    return redirect("public_doctor_profile", pk=pk)
 
 
 def logout_view(request):
-    auth_logout(request)
-    return redirect('login')
-
+    logout(request)  
+    return redirect("home")
 
 # -----------------------------
 # Dashboard views

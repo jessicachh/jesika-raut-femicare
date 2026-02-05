@@ -22,8 +22,13 @@
         <a href="{% url 'dashboard_home' %}">Dashboard</a>
     </div>
 
-    <div class="nav-right">
-        <i class="ph ph-sign-in"></i>
-        <a href="{% url 'login' %}" class="right-item">Login</a>
-    </div>
+<div class="nav-right">
+  {% if user.is_authenticated %}
+    <i class="ph ph-sign-out"></i>
+    <a href="{% url 'logout' %}" class="right-item">Logout</a>
+  {% else %}
+    <i class="ph ph-sign-in"></i>
+    <a href="{% url 'login' %}" class="right-item">Login</a>
+  {% endif %}
+</div>
 </nav>

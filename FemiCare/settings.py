@@ -152,7 +152,11 @@ EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_USE_TLS = True
 EMAIL_PORT = 587
 EMAIL_HOST_USER = 'jsscraut@gmail.com'
-EMAIL_HOST_PASSWORD = 'deyh nobt djac luyk'
+EMAIL_HOST_PASSWORD = 'qtow ufan vbzs zjea'
 DEFAULT_FROM_EMAIL = 'FemiCare <jsscraut@gmail.com>'
 
 SITE_ID = 2
+
+LOGIN_URL = "login"
+LOGIN_REDIRECT_URL = "home"
+LOGOUT_REDIRECT_URL = "login"

@@ -1,6 +1,9 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils import timezone
+from django.conf import settings
+from django.core.validators import MinValueValidator, MaxValueValidator
+from django.db.models import Avg
 
 class User(AbstractUser):
     ROLE_CHOICES = (
@@ -108,6 +111,14 @@ class DoctorProfile(models.Model):
 
     bio = models.TextField(blank=True)
 
+    qualifications = models.TextField(blank=True)
+    clinic_address = models.CharField(max_length=255, blank=True)
+    languages_spoken = models.CharField(max_length=255, blank=True)
+    working_hours = models.CharField(max_length=100, blank=True)
+    consultation_fee = models.DecimalField(
+        max_digits=8, decimal_places=2, null=True, blank=True
+    )
+
     is_verified = models.BooleanField(default=False)
     is_profile_complete = models.BooleanField(default=False)
 
@@ -122,7 +133,35 @@ class DoctorProfile(models.Model):
     
     def __str__(self):
         return self.user.get_full_name()
+    
+    def average_rating(self):
+        return self.reviews.aggregate(avg=Avg("rating"))["avg"] or 0
 
+
+class DoctorReview(models.Model):
+    doctor = models.ForeignKey(
+        DoctorProfile,
+        on_delete=models.CASCADE,
+        related_name="reviews"
+    )
+    patient = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE
+    )
+
+    rating = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)]
+    )
+    comment = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("doctor", "patient")  # one review per patient
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.doctor.full_name} - {self.rating}⭐"
 
 
 # Appointment Model

@@ -24,6 +24,7 @@ urlpatterns = [
 
     # Public doctor profile (USER)
     path('doctors/<int:pk>/', views.public_doctor_profile, name='public_doctor_profile'),
+    path("doctor/<int:pk>/review/", views.submit_doctor_review, name="submit_doctor_review"),
 
     # doctor dashboard
     path('doctor/dashboard/', views.doctor_dashboard, name='doctor_dashboard'),

@@ -1,0 +1,80 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans&family=Raleway:wght@700&display=swap" rel="stylesheet">
+    <style>
+        /* Design System Implementation */
+        body { margin: 0; padding: 0; background-color: #f9f9f9; }
+        .wrapper { width: 100%; table-layout: fixed; background-color: #f9f9f9; padding-bottom: 40px; }
+        .container { 
+            max-width: 600px; 
+            margin: 0 auto; 
+            background-color: #ffffff; 
+            font-family: 'Open Sans', sans-serif; 
+            color: #000000; 
+            border-radius: 8px; 
+            overflow: hidden;
+            margin-top: 20px;
+            border: 1px solid #e0e0e0;
+        }
+        .header { 
+            background-color: #ffffff; 
+            padding: 30px; 
+            text-align: center; 
+            border-bottom: 3px solid #b92222; 
+        }
+        .logo { width: 150px; height: auto; }
+        .content { padding: 40px 30px; text-align: left; }
+        
+        h2 { 
+            font-family: 'Raleway', sans-serif; 
+            font-size: 2rem; 
+            color: #000000; 
+            margin-top: 0; 
+        }
+        p { 
+            font-size: 1rem; 
+            line-height: 1.6; 
+            color: #000000; 
+        }
+        .button-container { text-align: center; margin-top: 30px; }
+        .button { 
+            background-color: #b92222; 
+            color: #ffffff !important; 
+            padding: 15px 30px; 
+            text-decoration: none; 
+            border-radius: 4px; 
+            font-weight: bold; 
+            display: inline-block;
+            font-family: 'Raleway', sans-serif;
+        }
+        .footer { 
+            padding: 20px; 
+            text-align: center; 
+            font-size: 0.8rem; 
+            color: #666; 
+        }
+    </style>
+</head>
+<body>
+    <div class="wrapper">
+        <div class="container">
+            <div class="header">
+                <img src="{% static 'images/logo1.png' %}" alt="FemiCare Logo" class="logo">
+            </div>
+            <div class="content">
+                <h2>Verified Successfully</h2>
+                <p>Hello Dr. {{ doctor_name }},</p>
+                <p>Your professional credentials have been reviewed and approved by the FemiCare administration.To start connecting with patients, please log in to your account and complete your profile details. Once your profile is fully updated, you will become <strong>visible to the public</strong>, allowing you to accept appointments and begin providing consultations.</p>
+                <div class="button-container">
+                    <a href="{{ login_url }}" class="button">Access Your Portal</a>
+                </div>
+            </div>
+            <div class="footer">
+                &copy; 2026 FemiCare Health System. All rights reserved.
+            </div>
+        </div>
+    </div>
+</body>
+</html>
