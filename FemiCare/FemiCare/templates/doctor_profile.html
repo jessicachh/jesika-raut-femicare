@@ -1,0 +1,231 @@
+{% load static %}
+{% include 'components/navbar.html' %}
+<head>
+<!-- Gogogle Font -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Raleway:ital,wght@0,100..900;1,100..900&display=swap"
+  rel="stylesheet"
+/>
+<!-- Phosphor Icons -->
+<link
+  rel="stylesheet"
+  type="text/css"
+  href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/regular/style.css"
+/>
+<link
+  rel="stylesheet"
+  type="text/css"
+  href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/fill/style.css"
+/>
+<!-- CSS -->
+<link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+
+<body>
+    
+<section class="doctors-section">
+<div class="public-doctor-container">
+
+  <!-- PROFILE HEADER -->
+  <div class="doctor-header">
+    <img
+      src="{{ doctor.photo.url }}"
+      class="doctor-avatar"
+      alt="Doctor photo"
+    />
+
+    <div class="doctor-header-info">
+      <h2>Dr. {{ doctor.full_name }}</h2>
+
+      <p class="doctor-specialization">
+        {{ doctor.specialization }}
+      </p>
+
+      
+  <div class="doctor-rating">
+  <strong>Rating:</strong>
+  {{ doctor.average_rating|floatformat:1 }} ⭐
+  <span class="text-muted">
+    ({{ doctor.reviews.count }} reviews)
+  </span>
+</div>
+
+      <span class="verified-pill">
+        ✔ Verified Doctor
+      </span>
+      
+    </div>
+  </div>
+  <!-- DETAILS -->
+<div class="doctor-card doctor-details-card">
+  <div class="doctor-detail-item">
+    <strong>License No:</strong>
+    <span>{{ doctor.license_number }}</span>
+  </div>
+
+  <div class="doctor-detail-item">
+    <strong>Hospital:</strong>
+    <span>{{ doctor.hospital_name }}</span>
+  </div>
+
+  <div class="doctor-detail-item">
+    <strong>Experience:</strong>
+    <span>{{ doctor.experience_years }} years</span>
+  </div>
+  <div class="doctor-detail-item">
+    <strong>Qualifications:</strong>
+    <span>{{ doctor.qualifications }}</span>
+  </div>
+  <div class="doctor-detail-item">
+  <strong>Clinic Address:</strong>
+  <span>{{ doctor.clinic_address }}</span>
+</div>
+<div class="doctor-detail-item">
+  <strong>Languages:</strong>
+  <span>{{ doctor.languages_spoken }}</span>
+</div>
+<div class="doctor-detail-item">
+  <strong>Working Hours:</strong>
+  <span>{{ doctor.working_hours }}</span>
+</div>
+
+<div class="doctor-detail-item">
+  <strong>Consultation Fee:</strong>
+  <span>Rs. {{ doctor.consultation_fee }}</span>
+</div>
+</div>
+
+  <!-- BIO -->
+  <div class="doctor-card">
+    <h4>About Doctor</h4>
+    <p>{{ doctor.bio }}</p>
+  </div>
+
+  <!-- AVAILABILITY -->
+<div class="doctor-card mt-4">
+    <h4 class="mb-3"><i class="ph ph-calendar-check"></i> Book an Appointment</h4>
+    
+    {% regroup availabilities by date as date_list %}
+    
+    {% if date_list %}
+ <div class="date-navigator mb-4" style="border-bottom: 1px solid #eee; padding-bottom: 15px;">
+    <div class="d-flex" id="dateRibbon" style="overflow-x: auto; flex-wrap: nowrap; gap: 12px; scrollbar-width: none; -ms-overflow-style: none;">
+        {% for day in date_list %}
+            <button type="button" 
+                    class="date-tab-btn {% if forloop.first %}active{% endif %}" 
+                    {% if forloop.first %}style="background: #b92222; color: white; border-color: #b92222;"{% endif %}
+                    onclick="switchBookingDay('day-{{ forloop.counter }}', this)">
+                <span class="day-name">{{ day.grouper|date:"D" }}</span>
+                <span class="day-date">{{ day.grouper|date:"d M" }}</span>
+            </button>
+        {% endfor %}
+    </div>
+</div>
+        <div class="slots-display">
+            {% for day in date_list %}
+                <div id="day-{{ forloop.counter }}" class="booking-day-pane {% if forloop.first %}active{% endif %}">
+                    <p class="text-muted small mb-3">Available times for {{ day.grouper|date:"l, F j" }}:</p>
+                    <div class="time-slot-grid">
+                        {% for slot in day.list %}
+                            <a href="{% url 'book_appointment' slot.id %}" 
+                               class="time-pill"
+                               data-time="{{ slot.start_time|time:'H:i' }}"
+                               onclick="return confirm('Do you want to book the ' + this.getAttribute('data-time') + ' slot?')">
+                                <i class="ph ph-clock me-1"></i> {{ slot.start_time|time:"H:i" }}
+                            </a>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+
+    {% else %}
+        <div class="text-center py-5 bg-light rounded" style="border: 2px dashed #ddd;">
+            <i class="ph ph-calendar-x" style="font-size: 3rem; color: #ccc;"></i>
+            <p class="text-muted mt-2">No available slots for the next 2 weeks.</p>
+        </div>
+    {% endif %}
+</div>
+
+<div class="doctor-card">
+  <h4>Patient Reviews</h4>
+
+  {% if reviews %}
+    {% for review in reviews %}
+      <div class="review-box">
+        <strong>{{ review.patient.username }}</strong>
+        <span>{{ review.rating }} ⭐</span>
+
+        {% if review.comment %}
+          <p>{{ review.comment }}</p>
+        {% endif %}
+
+        <small class="text-muted">
+          {{ review.created_at|date:"M d, Y" }}
+        </small>
+      </div>
+      <hr>
+    {% endfor %}
+  {% else %}
+    <p class="text-muted">No reviews yet.</p>
+  {% endif %}
+</div>
+
+
+{% if user.is_authenticated and user.role == "user" %}
+<div class="doctor-card">
+  <h4>Leave a Review</h4>
+
+  <form method="POST" action="{% url 'submit_doctor_review' doctor.pk %}">
+    {% csrf_token %}
+
+    <label>Rating</label>
+    <select name="rating" class="form-control mb-2" required>
+      <option value="">Select</option>
+      {% for i in "12345" %}
+        <option value="{{ i }}">{{ i }} ⭐</option>
+      {% endfor %}
+    </select>
+
+    <textarea
+      name="comment"
+      class="form-control mb-2"
+      placeholder="Write your experience..."
+    ></textarea>
+
+    <button class="btn btn-primary">Submit Review</button>
+  </form>
+</div>
+{% endif %}
+
+</div>
+</section>
+{% include 'components/footer.html' %}
+<script>
+function switchBookingDay(dayId, btn) {
+    // 1. Reset all buttons to default state
+    document.querySelectorAll('.date-tab-btn').forEach(b => {
+        b.style.background = "white";
+        b.style.color = "black";
+        b.style.borderColor = "#ddd";
+    });
+
+    // 2. Highlight active button with your updated color
+    btn.style.background = "#b92222";
+    btn.style.color = "white";
+    btn.style.borderColor = "#b92222";
+
+    // 3. Switch Content Pane
+    document.querySelectorAll('.booking-day-pane').forEach(p => {
+        p.style.display = 'none';
+    });
+    
+    const targetPane = document.getElementById(dayId);
+    if (targetPane) {
+        targetPane.style.display = 'block';
+    }
+}
+</script>
+</body>

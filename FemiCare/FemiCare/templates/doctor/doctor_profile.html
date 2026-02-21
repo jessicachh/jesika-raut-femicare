@@ -1,0 +1,152 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Doctor Dashboard</title>
+
+  <!-- Same dashboard CSS -->
+  <link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  >
+  <link rel="stylesheet"
+ href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
+
+</head>
+
+<body>
+    
+  <!-- SAME HEADER -->
+  {% include 'components/header.html' %}
+
+<div class="dashboard-container">
+
+    <!-- DOCTOR SIDEBAR -->
+    {% include 'doctor/sidebar_doctor.html' %}
+
+
+  <main class="dashboard-main">
+
+    <h3>My Profile</h3>
+
+    <form method="POST" enctype="multipart/form-data" action="{% url 'doctor_profile' %}">
+      {% csrf_token %}
+
+      <!-- READ ONLY -->
+      <div class="mb-3">
+        <label>Full Name</label>
+        <input class="form-control" value="{{ profile.full_name }}" readonly>
+      </div>
+
+
+      <div class="mb-3">
+        <label>Username</label>
+        <input class="form-control" value="{{ profile.user.username }}" readonly>
+      </div>
+
+      <div class="mb-3">
+        <label>Specialization</label>
+        <input class="form-control" value="{{ profile.specialization }}" readonly>
+      </div>
+
+      <div class="mb-3">
+        <label>License</label>
+        <input class="form-control" value="{{ profile.license_number }}" readonly>
+      </div>
+
+      <div class="mb-3">
+        <label>Hospital Name</label>
+        <input class="form-control" value="{{ profile.hospital_name }}" readonly>
+      </div>
+      
+      <div class="mb-3">
+        <label>Experience (Years)</label>
+        <input class="form-control" value="{{ profile.experience_years }}" readonly>
+      </div>
+      <div class="mb-3">
+        <label>Medical Certificate</label>
+        {% if profile.certificate %}
+  <div class="alert alert-success">
+    <strong>Certificate Uploaded</strong><br>
+
+    <a href="{{ profile.certificate.url }}" target="_blank" class="btn btn-sm btn-primary">
+      View Certificate
+    </a>
+
+    <a href="{{ profile.certificate.url }}" download class="btn btn-sm btn-secondary">
+      Download
+    </a>
+  </div>
+{% else %}
+  <div class="alert alert-warning">
+    No certificate uploaded
+  </div>
+{% endif %}
+      </div>
+
+      <!-- EDITABLE -->
+<div class="mb-3">
+  <label>Profile Photo</label>
+
+  {% if profile.photo %}
+    <div class="mb-2">
+      <img src="{{ profile.photo.url }}"
+           alt="Current Photo"
+           style="width:120px;height:120px;object-fit:cover;border-radius:50%;">
+    </div>
+    <small class="text-muted">Upload new photo to replace</small>
+  {% else %}
+    <small class="text-muted">No photo uploaded yet</small>
+  {% endif %}
+
+  <input type="file" class="form-control mt-2" name="photo">
+</div>
+
+
+      <div class="mb-3">
+        <label>Bio</label>
+        <textarea class="form-control" name="bio">{{ profile.bio }}</textarea>
+      </div>
+<div class="mb-3">
+  <label>Qualifications / Degrees</label>
+  <textarea class="form-control" name="qualifications">{{ profile.qualifications }}</textarea>
+</div>
+
+<div class="mb-3">
+  <label>Clinic Address</label>
+  <input type="text" class="form-control" name="clinic_address"
+         value="{{ profile.clinic_address }}">
+</div>
+
+<div class="mb-3">
+  <label>Languages Spoken</label>
+  <input type="text" class="form-control" name="languages_spoken"
+         placeholder="e.g. English, Nepali"
+         value="{{ profile.languages_spoken }}">
+</div>
+
+<div class="mb-3">
+  <label>Working Hours</label>
+  <input type="text" class="form-control" name="working_hours"
+         placeholder="e.g. Sun–Fri, 10AM–5PM"
+         value="{{ profile.working_hours }}">
+</div>
+
+<div class="mb-3">
+  <label>Consultation Fee</label>
+  <input type="number" step="0.01" class="form-control"
+         name="consultation_fee"
+         value="{{ profile.consultation_fee }}">
+</div>
+      <button class="btn btn-primary">Save Changes</button>
+    </form>
+
+  </main>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

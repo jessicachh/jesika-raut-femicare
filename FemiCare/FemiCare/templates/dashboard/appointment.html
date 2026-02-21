@@ -1,7 +1,43 @@
 {% extends 'dashboard/main.html' %}
-
 {% block dashboard_content %}
-  <div class="dashboard-card">
-    <p>this is appointment</p>
-  </div>
+<div class="container py-4">
+    <h3 class="mb-4">My Booked Appointments</h3>
+    <div class="row">
+        {% for appt in appointments %}
+        <div class="col-md-6 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="flex-grow-1">
+                            <h5 class="mb-0">Dr. {{ appt.doctor.doctorprofile.full_name }}</h5>
+                            <small class="text-primary">{{ appt.doctor.doctorprofile.specialization }}</small>
+                        </div>
+                        <span class="badge bg-success">Confirmed</span>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-6">
+                            <p class="mb-0 text-muted small">DATE</p>
+                            <p class="fw-bold">{{ appt.availability.date|date:"d M Y" }}</p>
+                        </div>
+                        <div class="col-6 text-end">
+                            <p class="mb-0 text-muted small">TIME</p>
+                            <p class="fw-bold">{{ appt.availability.start_time|time:"H:i" }}</p>
+                        </div>
+                    </div>
+                    <p class="mb-0 mt-2 small text-muted">
+                        <i class="bi bi-geo-alt"></i> {{ appt.doctor.doctorprofile.hospital_name }}
+                    </p>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="text-center mt-5">
+            <img src="/static/images/empty-booking.svg" width="150" alt="No bookings">
+            <p class="text-muted mt-3">You have no upcoming appointments.</p>
+            <a href="{% url 'explore_doctors' %}" class="btn btn-primary">Book Now</a>
+        </div>
+        {% endfor %}
+    </div>
+</div>
 {% endblock %}

@@ -1,8 +1,8 @@
 {% load static %}
-
+{% load static user_extras %}
 <header class="dashboard-header">
   <div class="header-left">
-           <img src="{% static 'images/logo1.png' %}" alt="FemiCare Logo" class="nav-logo">
+           <a href="{% url 'home' %}"> <img src="{% static 'images/logo1.png' %}" alt="FemiCare Logo" class="nav-logo"></a>
   </div>
 
   <div class="header-right">
@@ -21,14 +21,33 @@
       </svg>
     </button>
 
-    <div class="user-profile">
+    <!-- <div class="user-profile">
       <div class="user-info">
         <span class="welcome-text">Welcome back</span>
         <span class="user-name">{{ request.user.username }}</span>
       </div>
       <div class="user-avatar">
-        <img src="{% static 'images/profile.png' %}" alt="User Avatar">
+        <img src="{{ request.user.profile.bio }}" alt="User Avatar">
       </div>
-    </div>
+    </div> -->
+<div class="user-profile">
+  <div class="user-info">
+    <span class="welcome-text">Welcome back</span>
+    <span class="user-name">
+      {{ request.user.get_full_name|default:request.user.username }}
+    </span>
+  </div>
+
+  <div class="user-avatar">
+{% if request.user.is_authenticated %}
+  {% if request.user|has_doctor_profile and request.user.doctorprofile.photo %}
+    <img src="{{ request.user.doctorprofile.photo.url }}" alt="Doctor Avatar">
+  {% else %}
+    <img src="{% static 'img/default-user.png' %}" alt="Avatar">
+  {% endif %}
+{% endif %}
+  </div>
+</div>
+
   </div>
 </header>

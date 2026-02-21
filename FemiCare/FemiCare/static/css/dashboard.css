@@ -35,6 +35,13 @@ body {
 }
 
 /* Header */
+.user-avatar img {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
 .dashboard-header {
   height: 80px;
   background: var(--color-white);
@@ -591,3 +598,209 @@ body {
 .cycle-card .card-title {
   font-weight: 600;
 }
+
+
+/* Calendar container */
+#calendar {
+    background: #ffffff;
+    padding: 20px;
+    border-radius: 16px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+}
+
+/* Header title (Month Year) */
+.fc-toolbar-title {
+    font-weight: 700;
+    font-size: 22px;
+    color: #2c3e50;
+}
+
+/* Toolbar buttons */
+.fc .fc-button {
+    background-color: #c62828 !important;
+    border: none !important;
+    border-radius: 8px !important;
+    padding: 6px 14px !important;
+    font-weight: 500;
+}
+
+.fc .fc-button:hover {
+    background-color: #e53935 !important;
+}
+
+/* Today button special style */
+.fc .fc-button-primary:not(:disabled).fc-button-active {
+    background-color: #2c3e50 !important;
+}
+
+/* Day headers (Sun Mon Tue...) */
+.fc-col-header-cell-cushion {
+    color: #c62828;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+/* Day numbers */
+.fc-daygrid-day-number {
+    color: #2c3e50;
+    font-weight: 500;
+}
+
+/* Hover effect */
+.fc-daygrid-day:hover {
+    background-color: #fff5f5;
+    cursor: pointer;
+}
+
+/* Event Styling */
+.fc-event {
+    border-radius: 8px !important;
+    padding: 4px 6px !important;
+    font-size: 12px;
+    font-weight: 500;
+    border: none !important;
+}
+
+/* Period Start */
+.fc-event[style*="#dc3545"] {
+    background-color: #c62828 !important;
+}
+
+/* Predicted Period */
+.fc-event[style*="#ff85a2"] {
+    background-color: #f48fb1 !important;
+}
+
+/* Ovulation */
+.fc-event[style*="#6f42c1"] {
+    background-color: #7b1fa2 !important;
+}
+
+/* Fertile Window background */
+.fc-bg-event {
+    background-color: rgba(198, 40, 40, 0.08) !important;
+}
+
+/* Remove blue links */
+.fc a {
+    text-decoration: none !important;
+}
+
+/* Rounded grid */
+.fc-scrollgrid {
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+/* Space between prev & next buttons */
+.fc .fc-button-group {
+    gap: 10px !important;
+}
+
+/* Make header layout cleaner */
+.fc-toolbar {
+    margin-bottom: 20px !important;
+}
+
+/* Align header nicely */
+.fc-toolbar-chunk {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+/* Make arrows rounded */
+.fc-prev-button,
+.fc-next-button {
+    border-radius: 50% !important;
+    width: 38px !important;
+    height: 38px !important;
+    padding: 0 !important;
+}
+
+.availability-slot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+  margin-bottom: 10px;
+}
+
+.slot-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.slot-btn {
+  background: var(--color-primary);
+  border: none;
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.slot-btn:hover {
+  background: var(--color-primary-dark);
+}
+
+.slot-btn.booked {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+
+/* Date Ribbon Styling */
+    .date-ribbon {
+        display: flex;
+        overflow-x: auto;
+        gap: 10px;
+        padding-bottom: 10px;
+        scrollbar-width: thin;
+    }
+    .date-ribbon::-webkit-scrollbar { height: 4px; }
+    .date-ribbon::-webkit-scrollbar-thumb { background: #ccc; border-radius: 10px; }
+
+    .date-item {
+        min-width: 80px;
+        padding: 10px;
+        border: 1px solid #e0e0e0;
+        border-radius: 12px;
+        text-align: center;
+        cursor: pointer;
+        background: white;
+        transition: 0.3s;
+    }
+    .date-item.active {
+        background: var(--color-primary);
+        color: white;
+        border-color: var(--color-primary);
+    }
+    .date-item:hover:not(.active) { background: #f8f9fa; }
+
+    /* Slot Display */
+    .day-pane { display: none; }
+    .day-pane.active { display: block; animation: fadeIn 0.3s; }
+    
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    .grid-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 12px;
+        margin-top: 20px;
+    }
+    .slot-card {
+        padding: 12px;
+        border-radius: 10px;
+        border: 1px solid #eee;
+        text-align: center;
+        position: relative;
+    }
+    .slot-card.available { background: #f0fdf4; border-color: #bbf7d0; }
+    .slot-card.booked { background: #fff1f2; border-color: #fecdd3; }

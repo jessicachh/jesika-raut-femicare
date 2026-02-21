@@ -1,0 +1,95 @@
+{% load static %}
+{% include 'components/navbar.html' %}
+<head>
+<!-- Gogogle Font -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Raleway:ital,wght@0,100..900;1,100..900&display=swap"
+  rel="stylesheet"
+/>
+<!-- Phosphor Icons -->
+<link
+  rel="stylesheet"
+  type="text/css"
+  href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/regular/style.css"
+/>
+<link
+  rel="stylesheet"
+  type="text/css"
+  href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/fill/style.css"
+/>
+<!-- CSS -->
+<link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+
+<body>
+
+<section class="doctors-section">
+
+  <!-- HEADER -->
+  <div class="section-header">
+    <span class="section-badge">Our Experts</span>
+    <h2 class="section-title">Meet Our Verified Doctors</h2>
+    <p class="section-subtitle">
+      Explore trusted and verified women’s health specialists. View profiles,
+      check availability, and book consultations with confidence.
+    </p>
+  </div>
+
+  <!-- DOCTORS GRID -->
+<div class="doctors-grid-wrapper">
+  <div class="doctors-grid">
+
+    {% for doctor in doctors %}
+    <div class="doctor-card">
+        <div class="doctor-image">
+    {% if doctor.photo %}
+      <img src="{{ doctor.photo.url }}" alt="Doctor Photo">
+    {% else %}
+      <img src="{% static 'images/default-doctor.png' %}" alt="Doctor">
+    {% endif %}
+
+    <span class="verified-badge">
+      <i class="ph ph-check-circle"></i> Verified
+    </span>
+  </div>
+
+  <div class="doctor-info">
+    <h3>Dr. {{ doctor.full_name|default:doctor.user.get_full_name }}</h3>
+
+    <p class="doctor-specialization">
+      {{ doctor.specialization }}
+    </p>
+
+    <p class="doctor-bio">
+      {{ doctor.bio|truncatewords:20 }}
+    </p>
+
+    <a href="{% url 'public_doctor_profile' doctor.pk %}" class="doctor-btn">
+      View Profile
+    </a>
+  </div>
+    </div>
+    {% endfor %}
+
+  </div>
+</div>
+</div>
+
+  <div class="pagination">
+  {% if doctors.has_previous %}
+    <a href="?page={{ doctors.previous_page_number }}">Prev</a>
+  {% endif %}
+
+  Page {{ doctors.number }} of {{ doctors.paginator.num_pages }}
+
+  {% if doctors.has_next %}
+    <a href="?page={{ doctors.next_page_number }}">Next</a>
+  {% endif %}
+</div>
+
+</section>
+
+{% include 'components/footer.html' %}
+</body>

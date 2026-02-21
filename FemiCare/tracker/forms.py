@@ -1,5 +1,10 @@
 from django import forms
-from .models import CycleLog
+from .models import CycleLog, DoctorProfile
+
+class DoctorProfileForm(forms.ModelForm):
+    class Meta:
+        model = DoctorProfile
+        fields = ['photo', 'bio']
 
 
 class CycleLogForm(forms.ModelForm):

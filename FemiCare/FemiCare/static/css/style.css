@@ -1435,3 +1435,322 @@ body {
     margin-bottom: 70px;
   }
 }
+
+
+
+
+/* =======================
+   DOCTORS PAGE
+======================= */
+
+.doctors-section {
+  background: #ffffff;
+  padding: 120px 8%;
+  position: relative;
+  overflow: hidden;
+}
+/* ===== Doctors Page ===== */
+
+.doctors-grid-wrapper {
+  display: flex;
+  justify-content: center;
+}
+
+.doctors-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 260px));
+  gap: 24px;
+  justify-content: center;
+  width: 100%;
+  max-width: 1100px;
+}
+
+/* Doctor Card */
+.doctor-card {
+  background: #fff;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.06);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.doctor-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 14px 30px rgba(0,0,0,0.1);
+}
+
+/* Image */
+.doctor-image {
+  position: relative;
+  height: 180px;
+  overflow: hidden;
+}
+
+.doctor-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Verified badge */
+.verified-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: #0f9d58;
+  color: #fff;
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Info */
+.doctor-info {
+  padding: 16px;
+  text-align: center;
+}
+
+.doctor-info h3 {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.doctor-specialization {
+  font-size: 13px;
+  color: #777;
+  margin-bottom: 8px;
+}
+
+.doctor-bio {
+  font-size: 13px;
+  color: #555;
+  margin-bottom: 14px;
+}
+
+/* Button */
+.doctor-btn {
+  display: inline-block;
+  padding: 8px 16px;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 13px;
+  border-radius: 20px;
+  text-decoration: none;
+  transition: background 0.2s ease;
+}
+
+.doctor-btn:hover {
+  background: #c93030;
+}
+
+/* Pagination */
+.pagination {
+  margin-top: 40px;
+  text-align: center;
+  font-size: 14px;
+}
+
+.pagination a {
+  margin: 0 10px;
+  color: var(--color-primary);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+/* EMPTY STATE */
+.no-doctors {
+  text-align: center;
+  font-family: var(--font-body);
+  font-size: 1.1rem;
+  color: #666;
+  grid-column: 1 / -1;
+}
+
+/* RESPONSIVE */
+@media (max-width: 768px) {
+  .doctors-section {
+    padding: 80px 6%;
+  }
+
+  .doctor-image {
+    height: 240px;
+  }
+}
+
+.public-doctor-container {
+  max-width: 900px;
+  margin: 40px auto;
+  padding: 0 20px;
+  font-family: 'Raleway', sans-serif;
+}
+
+/* Header */
+.doctor-header {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  background: #fff;
+  padding: 24px;
+  border-radius: 14px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.06);
+}
+
+.doctor-avatar {
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 4px solid #f2f2f2;
+}
+
+.doctor-header-info h2 {
+  margin: 0;
+  font-weight: 700;
+}
+
+.doctor-specialization {
+  color: #666;
+  margin: 6px 0;
+}
+
+.verified-pill {
+  display: inline-block;
+  background: #e6f7f1;
+  color: #0f9d58;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 14px;
+  margin-top: 8px;
+}
+
+/* Cards */
+.doctor-card {
+  background: #fff;
+  padding: 24px;
+  margin-top: 24px;
+  border-radius: 14px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.05);
+}
+
+.doctor-card h4 {
+  margin-bottom: 14px;
+  font-weight: 600;
+}
+
+/* Availability */
+.availability-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.availability-slot {
+  background: #f9fafb;
+  padding: 14px;
+  border-radius: 10px;
+  text-align: center;
+  border: 1px solid #eee;
+}
+
+.availability-slot strong {
+  display: block;
+  font-size: 14px;
+}
+
+.availability-slot span {
+  color: #555;
+  font-size: 13px;
+}
+
+/* Doctor details card */
+.doctor-details-card {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.doctor-detail-item {
+  background: #f8f9fc;
+  padding: 14px 16px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+.doctor-detail-item strong {
+  display: block;
+  color: #555;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.doctor-detail-item span {
+  color: #222;
+}
+
+
+
+.date-navigator { border-bottom: 1px solid #eee; }
+
+.date-tab-btn {
+    min-width: 85px; 
+    flex: 0 0 auto; /* THIS IS THE KEY: it prevents the cards from shrinking or stacking */
+    padding: 12px 10px; 
+    border: 1px solid #ddd; 
+    border-radius: 12px;
+    background: #fff; 
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
+    gap: 4px; 
+    transition: 0.3s ease;
+    cursor: pointer;
+}
+
+/* Hide scrollbar for Chrome/Safari but keep functionality */
+#dateRibbon::-webkit-scrollbar {
+    display: none;
+}
+
+/* Default active state using your variable */
+.date-tab-btn.active { 
+    background: #b92222; 
+    border-color: #b92222; 
+    color: #fff; 
+    box-shadow: 0 4px 10px rgba(185, 34, 34, 0.2); 
+}
+
+.date-tab-btn .day-name { font-size: 0.75rem; text-transform: uppercase; }
+.date-tab-btn .day-date { font-weight: bold; }
+
+.booking-day-pane { display: none; animation: fadeIn 0.4s; }
+.booking-day-pane.active { display: block; }
+
+.time-slot-grid { 
+    display: grid; 
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); 
+    gap: 12px; 
+}
+
+.time-pill {
+    padding: 10px 15px;
+    border: 1px solid var(--color-primary);
+    border-radius: 8px;
+    text-align: center;
+    color: var(--color-primary);
+    text-decoration: none;
+    font-weight: 600;
+    display: inline-block;
+    transition: 0.3s;
+}
+
+.time-pill:hover {
+    background: var(--color-primary);
+    color: #fff;
+    transform: translateY(-2px);
+}
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
