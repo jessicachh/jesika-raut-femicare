@@ -5,14 +5,23 @@
     <div class="row">
         {% for appt in appointments %}
         <div class="col-md-6 mb-4">
-            <div class="card h-100 shadow-sm">
+            <div class="card h-100 shadow-sm border-0">
                 <div class="card-body">
                     <div class="d-flex align-items-center mb-3">
                         <div class="flex-grow-1">
                             <h5 class="mb-0">Dr. {{ appt.doctor.doctorprofile.full_name }}</h5>
                             <small class="text-primary">{{ appt.doctor.doctorprofile.specialization }}</small>
                         </div>
-                        <span class="badge bg-success">Confirmed</span>
+                        
+                        {% if appt.status == 'pending' %}
+                            <span class="badge bg-warning text-dark">Pending</span>
+                        {% elif appt.status == 'approved' %}
+                            <span class="badge bg-success">Confirmed</span>
+                        {% elif appt.status == 'rejected' %}
+                            <span class="badge bg-danger">Declined</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ appt.status|capfirst }}</span>
+                        {% endif %}
                     </div>
                     <hr>
                     <div class="row">
@@ -25,6 +34,13 @@
                             <p class="fw-bold">{{ appt.availability.start_time|time:"H:i" }}</p>
                         </div>
                     </div>
+
+                    {% if appt.status == 'rejected' and appt.reject_reason %}
+                    <div class="alert alert-danger py-1 px-2 mt-2 mb-0 small">
+                        <strong>Reason:</strong> {{ appt.reject_reason }}
+                    </div>
+                    {% endif %}
+
                     <p class="mb-0 mt-2 small text-muted">
                         <i class="bi bi-geo-alt"></i> {{ appt.doctor.doctorprofile.hospital_name }}
                     </p>
@@ -33,7 +49,6 @@
         </div>
         {% empty %}
         <div class="text-center mt-5">
-            <img src="/static/images/empty-booking.svg" width="150" alt="No bookings">
             <p class="text-muted mt-3">You have no upcoming appointments.</p>
             <a href="{% url 'explore_doctors' %}" class="btn btn-primary">Book Now</a>
         </div>

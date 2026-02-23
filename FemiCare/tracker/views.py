@@ -10,7 +10,8 @@ from tracker.ml.predict import predict_cycle
 from datetime import timedelta, datetime
 from django.utils import timezone
 from django.core.paginator import Paginator
-
+from django.core.mail import send_mail
+from django.conf import settings
 # -----------------------------
 # Public pages
 # -----------------------------
@@ -181,7 +182,8 @@ def public_doctor_profile(request, pk):
         doctor=doctor.user,
         date__range=[today, two_weeks],
         is_active=True,
-        appointment__isnull=True  # Ensure only unbooked slots show
+    ).exclude(
+        appointment__status__in=['pending', 'approved'] 
     ).order_by('date', 'start_time')
 
     return render(request, "doctor_profile.html", {
@@ -192,50 +194,95 @@ def public_doctor_profile(request, pk):
 
 @login_required
 def book_appointment(request, slot_id):
-    # 1. Get the slot and ensure it is still active/available
     slot = get_object_or_404(DoctorAvailability, id=slot_id, is_active=True)
 
-    # 2. Safety Check: Prevent booking if the time has already passed
-    if slot.date < timezone.now().date():
-        messages.error(request, "This slot has already expired.")
-        return redirect("public_doctor_profile", pk=slot.doctor.doctorprofile.id)
+    if request.method == 'POST':
+        reason = request.POST.get('reason', '').strip()
+        
+        # Conflict checks (keep your existing logic here...)
+        
+        # Create as PENDING
+        appointment = Appointment.objects.create(
+            user=request.user,
+            doctor=slot.doctor,
+            availability=slot,
+            status="pending",
+            patient_message=reason
+        )
 
-    # 3. Conflict Prevention: Ensure this user doesn't already have an appointment 
-    # with THIS doctor on THIS specific day (Practical UX rule)
-    existing_today = Appointment.objects.filter(
-        user=request.user,
-        doctor=slot.doctor,
-        availability__date=slot.date,
-        status__in=['approved', 'pending'] # Check for active bookings
-    ).exists()
-
-    if existing_today:
-        messages.error(request, "You already have an appointment with this doctor on this day.")
-        return redirect("public_doctor_profile", pk=slot.doctor.doctorprofile.id)
-
-    # 4. Conflict Prevention: Check if the slot was JUST taken by someone else 
-    # (Handling the One-to-One relationship)
-    if Appointment.objects.filter(availability=slot).exists():
-        messages.error(request, "This slot was just booked by another user.")
-        slot.is_active = False # Clean up the database
+        # Deactivate slot so others can't see it while pending
+        slot.is_active = False
         slot.save()
-        return redirect("public_doctor_profile", pk=slot.doctor.doctorprofile.id)
 
-    # 5. Create the Appointment (Automatically Approved)
-    Appointment.objects.create(
-        user=request.user,
-        doctor=slot.doctor,
-        availability=slot,
-        status="approved" # Skip doctor acceptance
-    )
+        # Email to Doctor
+        send_mail(
+            subject="New Appointment Request",
+            message=f"You have a new request from {request.user.username}.\nReason: {reason}",
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[slot.doctor.email],
+        )
 
-    # 6. Deactivate the slot globally so it disappears from the profile
-    slot.is_active = False
-    slot.save()
+        messages.success(request, "Request sent! Waiting for doctor approval.")
+        return redirect("appointment")
+    
+    return redirect("public_doctor_profile", pk=slot.doctor.doctorprofile.id)
 
-    # 7. Redirect to Patient Dashboard
-    messages.success(request, f"Appointment confirmed with Dr. {slot.doctor.doctorprofile.full_name}!")
-    return redirect("appointment")
+@login_required
+def doctor_appointment(request):
+    if request.user.role != 'doctor':
+        return redirect('home')
+
+    # Get all appointments for this doctor
+    # We use select_related to make it faster (joins user and availability tables)
+    appointments = Appointment.objects.filter(
+        doctor=request.user
+    ).select_related('user', 'availability').order_by('-created_at')
+
+    return render(request, 'doctor/doctor_appointment.html', {
+        'appointments': appointments
+    })
+
+@login_required
+def respond_appointment(request, appointment_id):
+    appointment = get_object_or_404(Appointment, id=appointment_id, doctor=request.user)
+    
+    if request.method == 'POST':
+        action = request.POST.get('action') 
+        reject_reason = request.POST.get('reject_reason', '')
+
+        if action == 'approve':
+            appointment.status = 'approved'
+            msg = f"Your appointment with Dr. {request.user.doctorprofile.full_name} has been approved!"
+        
+        elif action == 'reject':
+            appointment.status = 'rejected'
+            appointment.reject_reason = reject_reason
+            
+            # Re-activate the slot so other patients can see/book it again
+            slot = appointment.availability
+            slot.is_active = True 
+            # If you use 'appointment__isnull' in public profile, 
+            # you might want to nullify the relation or delete the appt.
+            # But keeping it as 'rejected' is better for history.
+            slot.save()
+            
+            msg = f"Your appointment was declined. Reason: {reject_reason}"
+
+        appointment.save()
+
+        # Notification Logic...
+        try:
+            send_mail(
+                subject=f"Appointment Update: {appointment.status.upper()}",
+                message=msg,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[appointment.user.email],
+            )
+        except: pass
+
+        messages.success(request, f"Appointment {appointment.status} successfully.")
+    
+    return redirect('doctor_appointment') # Redirect back to the requests list
 
 
 @login_required

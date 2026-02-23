@@ -204,6 +204,8 @@ class Appointment(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     doctor = models.ForeignKey(User, on_delete=models.CASCADE, related_name='appointments')
     availability = models.OneToOneField(DoctorAvailability, on_delete=models.CASCADE)
+    patient_message = models.TextField(blank=True, help_text="Reason for appointment")
+    reject_reason = models.TextField(blank=True, help_text="Why doctor rejected")
 
     STATUS_CHOICES = (
         ('pending', 'Pending'),

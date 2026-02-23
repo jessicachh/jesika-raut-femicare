@@ -19,6 +19,7 @@
   type="text/css"
   href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/fill/style.css"
 />
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 <!-- CSS -->
 <link rel="stylesheet" href="{% static 'css/style.css' %}">
 </head>
@@ -103,50 +104,60 @@
     <p>{{ doctor.bio }}</p>
   </div>
 
-  <!-- AVAILABILITY -->
+<!-- AVAILABILITY -->
 <div class="doctor-card mt-4">
-    <h4 class="mb-3"><i class="ph ph-calendar-check"></i> Book an Appointment</h4>
-    
-    {% regroup availabilities by date as date_list %}
-    
-    {% if date_list %}
- <div class="date-navigator mb-4" style="border-bottom: 1px solid #eee; padding-bottom: 15px;">
-    <div class="d-flex" id="dateRibbon" style="overflow-x: auto; flex-wrap: nowrap; gap: 12px; scrollbar-width: none; -ms-overflow-style: none;">
-        {% for day in date_list %}
-            <button type="button" 
-                    class="date-tab-btn {% if forloop.first %}active{% endif %}" 
-                    {% if forloop.first %}style="background: #b92222; color: white; border-color: #b92222;"{% endif %}
-                    onclick="switchBookingDay('day-{{ forloop.counter }}', this)">
-                <span class="day-name">{{ day.grouper|date:"D" }}</span>
-                <span class="day-date">{{ day.grouper|date:"d M" }}</span>
-            </button>
-        {% endfor %}
-    </div>
-</div>
-        <div class="slots-display">
-            {% for day in date_list %}
-                <div id="day-{{ forloop.counter }}" class="booking-day-pane {% if forloop.first %}active{% endif %}">
-                    <p class="text-muted small mb-3">Available times for {{ day.grouper|date:"l, F j" }}:</p>
-                    <div class="time-slot-grid">
-                        {% for slot in day.list %}
-                            <a href="{% url 'book_appointment' slot.id %}" 
-                               class="time-pill"
-                               data-time="{{ slot.start_time|time:'H:i' }}"
-                               onclick="return confirm('Do you want to book the ' + this.getAttribute('data-time') + ' slot?')">
-                                <i class="ph ph-clock me-1"></i> {{ slot.start_time|time:"H:i" }}
-                            </a>
-                        {% endfor %}
-                    </div>
-                </div>
-            {% endfor %}
-        </div>
+  <h4 class="mb-4"><i class="ph ph-calendar-check"></i> Book an Appointment</h4>
 
-    {% else %}
-        <div class="text-center py-5 bg-light rounded" style="border: 2px dashed #ddd;">
-            <i class="ph ph-calendar-x" style="font-size: 3rem; color: #ccc;"></i>
-            <p class="text-muted mt-2">No available slots for the next 2 weeks.</p>
-        </div>
-    {% endif %}
+  {% regroup availabilities by date as date_list %}
+
+  {% if date_list %}
+
+  <!-- DATE RIBBON -->
+  <div class="date-ribbon">
+    {% for day in date_list %}
+    <button type="button"
+      class="date-tab-btn {% if forloop.first %}active{% endif %}"
+      onclick="switchBookingDay('day-{{ forloop.counter }}', this)">
+      <span class="day-name">{{ day.grouper|date:"D" }}</span>
+      <span class="day-date">{{ day.grouper|date:"d M" }}</span>
+    </button>
+    {% endfor %}
+  </div>
+
+  <!-- DAY PANES -->
+  {% for day in date_list %}
+  <div id="day-{{ forloop.counter }}"
+       class="booking-day-pane"
+       {% if not forloop.first %}style="display:none"{% endif %}>
+
+    <p class="slot-heading">
+      Available times for <strong>{{ day.grouper|date:"l, F j" }}</strong>
+    </p>
+
+    <div class="time-slot-grid">
+      {% for slot in day.list %}
+<button type="button" class="slot-btn"
+        onclick="openBookingModal(
+            '{{ slot.id }}',
+            '{{ doctor.user.get_full_name }}',
+            '{{ slot.date }}',
+            '{{ slot.start_time }}'
+        )">
+    {{ slot.start_time }}
+</button>
+      {% endfor %}
+    </div>
+
+  </div>
+  {% endfor %}
+
+
+  {% else %}
+  <div class="empty-slots-state">
+    <i class="ph ph-calendar-x"></i>
+    <p>No available slots.</p>
+  </div>
+  {% endif %}
 </div>
 
 <div class="doctor-card">
@@ -195,37 +206,114 @@
       placeholder="Write your experience..."
     ></textarea>
 
-    <button class="btn btn-primary">Submit Review</button>
+    <button class="btn" style="background-color: #b92222; color:white;">Submit Review</button>
   </form>
 </div>
 {% endif %}
 
 </div>
+
+
+
+
+
+<!-- Dynamic Booking Modal -->
+<div class="modal fade" id="bookingModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content booking-modal">
+
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm Appointment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+
+            <form method="POST" id="bookingForm">
+                {% csrf_token %}
+
+<div class="modal-body">
+
+    <p><strong>Doctor:</strong> <span id="modalDoctor"></span></p>
+    <p><strong>Date:</strong> <span id="modalDate"></span></p>
+    <p><strong>Time:</strong> <span id="modalTime"></span></p>
+
+    <input type="hidden" name="doctor" id="doctorInput">
+    <input type="hidden" name="date" id="dateInput">
+    <input type="hidden" name="time" id="timeInput">
+
+    <!-- ⭐ REASON FIELD -->
+    <label class="form-label mt-3">Reason for appointment</label>
+    <textarea name="reason"
+        class="form-control"
+        placeholder="Describe your concern..."
+        required></textarea>
+
+</div>
+
+                <div class="modal-footer">
+                    <button type="submit" class="btn" style="background-color: #b92222; color:white;">Confirm Booking</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                </div>
+
+            </form>
+
+        </div>
+    </div>
+</div>
+
+
+
+
+
 </section>
 {% include 'components/footer.html' %}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
 <script>
-function switchBookingDay(dayId, btn) {
-    // 1. Reset all buttons to default state
-    document.querySelectorAll('.date-tab-btn').forEach(b => {
-        b.style.background = "white";
-        b.style.color = "black";
-        b.style.borderColor = "#ddd";
-    });
+function switchBookingDay(dayId, btn){
 
-    // 2. Highlight active button with your updated color
-    btn.style.background = "#b92222";
-    btn.style.color = "white";
-    btn.style.borderColor = "#b92222";
-
-    // 3. Switch Content Pane
+    // hide all panes
     document.querySelectorAll('.booking-day-pane').forEach(p => {
         p.style.display = 'none';
     });
-    
-    const targetPane = document.getElementById(dayId);
-    if (targetPane) {
-        targetPane.style.display = 'block';
-    }
+
+    // remove active state
+    document.querySelectorAll('.date-tab-btn').forEach(b => {
+        b.classList.remove('active');
+    });
+
+    // show selected
+    document.getElementById(dayId).style.display = 'block';
+
+    // activate button
+    btn.classList.add('active');
 }
+</script>
+<script>
+const bookingModalEl = document.getElementById('bookingModal');
+const bookingModal = new bootstrap.Modal(bookingModalEl);
+
+function openBookingModal(slotId, doctorName, date, time){
+
+    // display
+    document.getElementById('modalDoctor').innerText = doctorName;
+    document.getElementById('modalDate').innerText = date;
+    document.getElementById('modalTime').innerText = time;
+
+    // ⭐ dynamically set form action
+    document.getElementById('bookingForm').action = "/book/" + slotId + "/";
+
+    bookingModal.show();
+}
+
+// reset
+bookingModalEl.addEventListener('hidden.bs.modal', function () {
+    document.getElementById('bookingForm').reset();
+});
+</script>
+
+<script>
+bookingModalEl.addEventListener('hidden.bs.modal', function () {
+    document.getElementById('bookingForm').reset();
+});
 </script>
 </body>

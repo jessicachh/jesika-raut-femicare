@@ -28,13 +28,18 @@ urlpatterns = [
 
     # doctor dashboard
     path('doctor/dashboard/', views.doctor_dashboard, name='doctor_dashboard'),
+    path('doctor/appointment/', views.doctor_appointment, name='doctor_appointment'),
     path('doctor/details/', views.doctor_details, name='doctor_details'),
     path('doctor/profile/', views.doctor_profile, name='doctor_profile'),
     path("doctor/availability/add/", add_availability, name="add_availability"),
     path("doctor/availability/toggle/<int:pk>/", toggle_availability, name="toggle_availability"),
     path("doctor/availability/delete/<int:pk>/", delete_availability, name="delete_availability"),
     path("book/<int:slot_id>/", views.book_appointment, name="book_appointment"),
-
+    # We point it to 'doctor_dashboard' since that's where the list lives
+    path('doctor/appointment/', views.doctor_appointment, name='doctor_appointment'),
+    
+    # This allows the "Accept/Reject" buttons to work
+    path('appointment/respond/<int:appointment_id>/', views.respond_appointment, name='respond_appointment'),
 
     path('dashboard/add-cycle-log/', views.add_cycle_log, name='add_cycle_log'),
 
