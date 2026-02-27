@@ -2,7 +2,7 @@
 {% load static user_extras %}
 <header class="dashboard-header">
   <div class="header-left">
-           <a href="{% url 'home' %}"> <img src="{% static 'images/logo1.png' %}" alt="FemiCare Logo" class="nav-logo"></a>
+          <a href="{% url 'home' %}"> <img src="{% static 'images/logo1.png' %}" alt="FemiCare Logo" class="nav-logo"></a>
   </div>
 
   <div class="header-right">
@@ -38,15 +38,14 @@
     </span>
   </div>
 
-  <div class="user-avatar">
-{% if request.user.is_authenticated %}
-  {% if request.user|has_doctor_profile and request.user.doctorprofile.photo %}
-    <img src="{{ request.user.doctorprofile.photo.url }}" alt="Doctor Avatar">
-  {% else %}
-    <img src="{% static 'img/default-user.png' %}" alt="Avatar">
+<div class="user-avatar">
+  {% if request.user.is_authenticated %}
+    {% if request.user.role == 'doctor' and request.user.doctor_profile.photo %}
+      <img src="{{ request.user.doctor_profile.photo.url }}" alt="Doctor Avatar">
+    {% else %}
+      <img src="{% static 'img/default-user.png' %}" alt="Avatar">
+    {% endif %}
   {% endif %}
-{% endif %}
-  </div>
 </div>
 
   </div>

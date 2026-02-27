@@ -92,50 +92,38 @@ class CycleLog(models.Model):
 
 
 class DoctorProfile(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
-
-    # already existing verified fields
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='doctor_profile')
+    
+    # Verification Fields
     full_name = models.CharField(max_length=255, blank=True)
     license_number = models.CharField(max_length=100)
-    specialization = models.CharField(max_length=100)
+    specialization = models.CharField(max_length=100, default="Gynecologist")
     experience_years = models.PositiveIntegerField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
     hospital_name = models.CharField(max_length=255, blank=True)
-    certificate = models.FileField(upload_to="doctor_certificates/",null=True,blank=True)
-    # NEW
-    photo = models.ImageField(
-        upload_to="doctor_photos/",
-        blank=True,
-        null=True
-    )
-
+    location = models.CharField(max_length=255, blank=True, null=True) 
+    certificate = models.FileField(upload_to="doctor_certificates/", null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    # Dashboard/Profile Fields
+    photo = models.ImageField(upload_to="doctor_photos/", blank=True, null=True)
     bio = models.TextField(blank=True)
-
     qualifications = models.TextField(blank=True)
-    clinic_address = models.CharField(max_length=255, blank=True)
     languages_spoken = models.CharField(max_length=255, blank=True)
-    working_hours = models.CharField(max_length=100, blank=True)
-    consultation_fee = models.DecimalField(
-        max_digits=8, decimal_places=2, null=True, blank=True
-    )
 
     is_verified = models.BooleanField(default=False)
     is_profile_complete = models.BooleanField(default=False)
 
     def check_profile_complete(self):
-        required_fields = [
-            self.photo,
-            self.bio,
-            self.specialization,
-            self.experience_years
-        ]
-        return all(required_fields)
-    
-    def __str__(self):
-        return self.user.get_full_name()
-    
-    def average_rating(self):
-        return self.reviews.aggregate(avg=Avg("rating"))["avg"] or 0
+        return all([
+            bool(self.photo and self.photo.name),
+            bool(self.bio and self.bio.strip()),
+            bool(self.qualifications and self.qualifications.strip()),
+            bool(self.languages_spoken and self.languages_spoken.strip())
+        ])
+
+    def save(self, *args, **kwargs):
+        self.is_profile_complete = self.check_profile_complete()
+        super().save(*args, **kwargs)
 
 
 class DoctorReview(models.Model):

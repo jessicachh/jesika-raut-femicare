@@ -11,147 +11,99 @@
   <span class="fab-text">Add Cycle</span>
 </button>
 
-<!-- Calendar View -->
-<section class="cycle-calendar mb-5">
-  <div class="d-flex align-items-center justify-content-between mb-3">
-    <h4 class="mb-0">Your Cycle Calendar</h4>
+<div class="dashboard-layout-wrapper">
+  
+  <div class="calendar-column">
+    <section class="cycle-calendar">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <h4 class="mb-0">Your Cycle Calendar</h4>
+      </div>
+      <div id="calendar"></div>
+    </section>
   </div>
 
-  <div id="calendar"></div>
-</section>
+  <div class="vertical-divider"></div>
 
-
-<!-- Previous Logs -->
-<section class="cycle-history">
- <div class="d-flex align-items-center gap-3 mb-3">
-  <h4 class="mb-0">Your Cycle Logs</h4>
-
-  <button
-    class="btn btn-sm btn-outline-danger"
-    id="toggleHistoryBtn"
-    type="button"
-  >
-    View
-  </button>
-</div>
-
-
-<div id="cycleHistory" style="display: none;">
-  <div class="row">
-
-    {% for log in logs %}
-      <div class="col-md-6 col-lg-4 mb-4">
-
-        <!-- CARD -->
-        <div
-          class="card shadow-sm cycle-card"
-          role="button"
-          data-bs-toggle="modal"
-          data-bs-target="#historyModal{{ log.id }}"
-          title="Click to view full details"
-        >
-          <div class="card-body">
-            <h6 class="card-title mb-2">
-              🩸 Last period
-            </h6>
-
-            <p class="mb-1">
-              <strong>Started:</strong> {{ log.last_period_start }}
-            </p>
-
-            <p class="mb-1">
-              <strong>Next:</strong> {{ log.predicted_next_period }}
-            </p>
-
-            <p class="text-muted small mt-2">
-              Click to view full details →
-            </p>
-          </div>
-        </div>
-
-        <!-- MODAL (FULL DETAILS, READ-ONLY) -->
-        <div class="modal fade" id="historyModal{{ log.id }}" tabindex="-1">
-          <div class="modal-dialog modal-lg modal-dialog-centered">
-            <div class="modal-content">
-
-              <div class="modal-header">
-                <h5 class="modal-title">Cycle Details</h5>
-                <button class="btn-close" data-bs-dismiss="modal"></button>
-              </div>
-
-              <div class="modal-body">
-                <h6 class="mb-3">🧾 What you logged</h6>
-
-                <p><strong>Last period start:</strong> {{ log.last_period_start }}</p>
-                <p><strong>Cycle length:</strong> {{ log.length_of_cycle }} days</p>
-                <p><strong>Menses length:</strong> {{ log.length_of_menses }} days</p>
-                <p><strong>Bleeding intensity:</strong> {{ log.get_mean_bleeding_intensity_display }}</p>
-                <p><strong>Unusual bleeding:</strong> {{ log.unusual_bleeding|yesno:"Yes,No" }}</p>
-
-                <hr>
-
-                <h6 class="mb-3">🔮 Predictions</h6>
-
-                <p><strong>Next period:</strong> {{ log.predicted_next_period }}</p>
-                <p><strong>Ovulation day:</strong> {{ log.estimated_ovulation_day }}</p>
-                <p>
-                  <strong>Fertile window:</strong>
-                  {{ log.fertile_window_start }} → {{ log.fertile_window_end }}
-                </p>
-              </div>
-
-              <div class="modal-footer">
-                <small class="text-muted me-auto">
-                  🔒 This data is read-only
-                </small>
-                <button class="btn btn-outline-secondary" data-bs-dismiss="modal">
-                  Close
-                </button>
-              </div>
-
+  <div class="history-column">
+    <h5 class="mb-4">Cycle Logs</h5>
+    <div class="history-scroll-container">
+      {% for log in logs %}
+        <div class="history-item-mini card shadow-sm mb-3" 
+             role="button" 
+             data-bs-toggle="modal" 
+             data-bs-target="#historyModal{{ log.id }}"
+             title="Click for full details">
+          <div class="card-body p-2">
+            <div class="d-flex align-items-center gap-2 mb-1">
+              <span class="emoji-indicator">🩸</span>
+              <small class="fw-bold">{{ log.last_period_start|date:"M d, Y" }}</small>
+            </div>
+            <div class="prediction-hint">
+              <small class="text-muted">Next: {{ log.predicted_next_period|date:"M d" }}</small>
             </div>
           </div>
         </div>
 
-      </div>
-    {% empty %}
-      <p class="text-muted">No cycle history yet.</p>
-    {% endfor %}
-
+        <div class="modal fade" id="historyModal{{ log.id }}" tabindex="-1">
+          <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title">Cycle Details</h5>
+                <button class="btn-close" data-bs-dismiss="modal"></button>
+              </div>
+              <div class="modal-body">
+                <h6 class="mb-3">🧾 Logged Data</h6>
+                <p><strong>Start Date:</strong> {{ log.last_period_start }}</p>
+                <p><strong>Cycle Length:</strong> {{ log.length_of_cycle }} days</p>
+                <p><strong>Bleeding:</strong> {{ log.get_mean_bleeding_intensity_display }}</p>
+                <hr>
+                <h6 class="mb-3">🔮 Predictions</h6>
+                <p><strong>Predicted Next:</strong> {{ log.predicted_next_period }}</p>
+                <p><strong>Ovulation:</strong> {{ log.estimated_ovulation_day }}</p>
+                <p><strong>Fertile Window:</strong> {{ log.fertile_window_start }} - {{ log.fertile_window_end }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      {% empty %}
+        <p class="text-muted small px-2">No history logs found.</p>
+      {% endfor %}
+    </div>
   </div>
 </div>
 
-
-</section>
-
-
-
-
+<div class="modal fade" id="cycleModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form method="POST" action="{% url 'add_cycle_log' %}">
+        {% csrf_token %}
+        <div class="modal-header">
+          <h5 class="modal-title">Log New Cycle</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="cycle-form">
+            {{ form.as_p }}
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-danger">Save Log</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 
 <script>
-document.getElementById("toggleHistoryBtn").addEventListener("click", function () {
-  const history = document.getElementById("cycleHistory");
-
-  if (history.style.display === "none") {
-    history.style.display = "block";
-    this.innerText = "Hide";
-  } else {
-    history.style.display = "none";
-    this.innerText = "View";
-  }
-});
-
 document.addEventListener('DOMContentLoaded', function () {
-
   var calendarEl = document.getElementById('calendar');
-
   var events = [];
 
   {% for log in logs %}
-
     {% if log.last_period_start %}
     events.push({
-      title: '🩸 Period Start',
+      title: '🩸 Start',
       start: '{{ log.last_period_start|date:"Y-m-d" }}',
       color: '#dc3545'
     });
@@ -159,7 +111,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     {% if log.predicted_next_period %}
     events.push({
-      title: '🔮 Predicted Period',
+      title: '🔮 Predicted',
       start: '{{ log.predicted_next_period|date:"Y-m-d" }}',
       color: '#ff85a2'
     });
@@ -175,33 +127,28 @@ document.addEventListener('DOMContentLoaded', function () {
 
     {% if log.fertile_window_start and log.fertile_window_end %}
     events.push({
-      title: '🌿 Fertile Window',
+      title: '🌿 Fertile',
       start: '{{ log.fertile_window_start|date:"Y-m-d" }}',
       end: '{{ log.fertile_window_end|date:"Y-m-d" }}',
       display: 'background',
       color: '#198754'
     });
     {% endif %}
-
   {% endfor %}
 
   var calendar = new FullCalendar.Calendar(calendarEl, {
     initialView: 'dayGridMonth',
-    height: 650,
+    height: 'auto',
     headerToolbar: {
-      left: 'prev,next',
+      left: 'prev,next today',
       center: 'title',
-      right: 'today'
+      right: ''
     },
     events: events
   });
 
   calendar.render();
 });
-
-
 </script>
-
-
 
 {% endblock %}

@@ -159,55 +159,77 @@
   </div>
   {% endif %}
 </div>
+<div class="doctor-card mt-4">
+    <h4 class="mb-4"><i class="ph ph-star-half-tilt text-danger"></i> Patient Reviews</h4>
+    
+    <div class="reviews-viewport">
+        <div class="reviews-track" id="reviewsTrack">
+            {% if reviews %}
+                {% for review in reviews %}
+<div class="review-slide">
+    <div class="review-box">
+        <span class="star-rating">
+            {% for i in "12345"|make_list %}
+                <i class="{% if forloop.counter <= review.rating %}ph-fill{% else %}ph{% endif %} ph-star"></i>
+            {% endfor %}
+        </span>
 
-<div class="doctor-card">
-  <h4>Patient Reviews</h4>
+        <p class="review-comment">"{{ review.comment }}"</p>
 
-  {% if reviews %}
-    {% for review in reviews %}
-      <div class="review-box">
-        <strong>{{ review.patient.username }}</strong>
-        <span>{{ review.rating }} ⭐</span>
+        <div class="patient-info">
+            <div class="patient-avatar">
+                {{ review.patient.username|slice:":1"|upper }}
+            </div>
+            <div class="patient-details">
+                <span class="patient-name">{{ review.patient.username }}</span>
+                <span class="review-date">{{ review.created_at|date:"M d, Y" }}</span>
+            </div>
+        </div>
+    </div>
+</div>
+                {% endfor %}
+            {% else %}
+                <p class="text-center text-muted">No reviews yet.</p>
+            {% endif %}
+        </div>
+    </div>
 
-        {% if review.comment %}
-          <p>{{ review.comment }}</p>
-        {% endif %}
-
-        <small class="text-muted">
-          {{ review.created_at|date:"M d, Y" }}
-        </small>
-      </div>
-      <hr>
-    {% endfor %}
-  {% else %}
-    <p class="text-muted">No reviews yet.</p>
-  {% endif %}
+    <div class="carousel-controls">
+        <button class="nav-btn prev" onclick="moveCarousel(-1)"><i class="ph ph-caret-left"></i></button>
+        <button class="nav-btn next" onclick="moveCarousel(1)"><i class="ph ph-caret-right"></i></button>
+    </div>
 </div>
 
-
 {% if user.is_authenticated and user.role == "user" %}
-<div class="doctor-card">
-  <h4>Leave a Review</h4>
+<div class="doctor-card mt-4">
+    <h4 class="mb-3"><i class="ph ph-note-pencil text-danger"></i> Leave a Review</h4>
 
-  <form method="POST" action="{% url 'submit_doctor_review' doctor.pk %}">
-    {% csrf_token %}
+    <form method="POST" action="{% url 'submit_doctor_review' doctor.pk %}" class="review-form">
+        {% csrf_token %}
 
-    <label>Rating</label>
-    <select name="rating" class="form-control mb-2" required>
-      <option value="">Select</option>
-      {% for i in "12345" %}
-        <option value="{{ i }}">{{ i }} ⭐</option>
-      {% endfor %}
-    </select>
+        <div class="rating-wrapper mb-3">
+            <p class="small text-muted mb-2">How was your experience?</p>
+            <div class="star-input-container">
+                {% for i in "54321"|make_list %}
+                <input type="radio" name="rating" id="star{{ i }}" value="{{ i }}" required>
+                <label for="star{{ i }}" class="ph-fill ph-star"></label>
+                {% endfor %}
+            </div>
+        </div>
 
-    <textarea
-      name="comment"
-      class="form-control mb-2"
-      placeholder="Write your experience..."
-    ></textarea>
+        <div class="form-group mb-3">
+            <textarea
+                name="comment"
+                class="form-control review-textarea"
+                placeholder="Share your details..."
+                rows="4"
+            ></textarea>
+        </div>
 
-    <button class="btn" style="background-color: #b92222; color:white;">Submit Review</button>
-  </form>
+        <button class="btn btn-submit-review">
+            Submit Feedback <i class="ph ph-paper-plane-tilt"></i>
+        </button>
+    </form>
 </div>
 {% endif %}
 
@@ -316,4 +338,48 @@ bookingModalEl.addEventListener('hidden.bs.modal', function () {
     document.getElementById('bookingForm').reset();
 });
 </script>
+
+<script>
+let currentIndex = 0;
+const track = document.getElementById('reviewsTrack');
+const slides = document.querySelectorAll('.review-slide');
+
+function updateCarousel() {
+    if (slides.length === 0) return;
+
+    // Remove active class and add to current
+    slides.forEach((slide, index) => {
+        slide.classList.remove('active');
+        if (index === currentIndex) {
+            slide.classList.add('active');
+        }
+    });
+
+    const slideWidth = slides[0].offsetWidth + 30; // 30 is the gap defined in CSS
+    const viewport = document.querySelector('.reviews-viewport');
+    const containerWidth = viewport.offsetWidth;
+    
+    // Calculate the shift needed to center the currentIndex slide
+    const centerOffset = (containerWidth / 2) - (slideWidth / 2);
+    const shift = centerOffset - (currentIndex * slideWidth);
+    
+    track.style.transform = `translateX(${shift}px)`;
+}
+
+// ⭐ THE MISSING FUNCTION
+function moveCarousel(direction) {
+    currentIndex += direction;
+
+    // Prevent going out of bounds
+    if (currentIndex < 0) currentIndex = 0;
+    if (currentIndex >= slides.length) currentIndex = slides.length - 1;
+
+    updateCarousel();
+}
+
+// Initialize position on load
+window.addEventListener('load', updateCarousel);
+window.addEventListener('resize', updateCarousel);
+</script>
+
 </body>

@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="{% static 'css/component.css' %}">
 
 <!-- Navbar Start -->
+ 
 <nav class="navbar">
     <div class="nav-left">
         <img src="{% static 'images/logo1.png' %}" alt="FemiCare Logo" class="nav-logo">
@@ -32,3 +33,26 @@
   {% endif %}
 </div>
 </nav>
+{% if messages %}
+  <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 10000;">
+    {% for message in messages %}
+      <div class="toast show align-items-center {% if message.tags == 'error' %}text-bg-danger{% else %}text-bg-success{% endif %} border-0 mb-2" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+          <div class="toast-body">
+            {{ message }}
+          </div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <script>
+    setTimeout(function() {
+      let toasts = document.querySelectorAll('.toast');
+      toasts.forEach(toast => {
+        toast.classList.remove('show');
+      });
+    }, 5000);
+  </script>
+{% endif %}

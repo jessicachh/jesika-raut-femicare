@@ -1640,6 +1640,198 @@ body {
   margin-bottom: 14px;
   font-weight: 600;
 }
+/* REVIEWS SECTION */
+/* VIEWPORT & TRACK */
+.reviews-viewport {
+    overflow: hidden; 
+    padding: 40px 0;
+    position: relative;
+}
+
+.reviews-track {
+    display: flex;
+    gap: 30px;
+    transition: transform 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+    align-items: center;
+    /* This ensures we have enough space to move left/right */
+    width: max-content; 
+    will-change: transform;
+}
+
+/* THE REVIEW CARD */
+.review-slide {
+    min-width: 340px;
+    flex-shrink: 0;
+    transition: all 0.5s ease;
+    filter: blur(1px); /* Slight blur for non-active cards */
+    opacity: 0.4;
+    transform: scale(0.85);
+}
+
+.review-slide.active {
+    opacity: 1;
+    filter: blur(0);
+    transform: scale(1.05); /* Make center card slightly larger */
+    z-index: 10;
+}
+
+/* CARD INTERNAL STYLING (Matches your sample) */
+.review-box {
+    background: #fff;
+    padding: 30px;
+    border-radius: 20px;
+    position: relative;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+    height: 100%;
+}
+
+/* The Quote Icon from your sample */
+.review-box::after {
+    content: "”";
+    position: absolute;
+    top: 10px;
+    right: 25px;
+    font-size: 80px;
+    color: #f1f5f9;
+    font-family: serif;
+    line-height: 1;
+}
+
+.star-rating {
+    color: #f59e0b;
+    font-size: 0.9rem;
+    margin-bottom: 15px;
+    display: block;
+}
+
+.review-comment {
+    font-size: 1.05rem;
+    color: #334155;
+    line-height: 1.6;
+    margin-bottom: 25px;
+    min-height: 80px;
+}
+
+/* PATIENT INFO AREA (Bottom aligned like sample) */
+.patient-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-top: 1px solid #f1f5f9;
+    padding-top: 15px;
+}
+
+.patient-avatar {
+    width: 45px;
+    height: 45px;
+    background: #b92222; /* Your theme red */
+    color: #fff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+}
+
+.patient-details {
+    display: flex;
+    flex-direction: column;
+}
+
+.patient-name {
+    font-weight: 700;
+    color: #1e293b;
+    font-size: 0.95rem;
+}
+
+.review-date {
+    font-size: 0.8rem;
+    color: #94a3b8;
+}
+/* Fix the navigation buttons position */
+.carousel-controls {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-top: -20px; /* Pull buttons up slightly */
+    position: relative;
+    z-index: 10;
+}
+
+.nav-btn {
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 1.2rem;
+}
+
+/* Leave Review */
+/* STAR RATING INPUT */
+.star-input-container {
+    display: flex;
+    flex-direction: row-reverse; /* Allows us to highlight all previous stars */
+    justify-content: flex-end;
+    gap: 5px;
+}
+
+.star-input-container input {
+    display: none; /* Hide the circles */
+}
+
+.star-input-container label {
+    font-size: 1.8rem;
+    color: #e2e8f0; /* Default empty star color */
+    cursor: pointer;
+    transition: transform 0.2s ease, color 0.2s ease;
+}
+
+/* Hover & Checked Logic */
+.star-input-container label:hover,
+.star-input-container label:hover ~ label,
+.star-input-container input:checked ~ label {
+    color: #f59e0b; /* Golden Yellow */
+    transform: scale(1.1);
+}
+
+/* TEXTAREA STYLING */
+.review-textarea {
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 15px;
+    font-size: 0.95rem;
+    resize: none;
+    transition: border-color 0.3s ease;
+}
+
+.review-textarea:focus {
+    border-color: #b92222;
+    box-shadow: 0 0 0 3px rgba(185, 34, 34, 0.1);
+    outline: none;
+}
+
+/* SUBMIT BUTTON */
+.btn-submit-review {
+    background-color: #b92222;
+    color: white;
+    padding: 12px 25px;
+    border-radius: 10px;
+    font-weight: 600;
+    border: none;
+    transition: all 0.3s ease;
+}
+
+.btn-submit-review:hover {
+    background-color: #8e1a1a;
+    transform: translateY(-2px);
+    color: white;
+    box-shadow: 0 4px 12px rgba(185, 34, 34, 0.2);
+}
+
+
 
 /* Availability */
 .availability-grid {
@@ -1696,7 +1888,7 @@ body {
 
 
 /* DATE RIBBON */
-
+/* 
 .date-ribbon{
     display:flex;
     gap:12px;
@@ -1705,7 +1897,6 @@ body {
     margin-bottom:20px;
 }
 
-/* Visible scrollbar */
 .date-ribbon::-webkit-scrollbar{
     height:6px;
 }
@@ -1714,7 +1905,6 @@ body {
     border-radius:10px;
 }
 
-/* DATE BUTTON */
 .date-tab-btn{
     min-width:90px;
     height:70px;
@@ -1735,7 +1925,6 @@ body {
     border-color:#b92222;
 }
 
-/* SLOT GRID */
 .time-slot-grid{
     display:grid;
     grid-template-columns:repeat(auto-fill,minmax(110px,1fr));
@@ -1754,6 +1943,118 @@ body {
 .time-pill:hover{
     background:#b92222;
     color:#fff;
+} */
+
+
+/* DATE RIBBON SCROLLING */
+.date-ribbon {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    padding: 5px 2px 15px 2px;
+    margin-bottom: 25px;
+    scrollbar-width: thin; /* Firefox */
+}
+
+.date-ribbon::-webkit-scrollbar {
+    height: 6px;
+}
+
+.date-ribbon::-webkit-scrollbar-thumb {
+    background: #e2e8f0;
+    border-radius: 10px;
+}
+
+/* DATE TABS */
+.date-tab-btn {
+    min-width: 90px;
+    height: 80px;
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+}
+
+.date-tab-btn .day-name {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    font-weight: 700;
+    margin-bottom: 4px;
+    color: #64748b;
+}
+
+.date-tab-btn .day-date {
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.date-tab-btn:hover {
+    border-color: #b92222;
+    transform: translateY(-2px);
+}
+
+.date-tab-btn.active {
+    background: #b92222;
+    color: #ffffff;
+    border-color: #b92222;
+    box-shadow: 0 4px 12px rgba(185, 34, 34, 0.2);
+}
+
+.date-tab-btn.active .day-name {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+/* TIME SLOTS */
+.slot-heading {
+    font-size: 0.95rem;
+    color: #475569;
+    margin-bottom: 15px;
+}
+
+.time-slot-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 12px;
+}
+
+.slot-btn {
+    padding: 12px 10px;
+    border-radius: 10px;
+    border: 1px solid #b92222;
+    background: #fff;
+    color: #b92222;
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+}
+
+.slot-btn:hover {
+    background: #b92222;
+    color: #fff;
+    box-shadow: 0 4px 8px rgba(185, 34, 34, 0.15);
+}
+
+/* EMPTY STATE */
+.empty-slots-state {
+    text-align: center;
+    padding: 40px;
+    background: #f8fafc;
+    border-radius: 12px;
+    color: #94a3b8;
+}
+
+.empty-slots-state i {
+    font-size: 3rem;
+    margin-bottom: 10px;
 }
 
 /* MODAL */
