@@ -10,10 +10,12 @@ class User(AbstractUser):
         ('user', 'User'),
         ('doctor', 'Doctor'),
     )
-
+    
     role = models.CharField(max_length=10, choices=ROLE_CHOICES)
     is_verified = models.BooleanField(default=False)  # for doctors only
 
+    has_accepted_terms = models.BooleanField(default=False)
+    
     def __str__(self):
         return self.username
 
@@ -217,3 +219,18 @@ class Appointment(models.Model):
     def is_expired(self):
         from django.utils import timezone
         return self.status == "pending" and (timezone.now() - self.created_at).total_seconds() >= 21600
+    
+
+
+
+class ChatMessage(models.Model):
+    # Using the combination of doctor/patient to keep history persistent
+    room_name = models.CharField(max_length=255) 
+    sender = models.ForeignKey(User, on_delete=models.CASCADE)
+    message = models.TextField(blank=True)
+    file = models.FileField(upload_to='chat_files/', null=True, blank=True)
+    is_note = models.BooleanField(default=False) # True if it's a doctor's internal note
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['timestamp']

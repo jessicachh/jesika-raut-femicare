@@ -1,52 +1,86 @@
 {% extends 'dashboard/main.html' %}
 {% block dashboard_content %}
 <div class="container py-4">
-    <h3 class="mb-4">My Booked Appointments</h3>
-    <div class="row">
-        {% for appt in appointments %}
-        <div class="col-md-6 mb-4">
-            <div class="card h-100 shadow-sm border-0">
-                <div class="card-body">
- <div class="d-flex align-items-center mb-3">
-    <div class="flex-grow-1">
-        <h5 class="mb-0">Dr. {{ appt.doctor.doctorprofile.full_name }}</h5>
-        <small class="text-primary">{{ appt.doctor.doctorprofile.specialization }}</small>
-    </div>
     
-    <span class="badge bg-{{ appt.status_color }}">
-        {{ appt.display_status }}
-    </span>
-</div>
-                    <hr>
-                    <div class="row">
-                        <div class="col-6">
-                            <p class="mb-0 text-muted small">DATE</p>
-                            <p class="fw-bold">{{ appt.availability.date|date:"d M Y" }}</p>
-                        </div>
-                        <div class="col-6 text-end">
-                            <p class="mb-0 text-muted small">TIME</p>
-                            <p class="fw-bold">{{ appt.availability.start_time|time:"H:i" }}</p>
-                        </div>
+    {% if next_session %}
+    <div class="mb-5">
+        <h4 class="mb-3 text-muted small fw-bold text-uppercase">Up Next</h4>
+        <div class="card border-0 shadow-sm text-white" style="background-color: #b32525;">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <span class="badge bg-white text-danger mb-3">Priority Session</span>
+                        <h2 class="mb-1">Dr. {{ next_session.doctor.doctor_profile.full_name }}</h2>
+                        <p class="mb-0 opacity-75">{{ next_session.doctor.doctor_profile.specialization }}</p>
                     </div>
-
-                    {% if appt.status == 'rejected' and appt.reject_reason %}
-                    <div class="alert alert-danger py-1 px-2 mt-2 mb-0 small">
-                        <strong>Reason:</strong> {{ appt.reject_reason }}
+                    <div class="text-end">
+                        <h3 class="mb-0">{{ next_session.availability.date|date:"d M" }}</h3>
+                        <p class="mb-0 opacity-75">{{ next_session.availability.start_time|time:"h:i A" }}</p>
                     </div>
+                </div>
+                <hr class="my-3 opacity-25">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-geo-alt me-1"></i> {{ next_session.doctor.doctorprofile.hospital_name }}</span>
+                    {% if next_session.status == 'approved' %}
+                        <a href="{% url 'chat_room' next_session.id %}" class="btn btn-light fw-bold px-4 text-danger">Join Consultation</a>
+                    {% else %}
+                        <span class="badge bg-warning text-dark">Pending Approval</span>
                     {% endif %}
-
-                    <p class="mb-0 mt-2 small text-muted">
-                        <i class="bi bi-geo-alt"></i> {{ appt.doctor.doctorprofile.hospital_name }}
-                    </p>
                 </div>
             </div>
         </div>
-        {% empty %}
-        <div class="text-center mt-5">
-            <p class="text-muted mt-3">You have no upcoming appointments.</p>
-            <a href="{% url 'explore_doctors' %}" class="btn btn-primary">Book Now</a>
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <div class="col-lg-7">
+            <h5 class="mb-4">Other Scheduled Doctors</h5>
+            {% regroup other_upcoming by doctor as upcoming_by_doctor %}
+            
+            {% for group in upcoming_by_doctor %}
+            <div class="card mb-4 border-0 shadow-sm">
+                <div class="card-header bg-white border-0 pt-3">
+                    <h6 class="mb-0">Dr. {{ group.grouper.doctor_profile.full_name }}</h6>
+                    <small style="color: #b32525;">{{ group.grouper.doctor_profile.specialization }}</small>
+                </div>
+                <div class="card-body py-2">
+                    {% for appt in group.list %}
+                    <div class="d-flex justify-content-between align-items-center py-2 {% if not forloop.last %}border-bottom{% endif %}">
+                        <div>
+                            <span class="fw-bold small">{{ appt.availability.date|date:"D, d M" }}</span>
+                            <span class="text-muted ms-2 small">{{ appt.availability.start_time|time:"h:i A" }}</span>
+                        </div>
+                        <span class="badge bg-light text-dark border">{{ appt.display_status }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% empty %}
+                {% if not next_session %}
+                <div class="text-center py-5 border-dashed rounded">
+                    <p class="text-muted">Your schedule is empty.</p>
+                    <a href="{% url 'explore_doctors' %}" class="btn text-white btn-sm" style="background-color: #b32525;">Find a Doctor</a>
+                </div>
+                {% endif %}
+            {% endfor %}
         </div>
-        {% endfor %}
+
+        <div class="col-lg-5">
+            <h5 class="mb-4">Consultation History</h5>
+            <div class="card border-0 shadow-sm">
+                <div class="list-group list-group-flush">
+                    {% for appt in past %}
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between">
+                            <small class="fw-bold">Dr. {{ appt.doctor.doctor_profile.full_name }}</small>
+                            <small class="text-muted">{{ appt.availability.date|date:"d M y" }}</small>
+                        </div>
+                        <a href="{% url 'chat_room' appt.id %}" class="small text-decoration-none" style="color: #b32525;">View Chat History →</a>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}

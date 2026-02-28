@@ -1,0 +1,214 @@
+{% extends 'dashboard/main.html' %}
+{% load static %}
+
+<div class="dashboard-container">
+{% block sidebar %}
+    {% if role == 'doctor' %}
+        {% include 'doctor/sidebar_doctor.html' %}
+    {% else %}
+        {% include 'components/sidebar.html' %}
+    {% endif %}
+{% endblock sidebar %}
+
+{% block dashboard_content %}
+
+
+    <main class="dashboard-main">
+        <div class="chat-main-container">
+            <div class="chat-header bg-white p-3 border-bottom d-flex justify-content-between align-items-center">
+<div>
+    <h5 class="mb-0">
+        {% if role == 'doctor' %}
+            Consultation with: {{ appointment.user.username }}
+        {% else %}
+            Consultation with: Dr. {{ appointment.doctor.doctor_profile.full_name }}
+        {% endif %}
+    </h5>
+    <small class="{% if is_active %}text-success{% else %}text-danger{% endif %} fw-bold">
+        {% if is_active %}
+            <span class="pulse-dot">●</span> Active Now
+        {% elif is_locked %}
+            🔒 Session Finished
+        {% else %}
+            ⏳ Scheduled for {{ appointment.availability.start_time }}
+        {% endif %}
+    </small>
+</div>
+            </div>
+            <div id="chat-log" class="chat-messages-area">
+                {% for msg in history %}
+                    {# 1. LOGIC: If it's a note AND the user is NOT a doctor, skip this message entirely #}
+                    {% if msg.is_note and role != 'doctor' %}
+                        {% comment %} Patient cannot see doctor's private notes {% endcomment %}
+                    {% else %}
+                        <div class="message {% if msg.is_note %}justify-content-center{% elif msg.sender == request.user %}sent{% else %}received{% endif %}">
+                            <div class="bubble {% if msg.is_note %}note-bubble shadow-sm{% endif %}">
+                                {% if msg.is_note %}
+                                    <small class="d-block text-danger fw-bold mb-1">
+                                        <i class="bi bi-shield-lock-fill"></i> PRIVATE MEDICAL NOTE
+                                    </small>
+                                {% endif %}
+                                
+                                <div class="message-text">{{ msg.message }}</div>
+                                
+                                <small class="message-time">
+                                    {{ msg.timestamp|time:"H:i" }}
+                                    {% if msg.sender == request.user %} 
+                                        <i class="bi bi-check2-all"></i> 
+                                    {% endif %}
+                                </small>
+                            </div>
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+
+            <div class="chat-input-area p-3 bg-white border-top">
+                {% if is_active %}
+                <input type="hidden" id="session-end-time" value="{{ appointment.availability.date|date:'Y-m-d' }}T{{ appointment.availability.end_time|time:'H:i:s' }}">
+                    <div class="input-group">
+                        <input id="chat-message-input" type="text" class="form-control" placeholder="Type a message...">
+                        {% if role == 'doctor' %}
+                            <button id="note-toggle" class="btn btn-outline-warning" title="Private Note Mode">
+                                <i class="bi bi-journal-text"></i>
+                            </button>
+                        {% endif %}
+                        <button id="chat-message-submit" class="btn btn-primary">
+                            <i class="bi bi-send"></i>
+                        </button>
+                    </div>
+                {% else %}
+                    {% if is_locked %}
+                        {# Case 1: The appointment is in the past #}
+                        <div class="alert alert-secondary text-center mb-0">
+                            <i class="bi bi-lock-fill"></i> This consultation has ended. You are viewing the chat history.
+                        </div>
+                    {% else %}
+                        {# Case 2: The appointment is in the future #}
+                        <div class="alert alert-info text-center mb-0">
+                            <i class="bi bi-clock-history"></i> This consultation has not started yet. 
+                            Please return on <strong>{{ appointment.availability.date|date:"d M" }} at {{ appointment.availability.start_time|time:"H:i" }}</strong>.
+                        </div>
+                    {% endif %}
+                {% endif %}
+            </div>
+        </div>
+    </main>
+</div>
+<script>
+    const roomName = "{{ room_name }}";
+    const chatSocket = new WebSocket('ws://' + window.location.host + '/ws/chat/' + roomName + '/');
+    let isNoteMode = false;
+
+    // --- AUTO-LOCK LOGIC ---
+    const endTimeInput = document.querySelector('#session-end-time');
+    
+    function checkSessionStatus() {
+        if (!endTimeInput) return;
+
+        const endTime = new Date(endTimeInput.value).getTime();
+        const now = new Date().getTime();
+
+        if (now >= endTime) {
+            // 1. Close WebSocket
+            chatSocket.close();
+            
+            // 2. Replace input area with "Ended" message
+            const inputArea = document.querySelector('.chat-input-area');
+            inputArea.innerHTML = `
+                <div class="alert alert-secondary text-center mb-0">
+                    <i class="bi bi-lock-fill"></i> This consultation has just ended. You are now in view-only mode.
+                </div>
+            `;
+            
+            // 3. Update header status
+            const statusLabel = document.querySelector('.chat-header small');
+            if(statusLabel) {
+                statusLabel.className = "text-danger fw-bold";
+                statusLabel.innerHTML = "🔒 Session Finished";
+            }
+
+            // 4. Stop the timer
+            clearInterval(statusInterval);
+        }
+    }
+
+    // Check every 5 seconds so it doesn't lag
+    const statusInterval = setInterval(checkSessionStatus, 1000);
+    // Run once immediately
+    checkSessionStatus();
+
+    // --- EXISTING CHAT LOGIC ---
+    const chatLog = document.querySelector('#chat-log');
+    chatLog.scrollTop = chatLog.scrollHeight;
+
+    const noteBtn = document.querySelector('#note-toggle');
+    if (noteBtn) {
+        noteBtn.onclick = function() {
+            isNoteMode = !isNoteMode;
+            this.classList.toggle('btn-warning');
+            this.classList.toggle('btn-outline-warning');
+            document.querySelector('#chat-message-input').placeholder = isNoteMode ? "Writing private note..." : "Type a message...";
+        };
+    }
+
+    document.querySelector('#chat-message-submit').onclick = function(e) {
+        const messageInputDom = document.querySelector('#chat-message-input');
+        const message = messageInputDom.value;
+        
+        // Final safety check: Don't send if time expired
+        if (endTimeInput) {
+            const endTime = new Date(endTimeInput.value).getTime();
+            if (new Date().getTime() >= endTime) {
+                alert("Session has expired. Message not sent.");
+                return;
+            }
+        }
+
+        if(message.trim() !== "") {
+            chatSocket.send(JSON.stringify({
+                'message': message,
+                'is_note': isNoteMode
+            }));
+            messageInputDom.value = '';
+            if(isNoteMode && noteBtn) noteBtn.click(); 
+        }
+    };
+
+    chatSocket.onmessage = function(e) {
+        const data = JSON.parse(e.data);
+        const isMe = data.sender === "{{ request.user.username }}";
+        const myRole = "{{ role }}";
+
+        if (data.is_note && myRole !== 'doctor') return; 
+
+        let alignmentClass = isMe ? "sent" : "received";
+        let noteMarkup = "";
+        let bubbleExtraClass = "";
+
+        if (data.is_note) {
+            alignmentClass = "justify-content-center";
+            bubbleExtraClass = "note-bubble shadow-sm";
+            noteMarkup = '<small class="d-block text-danger fw-bold mb-1"><i class="bi bi-shield-lock-fill"></i> PRIVATE MEDICAL NOTE</small>';
+        }
+
+        const msgHtml = `
+            <div class="message ${alignmentClass}">
+                <div class="bubble ${bubbleExtraClass}">
+                    ${noteMarkup}
+                    <div class="message-text">${data.message}</div>
+                    <small class="message-time">Just now ${isMe ? '<i class="bi bi-check2"></i>' : ''}</small>
+                </div>
+            </div>`;
+        
+        chatLog.innerHTML += msgHtml;
+        chatLog.scrollTop = chatLog.scrollHeight;
+    };
+
+    document.querySelector('#chat-message-input').onkeyup = function(e) {
+        if (e.keyCode === 13) {
+            document.querySelector('#chat-message-submit').click();
+        }
+    };
+</script>
+{% endblock %}

@@ -10,6 +10,7 @@ urlpatterns = [
     path('home/', views.home, name='home'),
     path('service/', views.service, name='service'),
     path('contact/', views.contact, name='contact'),
+    path('terms_and_conditions/', views.terms_and_conditions, name='terms_and_conditions'),
     path('doctor/', views.explore_doctors, name='explore_doctors'),
 
     # Authentication
@@ -42,6 +43,9 @@ urlpatterns = [
     path('appointment/respond/<int:appointment_id>/', views.respond_appointment, name='respond_appointment'),
 
     path('dashboard/add-cycle-log/', views.add_cycle_log, name='add_cycle_log'),
+
+    # Chat 
+    path('chat/<int:appointment_id>/', views.chat_room, name='chat_room'),
 
     
      path(

@@ -776,15 +776,118 @@ body {
         background: white;
         transition: 0.3s;
     }
-    .date-item.active {
-        background: var(--color-primary);
-        color: white;
-        border-color: var(--color-primary);
-    }
-    .date-item:hover:not(.active) { background: #f8f9fa; }
+.date-item.active {
+    background-color: var(--color-primary) !important;
+    color: white !important;
+    border-color: var(--color-primary) !important;
+}
 
+.date-item:hover {
+    background-color: var(--color-primary) !important;
+    color: white !important;
+}
+/* 2. Weekly Availability Header & Days */
+.card-header.bg-dark {
+    background-color: var(--color-primary) !important; /* Changes black to system red */
+}
+
+/* Checkbox Labels (Days of Week) */
+.btn-outline-primary {
+    color: var(--color-primary);
+    border-color: var(--color-primary);
+}
+
+.btn-check:checked + .btn-outline-primary,
+.btn-outline-primary:hover {
+    background-color: var(--color-primary) !important;
+    border-color: var(--color-primary) !important;
+    color: white !important;
+}
+
+
+/* FIX 1: Change blue buttons to Red */
+    .btn-outline-primary {
+        --bs-btn-color: var(--color-primary) !important;
+        --bs-btn-border-color: var(--color-primary) !important;
+        --bs-btn-hover-bg: var(--color-primary) !important;
+        --bs-btn-hover-border-color: var(--color-primary) !important;
+        --bs-btn-active-bg: var(--color-primary) !important;
+    }
+    .btn-check:checked + .btn-outline-primary {
+        background-color: var(--color-primary) !important;
+        border-color: var(--color-primary) !important;
+        color: white !important;
+    }
+    /* FIX 2: Style for booked slots */
+    .booked-slot {
+        background-color: #fff5f5 !important;
+        border-color: var(--color-primary) !important;
+        color: var(--color-primary) !important;
+    }
+    /* FIX 3: Ribbon active state to Red */
+    .date-item.active {
+        background-color: var(--color-primary) !important;
+        border-color: var(--color-primary) !important;
+        color: white !important;
+    }
+
+.slot-box {
+    min-width: 190px;
+    padding: 10px 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+}
+
+/* Top row always horizontal */
+.slot-top {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+/* Delete icon */
+.delete-icon {
+    margin-left: 8px;
+    color: #dc3545;
+    font-size: 14px;
+}
+
+.delete-icon:hover {
+    color: #a71d2a;
+}
+
+/* Booked label */
+.booked-user {
+    margin-top: 6px;
+    font-size: 12px;
+    padding: 4px 10px;
+    background-color: #f8d7da;
+    color: #842029;
+    border-radius: 20px;
+
+    display: block;        /* important */
+    width: 100%;           /* take full width */
+    text-align: center;    /* center text only */
+}
+
+/* Optional booked background */
+.booked-slot {
+    background-color: #fff5f5;
+    border: 1px solid #ffcccc;
+}
+/* 3. Slot Box: Booked State */
+
+.slot-box.booked-slot {
+    background-color: #fff1f2; /* Light red bg */
+    border-color: var(--color-primary) !important;
+    color: var(--color-primary) !important;
+    font-weight: 600;
+}
     /* Slot Display */
-    .day-pane { display: none; }
+    .day-pane { display: none; transition: opacity 0.2s ease;}
     .day-pane.active { display: block; animation: fadeIn 0.3s; }
     
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -908,3 +1011,42 @@ body {
         min-width: 150px;
     }
 }
+
+
+/* Make pills white with red border and red text */
+.nav-pills .nav-link {
+    background-color: #fff; /* white background */
+    color: #dc3545; /* system red text */
+    border: 1px solid #dc3545; /* red border */
+    margin-right: 0.5rem;
+    transition: all 0.2s;
+}
+
+/* Hover effect for non-active tabs */
+.nav-pills .nav-link:hover {
+    background-color: #f8d7da; /* very light red hover */
+    color: #dc3545;
+}
+
+/* Active tab: system red background, white text */
+.nav-pills .nav-link.active {
+    background-color: #dc3545 !important; /* system red */
+    color: #fff !important; /* white text */
+}
+
+/* Badge style: red background, white text */
+.nav-pills .badge {
+    background-color: #dc3545 !important;
+    color: #ffffff !important;
+    font-weight: bold;
+}
+.nav-pills .nav-link .badge.active{
+    background-color: #fefefe !important;
+    color: #dc3545 !important;
+    font-weight: bold;
+}
+.appointment-card { border: none; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 1.5rem; }
+.status-indicator { width: 8px; border-radius: 4px 0 0 4px; }
+.patient-avatar { width: 45px; height: 45px; background: #e9ecef; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #495057; }
+.booked-info { text-align: center; margin-top: 4px; }
+.bg-danger-subtle { background-color: #fdeaea; }

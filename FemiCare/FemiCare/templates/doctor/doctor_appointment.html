@@ -2,83 +2,344 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Doctor Dashboard</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Doctor Appointments</title>
 
-  <!-- Same dashboard CSS -->
-  <link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
-  <link
-    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
-    rel="stylesheet"
-  >
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+<link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+<script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+
 </head>
-
 <body>
-    
-  <!-- SAME HEADER -->
-  {% include 'components/header.html' %}
+{% include 'components/header.html' %}
+<div class="dashboard-container">
+{% include 'doctor/sidebar_doctor.html' %}
 
-  <div class="dashboard-container">
-
-    <!-- DOCTOR SIDEBAR -->
-    {% include 'doctor/sidebar_doctor.html' %}
-
-    <!-- MAIN CONTENT -->
-    <main class="dashboard-main">
-      <!-- <h2 class="mb-4">Doctor Dashboard</h2> -->
-       
-<div class="container mt-4">
-    <h3><i class="ph ph-envelope-open"></i> Appointment Requests</h3>
-    {% for appt in appointments %}
-    <div class="card mb-3 {% if appt.status == 'pending' %}border-warning{% endif %}">
-        <div class="card-body">
-            <h5 class="card-title">Patient: {{ appt.user.username }}</h5>
-            <p class="mb-1"><strong>Time:</strong> {{ appt.availability.date }} | {{ appt.availability.start_time }}</p>
-            <p class="text-muted"><strong>Reason:</strong> {{ appt.patient_message }}</p>
-
-            {% if appt.status == 'pending' and appt.availability.date >= today %}
-                <div class="mt-3">
-                    <form action="{% url 'respond_appointment' appt.id %}" method="POST" class="d-inline">
-                        {% csrf_token %}
-                        <input type="hidden" name="action" value="approve">
-                        <button class="btn btn-success btn-sm">Accept</button>
-                    </form>
-                    <button class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#rejectModal{{appt.id}}">Reject</button>
-                </div>
-            {% else %}
-                <div class="mt-2">
-                    <span class="badge bg-{{ appt.status_color }}">{{ appt.display_status|upper }}</span>
-                    {% if appt.availability.date < today %}
-                        <small class="text-muted ms-2">(Past Date)</small>
-                    {% endif %}
-                </div>
-            {% endif %}
-        </div>
-    </div>
-
-    <div class="modal fade" id="rejectModal{{appt.id}}" tabindex="-1">
-        <div class="modal-dialog">
-            <form action="{% url 'respond_appointment' appt.id %}" method="POST">
-                {% csrf_token %}
-                <div class="modal-content">
-                    <div class="modal-header"><h5>Reject Appointment</h5></div>
-                    <div class="modal-body">
-                        <input type="hidden" name="action" value="reject">
-                        <textarea name="reject_reason" class="form-control" placeholder="Provide a reason for rejection..." required></textarea>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="submit" class="btn btn-danger">Confirm Rejection</button>
-                    </div>
-                </div>
-            </form>
-        </div>
-    </div>
-    {% empty %}
-    <p>No requests found.</p>
-    {% endfor %}
+<main class="dashboard-main">
+<div class="container-fluid py-4">
+<div class="d-flex justify-content-between align-items-center mb-4">
+<div>
+<h2 class="fw-bold">Appointments</h2>
+<p class="text-muted">Manage your patient requests and sessions efficiently.</p>
+</div>
 </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<!-- Tabs -->
+<ul class="nav nav-pills mb-4" id="appt-tabs" role="tablist">
+    <li class="nav-item">
+        <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#pending" type="button">
+            Requests <span class="badge bg-danger text-white ms-1">{{ pending_appointments|length }}</span>
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link" data-bs-toggle="pill" data-bs-target="#upcoming" type="button">
+            Upcoming <span class="badge bg-danger text-white ms-1">{{ upcoming_appointments|length }}</span>
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link" data-bs-toggle="pill" data-bs-target="#ongoing" type="button">
+            Ongoing <span class="badge bg-danger text-white ms-1">{{ ongoing_appointments|length }}</span>
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link" data-bs-toggle="pill" data-bs-target="#completed" type="button">
+            Completed <span class="badge bg-danger text-white ms-1">{{ completed_appointments|length }}</span>
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link" data-bs-toggle="pill" data-bs-target="#rejected" type="button">
+            Rejected <span class="badge bg-danger text-white ms-1">{{ rejected_appointments|length }}</span>
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content">
+
+<!-- Pending -->
+<div class="tab-pane fade show active" id="pending">
+{% for appt in pending_appointments %}
+<div class="card appointment-card overflow-hidden">
+<div class="d-flex">
+<div class="status-indicator bg-info"></div>
+<div class="card-body p-4">
+<div class="row align-items-center">
+<div class="col-md-4 d-flex align-items-center">
+<div class="patient-avatar me-3">{{ appt.user.username|slice:":1"|upper }}</div>
+<div>
+<h5 class="mb-0 fw-bold">{{ appt.user.username }}</h5>
+<small class="text-muted">Patient ID: #{{ appt.user.id }}</small>
+</div>
+</div>
+<div class="col-md-3 text-center">🕒 {{ appt.availability.start_time|time:"g:i A" }} - {{ appt.availability.end_time|time:"g:i A" }}
+<div class="booked-info">Booked by: {{ appt.user.username }}</div>
+</div>
+<div class="col-md-2 text-center"><span class="badge rounded-pill bg-info px-3 py-2">{{ appt.display_status }}</span></div>
+<div class="col-md-3 text-end">
+{% if appt.status == 'pending' %}
+<div class="d-flex gap-2">
+<form action="{% url 'respond_appointment' appt.id %}" method="POST" class="flex-grow-1">{% csrf_token %}<input type="hidden" name="action" value="approve"><button class="btn btn-success w-100">Accept</button></form>
+<button class="btn btn-outline-danger flex-grow-1" data-bs-toggle="modal" data-bs-target="#rejectModal{{ appt.id }}">Reject</button>
+</div>
+{% elif appt.status == 'approved' %}
+<a href="{% url 'chat_room' appt.id %}" class="btn btn-primary w-100 mb-1"><i class="ph ph-chats me-1"></i> Open Chat</a>
+{% endif %}
+</div>
+</div>
+<div class="mt-3 p-3 bg-light rounded shadow-sm">
+<p class="mb-0 small"><strong>Reason:</strong> {{ appt.patient_message }}</p>
+</div>
+</div>
+</div>
+</div>
+
+<!-- Reject Modal -->
+<div class="modal fade" id="rejectModal{{ appt.id }}" tabindex="-1">
+<div class="modal-dialog modal-dialog-centered">
+<div class="modal-content">
+<form action="{% url 'respond_appointment' appt.id %}" method="POST">
+{% csrf_token %}
+<div class="modal-header border-0">
+<h5 class="fw-bold">Reject Request</h5>
+<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+</div>
+<div class="modal-body">
+<p class="text-muted small">Provide a brief reason for rejection.</p>
+<input type="hidden" name="action" value="reject">
+<textarea name="reject_reason" class="form-control" rows="3" required></textarea>
+</div>
+<div class="modal-footer border-0">
+<button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+<button type="submit" class="btn btn-danger">Confirm Rejection</button>
+</div>
+</form>
+</div>
+</div>
+</div>
+{% empty %}<div class="text-center py-5 text-muted">No pending requests.</div>{% endfor %}
+</div>
+
+<!-- Upcoming -->
+<div class="tab-pane fade" id="upcoming">
+{% for appt in upcoming_appointments %}
+<div class="card appointment-card overflow-hidden">
+<div class="d-flex">
+<div class="status-indicator bg-primary"></div>
+<div class="card-body p-4">
+<div class="row align-items-center">
+<div class="col-md-4 d-flex align-items-center">
+<div class="patient-avatar me-3">{{ appt.user.username|slice:":1"|upper }}</div>
+<div>
+<h5 class="mb-0 fw-bold">{{ appt.user.username }}</h5>
+<small class="text-muted">Patient ID: #{{ appt.user.id }}</small>
+</div>
+</div>
+<div class="col-md-3 text-center">
+    🕒 {{ appt.availability.start_time|time:"g:i A" }} - {{ appt.availability.end_time|time:"g:i A" }}
+    <div class="booked-info mt-1">
+        <span class="text-muted small">Starts in:</span> 
+        <span class="badge bg-dark countdown-timer" 
+              data-starttime="{{ appt.availability.date|date:'Y-m-d' }}T{{ appt.availability.start_time|time:'H:i:s' }}">
+            Calculating...
+        </span>
+    </div>
+</div>
+<div class="col-md-2 text-center"><span class="badge rounded-pill bg-primary px-3 py-2">{{ appt.display_status }}</span></div>
+<div class="col-md-3 text-end">
+<a href="{% url 'chat_room' appt.id %}" class="btn btn-primary w-100 mb-1"><i class="ph ph-chats me-1"></i> Open Chat</a>
+</div>
+</div>
+<div class="mt-3 p-3 bg-light rounded shadow-sm">
+<p class="mb-0 small"><strong>Reason:</strong> {{ appt.patient_message }}</p>
+</div>
+</div>
+</div>
+</div>
+{% empty %}<div class="text-center py-5 text-muted">No upcoming appointments.</div>{% endfor %}
+</div>
+
+
+<!-- Ongoing -->
+<div class="tab-pane fade" id="ongoing">
+{% for appt in ongoing_appointments %}
+<div class="card appointment-card overflow-hidden">
+<div class="d-flex">
+<div class="status-indicator bg-warning"></div>
+<div class="card-body p-4">
+<div class="row align-items-center">
+<div class="col-md-4 d-flex align-items-center">
+<div class="patient-avatar me-3">{{ appt.user.username|slice:":1"|upper }}</div>
+<div>
+<h5 class="mb-0 fw-bold">{{ appt.user.username }}</h5>
+<small class="text-muted">Patient ID: #{{ appt.user.id }}</small>
+</div>
+</div>
+<div class="col-md-3 text-center">🕒 {{ appt.availability.start_time|time:"g:i A" }} - {{ appt.availability.end_time|time:"g:i A" }}
+<div class="booked-info">Booked by: {{ appt.user.username }}</div>
+</div>
+<div class="col-md-2 text-center"><span class="badge rounded-pill bg-warning px-3 py-2">{{ appt.display_status }}</span></div>
+<div class="col-md-3 text-end">
+<a href="{% url 'chat_room' appt.id %}" class="btn btn-primary w-100 mb-1"><i class="ph ph-chats me-1"></i> Open Chat</a>
+</div>
+</div>
+<div class="mt-3 p-3 bg-light rounded shadow-sm">
+<p class="mb-0 small"><strong>Reason:</strong> {{ appt.patient_message }}</p>
+</div>
+</div>
+</div>
+</div>
+{% empty %}<div class="text-center py-5 text-muted">No ongoing appointments.</div>{% endfor %}
+</div>
+
+<!-- Completed -->
+<div class="tab-pane fade" id="completed">
+{% for appt in completed_appointments %}
+<div class="card appointment-card overflow-hidden">
+<div class="d-flex">
+<div class="status-indicator bg-success"></div>
+<div class="card-body p-4">
+<div class="row align-items-center">
+<div class="col-md-4 d-flex align-items-center">
+<div class="patient-avatar me-3">{{ appt.user.username|slice:":1"|upper }}</div>
+<div>
+<h5 class="mb-0 fw-bold">{{ appt.user.username }}</h5>
+<small class="text-muted">Patient ID: #{{ appt.user.id }}</small>
+</div>
+</div>
+<div class="col-md-3 text-center">🕒 {{ appt.availability.start_time|time:"g:i A" }} - {{ appt.availability.end_time|time:"g:i A" }}
+<div class="booked-info">Booked by: {{ appt.user.username }}</div>
+</div>
+<div class="col-md-2 text-center"><span class="badge rounded-pill bg-success px-3 py-2">{{ appt.display_status }}</span></div>
+<div class="col-md-3 text-end">
+<a href="{% url 'chat_room' appt.id %}" class="btn btn-primary w-100 mb-1"><i class="ph ph-chats me-1"></i> Open Chat</a>
+</div>
+</div>
+<div class="mt-3 p-3 bg-light rounded shadow-sm">
+<p class="mb-0 small"><strong>Reason:</strong> {{ appt.patient_message }}</p>
+</div>
+</div>
+</div>
+</div>
+{% empty %}<div class="text-center py-5 text-muted">No completed appointments.</div>{% endfor %}
+</div>
+
+<!-- Rejected -->
+<div class="tab-pane fade" id="rejected">
+{% for appt in rejected_appointments %}
+<div class="card appointment-card overflow-hidden">
+<div class="d-flex">
+<div class="status-indicator bg-danger"></div>
+<div class="card-body p-4">
+<div class="row align-items-center">
+<div class="col-md-4 d-flex align-items-center">
+<div class="patient-avatar me-3">{{ appt.user.username|slice:":1"|upper }}</div>
+<div>
+<h5 class="mb-0 fw-bold">{{ appt.user.username }}</h5>
+<small class="text-muted">Patient ID: #{{ appt.user.id }}</small>
+</div>
+</div>
+<div class="col-md-3 text-center">🕒 {{ appt.availability.start_time|time:"g:i A" }} - {{ appt.availability.end_time|time:"g:i A" }}
+<div class="booked-info">Booked by: {{ appt.user.username }}</div>
+</div>
+<div class="col-md-2 text-center"><span class="badge rounded-pill bg-danger px-3 py-2">{{ appt.display_status }}</span></div>
+</div>
+<div class="mt-3 p-3 bg-danger-subtle text-danger rounded shadow-sm">
+<strong>Rejection Reason:</strong> {{ appt.reject_reason }}
+</div>
+</div>
+</div>
+</div>
+{% empty %}<div class="text-center py-5 text-muted">No rejected appointments.</div>{% endfor %}
+</div>
+
+</div>
+</div>
+</main>
+</div>
+<script>
+    function scheduleRefresh() {
+        // Collect all appointment start times passed from Django
+        const startTimes = [
+            {% for appt in upcoming_appointments %}
+                "{{ appt.availability.date|date:'Y-m-d' }}T{{ appt.availability.start_time|time:'H:i:s' }}",
+            {% endfor %}
+        ];
+
+        if (startTimes.length === 0) return;
+
+        const now = new Date().getTime();
+        
+        // Find the earliest upcoming start time
+        let nextRefreshTime = Infinity;
+
+        startTimes.forEach(timeStr => {
+            const startTime = new Date(timeStr).getTime();
+            if (startTime > now && startTime < nextRefreshTime) {
+                nextRefreshTime = startTime;
+            }
+        });
+
+        if (nextRefreshTime !== Infinity) {
+            const delay = nextRefreshTime - now;
+            
+            // Add a small 1-second buffer to ensure the backend clock has also ticked over
+            setTimeout(() => {
+                window.location.reload();
+            }, delay + 1000);
+            
+            console.log("Page will refresh to shift appointments in: " + (delay/1000) + " seconds");
+        }
+    }
+
+    // Initialize the scheduler when the page loads
+    document.addEventListener('DOMContentLoaded', scheduleRefresh);
+</script>
+<script>
+    function updateCountdowns() {
+        const timers = document.querySelectorAll('.countdown-timer');
+        const now = new Date().getTime();
+        let needsReload = false;
+
+        timers.forEach(timer => {
+            const startTimeStr = timer.getAttribute('data-starttime');
+            const startTime = new Date(startTimeStr).getTime();
+            const distance = startTime - now;
+
+            if (distance < 0) {
+                timer.innerHTML = "Starting now...";
+                timer.classList.replace('bg-dark', 'bg-warning');
+                needsReload = true; // Trigger refresh to move to Ongoing
+            } else {
+                // Time calculations for hours, minutes and seconds
+                const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+                // Format: 00h 00m 00s
+                let display = "";
+                if (hours > 0) display += hours + "h ";
+                display += minutes + "m " + seconds + "s";
+                
+                timer.innerHTML = display;
+            }
+        });
+
+        // If an appointment time has just passed, reload to shift tabs
+        if (needsReload) {
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000); // 2 second delay to show "Starting now..." first
+        }
+    }
+
+    // Update the countdown every 1 second
+    setInterval(updateCountdowns, 1000);
+    
+    // Run once immediately on load
+    document.addEventListener('DOMContentLoaded', updateCountdowns);
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

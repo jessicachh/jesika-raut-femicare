@@ -2093,3 +2093,84 @@ body {
 .cancel-btn{
     border-radius:8px;
 }
+
+
+
+
+/* Chat room css */
+    /* Main Layout */
+    .dashboard-container { display: flex; min-height: 100vh; }
+    .dashboard-main { flex-grow: 1; padding: 20px; background: #f0f2f5; }
+    
+    /* WhatsApp Styles with Healthcare Twist */
+    .chat-main-container {
+        display: flex;
+        flex-direction: column;
+        height: 85vh; /* Slightly taller */
+        background: #fff;
+        border-radius: 15px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        overflow: hidden;
+    }
+
+    .chat-messages-area {
+        flex-grow: 1;
+        padding: 25px;
+        background-color: #e5ddd5;
+        /* Healthcare Vector Pattern */
+        background-image: url('https://www.transparenttextures.com/patterns/medical-icons.png');
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .message { display: flex; width: 100%; }
+    
+    /* Alignment Logic: sender on right, receiver on left */
+    .message.sent { justify-content: flex-end; }
+    .message.received { justify-content: flex-start; }
+
+    .bubble {
+        padding: 10px 15px;
+        max-width: 75%;
+        position: relative;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+        font-size: 0.95rem;
+    }
+
+    /* Sent Bubble (Right Side - Light Green) */
+    .sent .bubble {
+        background-color: #dcf8c6;
+        color: #303030;
+        border-radius: 15px 15px 2px 15px; /* Distinct corner for sender */
+    }
+
+    /* Received Bubble (Left Side - White) */
+    .received .bubble {
+        background-color: #ffffff;
+        color: #303030;
+        border-radius: 15px 15px 15px 2px; /* Distinct corner for receiver */
+    }
+
+    /* Private Note Style (Doctor Highlight) */
+    .note-bubble {
+        background-color: #fff9c4 !important; /* Soft yellow for medical notes */
+        border: 1px dashed #fbc02d;
+        align-self: center; /* Center notes in the middle of the chat */
+        text-align: center;
+        border-radius: 10px !important;
+    }
+
+    .message-time {
+        font-size: 0.65rem;
+        color: #888;
+        display: block;
+        text-align: right;
+        margin-top: 5px;
+    }
+    
+    /* Input Styling */
+    .chat-input-area { border-top: 1px solid #eee; padding: 15px; }
+    .btn-primary { background-color: #b92222; border: none; } /* Matching Femicare Red */
+    .btn-primary:hover { background-color: #961b1b; }

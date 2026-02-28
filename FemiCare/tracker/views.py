@@ -28,6 +28,20 @@ def contact(request):
     return render(request, 'contact.html')
 
 
+@login_required
+def terms_and_conditions(request):
+    if request.method == "POST":
+        user = request.user
+        user.has_accepted_terms = True
+        user.save()
+        
+        if user.role == 'doctor':
+            return redirect('doctor_dashboard')
+        else:
+            return redirect('dashboard_home')
+            
+    return render(request, 'terms_and_conditions.html')
+
 def explore_doctors(request):
     doctors = DoctorProfile.objects.filter(
         is_verified=True,
@@ -97,6 +111,9 @@ def login_view(request):
             return redirect('login')
 
         auth_login(request, user)
+
+        if not getattr(user, 'has_accepted_terms', False):
+            return redirect('terms_and_conditions')
 
         if user.role == 'doctor':
             try:
@@ -238,30 +255,64 @@ def doctor_appointment(request):
     if request.user.role != 'doctor':
         return redirect('home')
 
+    today = timezone.now().date()
+    # Using localtime to match the user's expected wall-clock time
+    now = timezone.localtime(timezone.now())
+
     appointments = Appointment.objects.filter(
         doctor=request.user
-    ).select_related('user', 'availability').order_by('-availability__date')
+    ).select_related('user', 'availability').order_by('availability__date', 'availability__start_time')
 
-    today = timezone.now().date()
+    pending_appointments = []
+    upcoming_appointments = []
+    ongoing_appointments = []
+    completed_appointments = []
+    rejected_appointments = []
 
     for appt in appointments:
-        if appt.availability.date < today:
-            if appt.status == 'approved':
+        # Combine date and time into a full datetime object for comparison
+        appt_time_start = timezone.make_aware(datetime.combine(appt.availability.date, appt.availability.start_time))
+        appt_time_end = timezone.make_aware(datetime.combine(appt.availability.date, appt.availability.end_time))
+
+        if appt.status == 'pending':
+            appt.display_status = "Pending" if appt.availability.date >= today else "Expired / Missed"
+            appt.status_color = "info" if appt.availability.date >= today else "secondary"
+            pending_appointments.append(appt)
+
+        elif appt.status == 'approved':
+            if appt_time_start > now:
+                # Still in the future
+                appt.display_status = "Upcoming"
+                appt.status_color = "primary"
+                upcoming_appointments.append(appt)
+            elif appt_time_start <= now <= appt_time_end:
+                # Active right now
+                appt.display_status = "Ongoing"
+                appt.status_color = "warning"
+                ongoing_appointments.append(appt)
+            else:
+                # Time has passed
                 appt.display_status = "Completed"
                 appt.status_color = "success"
-            elif appt.status == 'pending':
-                appt.display_status = "Expired/Missed"
-                appt.status_color = "secondary"
-            else:
-                appt.display_status = appt.status.capitalize()
-                appt.status_color = "danger"
-        else:
-            appt.display_status = appt.status.capitalize()
-            appt.status_color = "info"
+                completed_appointments.append(appt)
+
+        elif appt.status == 'completed':
+            appt.display_status = "Completed"
+            appt.status_color = "success"
+            completed_appointments.append(appt)
+
+        elif appt.status == 'rejected':
+            appt.display_status = "Rejected"
+            appt.status_color = "danger"
+            rejected_appointments.append(appt)
 
     return render(request, 'doctor/doctor_appointment.html', {
-        'appointments': appointments,
-        'today': today
+        'pending_appointments': pending_appointments,
+        'upcoming_appointments': upcoming_appointments,
+        'ongoing_appointments': ongoing_appointments,
+        'completed_appointments': completed_appointments,
+        'rejected_appointments': rejected_appointments,
+        'today': today,
     })
 
 @login_required
@@ -392,37 +443,40 @@ def dashboard_home(request):
         "show_prediction": show_prediction,
     })
 
-
 @login_required
 def appointment(request):
-    # Patient Dashboard View
-    user_appointments = Appointment.objects.filter(user=request.user).select_related(
-        'doctor__doctor_profile', 'availability'
-    ).order_by('-availability__date')
-    
     today = timezone.now().date()
     
-    # Logic to add dynamic status
-    for appt in user_appointments:
+    # Sort by date and time so the earliest is always first
+    all_appts = Appointment.objects.filter(user=request.user).select_related(
+        'doctor__doctor_profile', 'availability'
+    ).order_by('availability__date', 'availability__start_time')
+
+    upcoming = []
+    past = []
+
+    for appt in all_appts:
+        # Add your existing status and color logic here...
         if appt.availability.date < today:
-            if appt.status == 'approved':
-                appt.display_status = "Completed"
-                appt.status_color = "success"
-            elif appt.status == 'pending':
-                appt.display_status = "Missed"
-                appt.status_color = "secondary"
-            else:
-                appt.display_status = appt.status.capitalize()
-                appt.status_color = "danger"
+            appt.display_status = "Completed" if appt.status == 'approved' else "Missed"
+            appt.status_color = "secondary"
+            past.append(appt)
         else:
             appt.display_status = appt.status.capitalize()
-            # Assign colors for current/future status
-            if appt.status == 'approved': appt.status_color = "success"
-            elif appt.status == 'pending': appt.status_color = "warning"
-            else: appt.status_color = "danger"
+            appt.status_color = "success" if appt.status == 'approved' else "warning"
+            upcoming.append(appt)
+
+    # The absolute next thing the user needs to do
+    next_session = upcoming[0] if upcoming else None
+    
+    # For the 'Upcoming' list, we want to group by doctor, 
+    # but we need to exclude the next_session so it's not duplicated
+    other_upcoming = upcoming[1:] if upcoming else []
 
     return render(request, "dashboard/appointment.html", {
-        "appointments": user_appointments,
+        "next_session": next_session,
+        "other_upcoming": other_upcoming,
+        "past": past,
         "today": today
     })
 
@@ -432,39 +486,21 @@ def doctor_dashboard(request):
         return redirect('home')
 
     profile = get_object_or_404(DoctorProfile, user=request.user)
-
-    if not profile.is_verified:
-        return render(request, "doctor_pending.html", {"profile": profile})
     now = timezone.localtime(timezone.now())
     today = now.date()
-    two_weeks_later = today + timedelta(days=14)
+    end_date = today + timedelta(days=14)
 
-    # Fetch slots
-    raw_slots = DoctorAvailability.objects.filter(
+    availabilities = DoctorAvailability.objects.filter(
         doctor=request.user,
-        date__gte=today,
-        date__lte=two_weeks_later
-    ).order_by('date', 'start_time')
+        date__range=[today, end_date]
+    ).select_related('appointment').order_by('date', 'start_time') 
 
-    # Filter out past times for TODAY only
-    filtered_slots = []
-    for s in raw_slots:
-        if s.date == today:
-            if s.start_time > now.time():
-                filtered_slots.append(s)
-        else:
-            filtered_slots.append(s)
-
-    show_profile_warning = (profile.is_verified and not profile.is_profile_complete)
-
-    print("USER:", request.user)
-    print("PROFILE:", profile.id, profile.is_verified, profile.is_profile_complete)
-    
     return render(request, 'doctor/doctor_dashboard.html', {
-        'availabilities': filtered_slots, # CRITICAL: Pass the filtered list here
-        'show_profile_warning': show_profile_warning,
+        'availabilities': availabilities,
         'profile': profile,
+        'days_of_week': DoctorAvailability.DAYS_OF_WEEK,
     })
+
 
 @login_required
 def add_availability(request):
@@ -474,6 +510,12 @@ def add_availability(request):
         duration = int(request.POST.get("duration"))
         selected_days = [int(day) for day in request.POST.getlist("days")]
 
+                # 👇 ADD PRINTS RIGHT HERE
+        print("Start:", start_time_str)
+        print("End:", end_time_str)
+        print("Duration:", duration)
+        print("Selected days:", selected_days)
+        
         if not selected_days:
             messages.error(request, "Please select at least one day.")
             return redirect("doctor_dashboard")
@@ -509,7 +551,7 @@ def add_availability(request):
                         slots_created += 1
                     temp_dt += timedelta(minutes=duration)
             current_date += timedelta(days=1)
-
+        print("Selected days:", selected_days)
         messages.success(request, f"Generated slots for the next 14 days.")
         return redirect("doctor_dashboard")
 
@@ -631,3 +673,38 @@ def add_cycle_log(request):
             request.session["last_cycle_id"] = cycle.id
 
             return redirect("dashboard_home")
+        
+
+
+from .models import Appointment, ChatMessage
+# Chat Consultation
+def chat_room(request, appointment_id):
+    appointment = get_object_or_404(Appointment, id=appointment_id)
+    
+    # Logic: Only Approved appointments can chat
+    if appointment.status != 'approved':
+        return render(request, 'chat/locked.html', {"reason": "Appointment not approved."})
+
+    # Time Logic
+    now = timezone.now()
+    start_dt = timezone.make_aware(timezone.datetime.combine(appointment.availability.date, appointment.availability.start_time))
+    end_dt = timezone.make_aware(timezone.datetime.combine(appointment.availability.date, appointment.availability.end_time))
+
+    is_active = start_dt <= now <= end_dt
+    is_locked = now > end_dt
+
+    # Room name is unique to the pair: "chat_patientID_doctorID"
+    room_name = f"chat_{appointment.user.id}_{appointment.doctor.id}"
+    
+    # Get previous history
+    history = ChatMessage.objects.filter(room_name=room_name)
+
+    context = {
+        'appointment': appointment,
+        'room_name': room_name,
+        'history': history,
+        'is_active': is_active,
+        'is_locked': is_locked,
+        'role': request.user.role
+    }
+    return render(request, 'dashboard/room.html', context)
