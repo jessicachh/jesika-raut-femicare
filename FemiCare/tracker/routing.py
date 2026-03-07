@@ -5,4 +5,6 @@ from . import consumers
 websocket_urlpatterns = [
     # This regex captures the room name from the URL
     re_path(r'ws/chat/(?P<room_name>\w+)/$', consumers.ChatConsumer.as_asgi()),
+    # Broadcast channel for real-time conversation list updates
+    re_path(r'ws/broadcast/$', consumers.BroadcastConsumer.as_asgi()),
 ]

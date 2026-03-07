@@ -141,9 +141,9 @@
             '{{ slot.id }}',
             '{{ doctor.user.get_full_name }}',
             '{{ slot.date }}',
-            '{{ slot.start_time }}'
+            '{{ slot.start_time|time:"g:i A" }}'
         )">
-    {{ slot.start_time }}
+    {{ slot.start_time|time:"g:i A" }}
 </button>
       {% endfor %}
     </div>

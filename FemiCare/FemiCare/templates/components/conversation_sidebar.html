@@ -1,0 +1,204 @@
+<!-- Chat/Conversation Sidebar Component -->
+<!-- This replaces chat_panel.html with a proper conversation list for the sidebar -->
+
+<div class="conversation-sidebar">
+    <!-- Conversation Header -->
+    <div class="conversation-sidebar-header">
+        <h6 class="mb-0"><i class="bi bi-chat-dots"></i> Messages</h6>
+    </div>
+
+    <!-- Search Bar -->
+    <div class="conversation-sidebar-search">
+        <input type="text" id="conversation-sidebar-search" placeholder="Search..." class="form-control form-control-sm">
+    </div>
+
+    <!-- Conversations List -->
+    <div class="conversations-sidebar-list" id="conversations-sidebar-list">
+        <div class="empty-state">
+            <i class="bi bi-chat-left-text"></i>
+            <p>No conversations yet</p>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Conversation Sidebar Logic
+    document.addEventListener('DOMContentLoaded', function() {
+        const conversationsList = document.getElementById('conversations-sidebar-list');
+        const searchInput = document.getElementById('conversation-sidebar-search');
+        let allConversations = [];
+        let wsConnection = null;
+
+        // Load conversations on page load
+        loadConversations();
+
+        // Refresh conversations every 30 seconds
+        setInterval(loadConversations, 30000);
+
+        // Load conversations from API
+        async function loadConversations() {
+            try {
+                const response = await fetch('/api/conversations/');
+                const data = response.ok ? await response.json() : { conversations: [] };
+                allConversations = data.conversations || [];
+                displayConversations(allConversations);
+                updateTotalUnreadBadge();
+                
+                // Connect WebSocket for real-time updates
+                if (allConversations.length > 0) {
+                    connectWebSocket();
+                }
+            } catch (error) {
+                console.error('Error loading conversations:', error);
+                conversationsList.innerHTML = `
+                    <div class="empty-state">
+                        <i class="bi bi-exclamation-circle"></i>
+                        <p>Failed to load conversations</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Display conversations in sidebar
+        function displayConversations(conversations) {
+            if (!conversations.length) {
+                conversationsList.innerHTML = `
+                    <div class="empty-state">
+                        <i class="bi bi-chat-left-text"></i>
+                        <p>No conversations yet</p>
+                        <small>Start a consultation to chat</small>
+                    </div>
+                `;
+                return;
+            }
+
+            conversationsList.innerHTML = conversations.map(conv => {
+                const timeAgo = formatTimeAgo(new Date(conv.last_message_time));
+                const unreadBadge = conv.unread_count > 0 ? 
+                    `<span class="unread-badge-small">${conv.unread_count}</span>` : '';
+                const unreadClass = conv.unread_count > 0 ? 'unread' : '';
+                const avatarLetter = conv.other_user.name.charAt(0).toUpperCase();
+
+                return `
+                    <div class="conversation-sidebar-item ${unreadClass}" 
+                         data-appointment-id="${conv.appointment_id}" 
+                         data-room-name="${conv.room_name}"
+                         title="${conv.other_user.name}">
+                        <div class="conv-avatar">${avatarLetter}</div>
+                        <div class="conv-content">
+                            <div class="conv-name">${conv.other_user.name}</div>
+                            <div class="conv-preview">${truncateMessage(conv.last_message, 30)}</div>
+                        </div>
+                        <div class="conv-meta">
+                            <span class="conv-time">${timeAgo}</span>
+                            ${unreadBadge}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // Add click handlers to open chat
+            document.querySelectorAll('.conversation-sidebar-item').forEach(item => {
+                item.onclick = function() {
+                    const appointmentId = this.dataset.appointmentId;
+                    document.querySelectorAll('.conversation-sidebar-item').forEach(el => el.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    if (appointmentId && appointmentId !== 'null') {
+                        // Open existing room view
+                        loadChatInMainArea(appointmentId);
+                    } else {
+                        alert('No active consultation for this conversation');
+                    }
+                };
+            });
+        }
+
+        // Update total unread badge in sidebar
+        function updateTotalUnreadBadge() {
+            const totalUnread = allConversations.reduce((sum, conv) => sum + conv.unread_count, 0);
+            const badge = document.getElementById('total-unread-badge');
+            if (badge) {
+                if (totalUnread > 0) {
+                    badge.textContent = totalUnread > 99 ? '99+' : totalUnread;
+                    badge.classList.add('show');
+                } else {
+                    badge.classList.remove('show');
+                }
+            }
+        }
+
+        // Search conversations
+        if (searchInput) {
+            searchInput.addEventListener('input', function() {
+                const query = this.value.toLowerCase();
+                const filtered = allConversations.filter(conv => 
+                    conv.other_user.name.toLowerCase().includes(query)
+                );
+                displayConversations(filtered);
+            });
+        }
+
+        // Helper to format time
+        function formatTimeAgo(date) {
+            const now = new Date();
+            const seconds = Math.floor((now - date) / 1000);
+
+            if (seconds < 60) return 'Now';
+            const minutes = Math.floor(seconds / 60);
+            if (minutes < 60) return `${minutes}m`;
+            const hours = Math.floor(minutes / 60);
+            if (hours < 24) return `${hours}h`;
+            const days = Math.floor(hours / 24);
+            if (days < 7) return `${days}d`;
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        }
+
+        // Helper to truncate message
+        function truncateMessage(msg, length) {
+            if (!msg) return '';
+            return msg.length > length ? msg.substring(0, length) + '...' : msg;
+        }
+
+        // WebSocket for real-time updates
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws/broadcast/`;
+
+            try {
+                if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
+                    return;
+                }
+
+                wsConnection = new WebSocket(wsUrl);
+
+                wsConnection.onopen = function() {
+                    console.log('WebSocket: Conversation updates connected');
+                };
+
+                wsConnection.onmessage = function(e) {
+                    const data = JSON.parse(e.data);
+                    if (data.type === 'message' || data.type === 'file_message') {
+                        loadConversations();
+                    }
+                };
+
+                wsConnection.onerror = function(error) {
+                    console.error('WebSocket error:', error);
+                };
+
+                wsConnection.onclose = function() {
+                    console.log('WebSocket: Conversation updates closed');
+                };
+            } catch (error) {
+                console.error('Failed to establish WebSocket:', error);
+            }
+        }
+
+        // Load chat in main dashboard area
+        window.loadChatInMainArea = function(appointmentId) {
+            // Navigate to existing room.html view
+            window.location.href = `/chat/${appointmentId}/`;
+        };
+    });
+</script>

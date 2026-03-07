@@ -696,6 +696,17 @@ def chat_room(request, appointment_id):
     # Room name is unique to the pair: "chat_patientID_doctorID"
     room_name = f"chat_{appointment.user.id}_{appointment.doctor.id}"
     
+    # Get or create conversation
+    from .models import Conversation
+    conversation, created = Conversation.objects.get_or_create(
+        doctor=appointment.doctor,
+        patient=appointment.user,
+        defaults={'room_name': room_name}
+    )
+    
+    # Mark as read for current user
+    conversation.mark_as_read(request.user)
+    
     # Get previous history
     history = ChatMessage.objects.filter(room_name=room_name)
 
@@ -705,6 +716,439 @@ def chat_room(request, appointment_id):
         'history': history,
         'is_active': is_active,
         'is_locked': is_locked,
-        'role': request.user.role
+        'role': request.user.role,
+        'conversation': conversation
     }
     return render(request, 'dashboard/room.html', context)
+
+
+@login_required
+def dashboard_chat(request):
+    """Chat interface page containing only the conversations sidebar/list."""
+    return render(request, 'dashboard/chat.html', {
+        'role': request.user.role,
+    })
+
+
+@login_required
+def dashboard_chat_redirect(request, appointment_id):
+    """Compatibility route: redirect dashboard chat item to existing room view."""
+    return redirect('chat_room', appointment_id=appointment_id)
+
+
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+import os
+
+@login_required
+def upload_chat_file(request):
+    """Handle file uploads for chat messages"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Invalid request method'})
+    
+    file = request.FILES.get('file')
+    room_name = request.POST.get('room_name')
+    message_text = request.POST.get('message', '')
+    
+    if not file or not room_name:
+        return JsonResponse({'success': False, 'error': 'Missing file or room name'})
+    
+    # Validate file type
+    allowed_extensions = ['.jpg', '.jpeg', '.png', '.pdf', '.doc', '.docx']
+    file_ext = os.path.splitext(file.name)[1].lower()
+    
+    if file_ext not in allowed_extensions:
+        return JsonResponse({'success': False, 'error': 'Invalid file type'})
+    
+    # Validate file size (10MB max)
+    if file.size > 10 * 1024 * 1024:
+        return JsonResponse({'success': False, 'error': 'File too large (max 10MB)'})
+    
+    try:
+        # Save the message with file
+        chat_message = ChatMessage.objects.create(
+            room_name=room_name,
+            sender=request.user,
+            message=message_text,
+            file=file,
+            is_note=False
+        )
+        
+        # Update conversation with last message
+        from .models import Conversation
+        try:
+            # Extract doctor and patient IDs from room_name format: chat_patientID_doctorID
+            parts = room_name.split('_')
+            if len(parts) >= 3:
+                patient_id = int(parts[1])
+                doctor_id = int(parts[2])
+                
+                conversation = Conversation.objects.filter(
+                    doctor_id=doctor_id,
+                    patient_id=patient_id
+                ).first()
+                
+                if conversation:
+                    conversation.last_message = f"📎 {file.name}"
+                    conversation.last_message_time = timezone.now()
+                    
+                    # Increment unread count for the receiver
+                    if request.user.role == 'doctor':
+                        conversation.unread_count_patient += 1
+                    else:
+                        conversation.unread_count_doctor += 1
+                    
+                    conversation.save()
+                    
+                    # Broadcast to channel layer for real-time updates
+                    from asgiref.sync import async_to_sync
+                    from channels.layers import get_channel_layer
+                    channel_layer = get_channel_layer()
+                    async_to_sync(channel_layer.group_send)(
+                        'broadcast',
+                        {
+                            'type': 'broadcast_message',
+                            'message_type': 'file_message',
+                            'room_name': room_name
+                        }
+                    )
+        except Exception as e:
+            print(f"Error updating conversation: {e}")
+        
+        # Determine file type
+        file_type = 'image' if file_ext in ['.jpg', '.jpeg', '.png'] else 'document'
+        
+        return JsonResponse({
+            'success': True,
+            'file_url': chat_message.file.url,
+            'file_name': file.name,
+            'file_type': file_type,
+            'message_id': chat_message.id
+        })
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+
+from .models import Conversation
+
+@login_required
+def get_conversations(request):
+    """API endpoint to fetch all conversations for the logged-in user"""
+    user = request.user
+    
+    if user.role == 'doctor':
+        conversations = Conversation.objects.filter(doctor=user).select_related('patient')
+    else:
+        conversations = Conversation.objects.filter(patient=user).select_related('doctor')
+    
+    conversations_data = []
+    for conv in conversations:
+        other_user = conv.get_other_user(user)
+        
+        # Get appointment for this conversation
+        if user.role == 'doctor':
+            appointment = Appointment.objects.filter(
+                doctor=user,
+                user=conv.patient,
+                status='approved'
+            ).first()
+        else:
+            appointment = Appointment.objects.filter(
+                user=user,
+                doctor=conv.doctor,
+                status='approved'
+            ).first()
+        
+        # Format the other user's name correctly
+        if user.role == 'user':
+            # For patients, show doctor's full name with "Dr." prefix
+            doctor_name = other_user.doctor_profile.full_name or other_user.username
+            display_name = f"Dr. {doctor_name}"
+        else:
+            # For doctors, show patient's username without prefix
+            display_name = other_user.username
+        
+        conversations_data.append({
+            'id': conv.id,
+            'other_user': {
+                'id': other_user.id,
+                'name': display_name,
+                'role': other_user.role
+            },
+            'last_message': conv.last_message or 'No messages yet',
+            'last_message_time': conv.last_message_time.isoformat(),
+            'unread_count': conv.get_unread_count(user),
+            'appointment_id': appointment.id if appointment else None,
+            'room_name': conv.room_name
+        })
+    
+    return JsonResponse({'conversations': conversations_data})
+
+
+@login_required
+def get_message_history(request, appointment_id):
+    """API endpoint to fetch message history for a conversation"""
+    appointment = get_object_or_404(Appointment, id=appointment_id)
+    user = request.user
+    
+    # Verify user is part of this appointment
+    if appointment.user != user and appointment.doctor != user:
+        return JsonResponse({'error': 'Unauthorized'}, status=403)
+    
+    # Get the room name for this appointment
+    if user.role == 'doctor':
+        room_name = f"chat_{appointment.user_id}_{appointment.doctor_id}"
+        other_user = appointment.user
+    else:
+        room_name = f"chat_{appointment.user_id}_{appointment.doctor_id}"
+        other_user = appointment.doctor
+    
+    # Get all messages for this room
+    messages_qs = ChatMessage.objects.filter(room_name=room_name, is_note=False).select_related('sender')
+    
+    messages_data = []
+    for msg in messages_qs:
+        # Determine message type
+        message_type = 'text'
+        file_url = None
+        file_name = None
+        
+        if msg.file:
+            # Determine if it's an image or document
+            file_ext = msg.file.name.split('.')[-1].lower()
+            if file_ext in ['jpg', 'jpeg', 'png']:
+                message_type = 'image'
+            else:
+                message_type = 'document'
+            
+            file_url = msg.file.url
+            file_name = msg.file.name.split('/')[-1]
+        
+        messages_data.append({
+            'id': msg.id,
+            'sender_id': msg.sender_id,
+            'content': msg.message,
+            'message_type': message_type,
+            'file_url': file_url,
+            'file_name': file_name,
+            'timestamp': msg.timestamp.isoformat(),
+            'is_read': msg.is_read
+        })
+    
+    return JsonResponse({'messages': messages_data})
+
+
+@login_required
+def send_message(request):
+    """API endpoint to send a chat message"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Invalid request method'})
+    
+    import json
+    try:
+        data = json.loads(request.body)
+    except:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'})
+    
+    appointment_id = data.get('appointment_id')
+    room_name = data.get('room_name')
+    content = data.get('content', '')
+    
+    if not appointment_id or not room_name:
+        return JsonResponse({'success': False, 'error': 'Missing appointment or room'})
+    
+    appointment = get_object_or_404(Appointment, id=appointment_id)
+    user = request.user
+    
+    # Verify user is part of this appointment
+    if appointment.user != user and appointment.doctor != user:
+        return JsonResponse({'error': 'Unauthorized'}, status=403)
+    
+    # Check if appointment is locked (finished)
+    if appointment.status == 'completed':
+        return JsonResponse({'success': False, 'error': 'Appointment has ended'})
+    
+    # Create the message
+    msg = ChatMessage.objects.create(
+        room_name=room_name,
+        sender=user,
+        message=content
+    )
+    
+    # Update Conversation
+    if user.role == 'doctor':
+        conversation = Conversation.objects.get(doctor=user, patient=appointment.user)
+        conversation.unread_count_patient += 1
+    else:
+        conversation = Conversation.objects.get(doctor=appointment.doctor, patient=user)
+        conversation.unread_count_doctor += 1
+    
+    conversation.last_message = content
+    conversation.last_message_time = msg.timestamp
+    conversation.save()
+    
+    # Broadcast message via WebSocket
+    from asgiref.sync import async_to_sync
+    from channels.layers import get_channel_layer
+    
+    channel_layer = get_channel_layer()
+    async_to_sync(channel_layer.group_send)(
+        f"chat_{room_name}",
+        {
+            "type": "message",
+            "message": content,
+            "sender_id": user.id,
+            "sender_name": user.username,
+            "timestamp": msg.timestamp.isoformat(),
+            "message_type": "text",
+            "message_id": msg.id
+        }
+    )
+    
+    # Also broadcast to conversation list updates
+    async_to_sync(channel_layer.group_send)(
+        "broadcast",
+        {
+            "type": "message",
+            "message": content,
+            "sender_id": user.id,
+            "timestamp": msg.timestamp.isoformat(),
+            "message_type": "text"
+        }
+    )
+    
+    return JsonResponse({
+        'success': True,
+        'message': {
+            'id': msg.id,
+            'sender_id': msg.sender_id,
+            'content': msg.message,
+            'message_type': 'text',
+            'timestamp': msg.timestamp.isoformat()
+        }
+    })
+
+
+@login_required
+def upload_message_file(request):
+    """API endpoint to upload file for chat message"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Invalid request method'})
+    
+    file = request.FILES.get('file')
+    appointment_id = request.POST.get('appointment_id')
+    room_name = request.POST.get('room_name')
+    
+    if not file or not appointment_id or not room_name:
+        return JsonResponse({'success': False, 'error': 'Missing file or metadata'})
+    
+    appointment = get_object_or_404(Appointment, id=appointment_id)
+    user = request.user
+    
+    # Verify user is part of this appointment
+    if appointment.user != user and appointment.doctor != user:
+        return JsonResponse({'error': 'Unauthorized'}, status=403)
+    
+    # Validate file
+    import os
+    allowed_extensions = ['.jpg', '.jpeg', '.png', '.pdf', '.doc', '.docx']
+    file_ext = os.path.splitext(file.name)[1].lower()
+    
+    if file_ext not in allowed_extensions:
+        return JsonResponse({'success': False, 'error': 'Invalid file type'})
+    
+    if file.size > 10 * 1024 * 1024:  # 10MB
+        return JsonResponse({'success': False, 'error': 'File too large'})
+    
+    # Create the message with file
+    msg = ChatMessage.objects.create(
+        room_name=room_name,
+        sender=user,
+        file=file,
+        message=file.name
+    )
+    
+    # Update Conversation
+    if user.role == 'doctor':
+        conversation = Conversation.objects.get(doctor=user, patient=appointment.user)
+        conversation.unread_count_patient += 1
+    else:
+        conversation = Conversation.objects.get(doctor=appointment.doctor, patient=user)
+        conversation.unread_count_doctor += 1
+    
+    conversation.last_message = f"📎 {file.name}"
+    conversation.last_message_time = msg.timestamp
+    conversation.save()
+    
+    # Determine message type
+    message_type = 'image' if file_ext in ['.jpg', '.jpeg', '.png'] else 'document'
+    
+    # Broadcast file message via WebSocket
+    from asgiref.sync import async_to_sync
+    from channels.layers import get_channel_layer
+    
+    channel_layer = get_channel_layer()
+    async_to_sync(channel_layer.group_send)(
+        f"chat_{room_name}",
+        {
+            "type": "file_message",
+            "message_type": message_type,
+            "file_url": msg.file.url,
+            "file_name": file.name,
+            "sender_id": user.id,
+            "sender_name": user.username,
+            "timestamp": msg.timestamp.isoformat(),
+            "message_id": msg.id
+        }
+    )
+    
+    # Also broadcast to conversation list updates
+    async_to_sync(channel_layer.group_send)(
+        "broadcast",
+        {
+            "type": "file_message",
+            "message_type": message_type,
+            "timestamp": msg.timestamp.isoformat(),
+            "sender_id": user.id
+        }
+    )
+    
+    return JsonResponse({
+        'success': True,
+        'message': {
+            'id': msg.id,
+            'sender_id': msg.sender_id,
+            'content': file.name,
+            'message_type': message_type,
+            'file_url': msg.file.url,
+            'file_name': file.name,
+            'timestamp': msg.timestamp.isoformat()
+        }
+    })
+
+
+@login_required
+def mark_conversation_as_read(request, appointment_id):
+    """Mark conversation as read for the current user"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Invalid request method'})
+    
+    appointment = get_object_or_404(Appointment, id=appointment_id)
+    user = request.user
+    
+    # Verify user is part of this appointment
+    if appointment.user != user and appointment.doctor != user:
+        return JsonResponse({'error': 'Unauthorized'}, status=403)
+    
+    # Get conversation
+    if user.role == 'doctor':
+        conversation = Conversation.objects.get(doctor=user, patient=appointment.user)
+        conversation.unread_count_doctor = 0
+    else:
+        conversation = Conversation.objects.get(doctor=appointment.doctor, patient=user)
+        conversation.unread_count_patient = 0
+    
+    conversation.save()
+    
+    return JsonResponse({'success': True})

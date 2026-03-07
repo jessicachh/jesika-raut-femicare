@@ -46,6 +46,16 @@ urlpatterns = [
 
     # Chat 
     path('chat/<int:appointment_id>/', views.chat_room, name='chat_room'),
+    path('upload-chat-file/', views.upload_chat_file, name='upload_chat_file'),
+    path('api/conversations/', views.get_conversations, name='get_conversations'),
+    
+    # Chat interface page + compatibility redirect
+    path('dashboard/chat/', views.dashboard_chat, name='dashboard_chat'),
+    path('dashboard/chat/<int:appointment_id>/', views.dashboard_chat_redirect, name='dashboard_chat_redirect'),
+    path('api/conversation/<int:appointment_id>/messages/', views.get_message_history, name='get_message_history'),
+    path('api/message/send/', views.send_message, name='send_message'),
+    path('api/message/upload/', views.upload_message_file, name='upload_message_file'),
+    path('api/conversation/<int:appointment_id>/mark-read/', views.mark_conversation_as_read, name='mark_conversation_as_read'),
 
     
      path(

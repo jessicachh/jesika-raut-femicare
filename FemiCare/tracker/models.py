@@ -231,6 +231,53 @@ class ChatMessage(models.Model):
     file = models.FileField(upload_to='chat_files/', null=True, blank=True)
     is_note = models.BooleanField(default=False) # True if it's a doctor's internal note
     timestamp = models.DateTimeField(auto_now_add=True)
+    is_read = models.BooleanField(default=False) # Track if message has been read
 
     class Meta:
         ordering = ['timestamp']
+
+    def __str__(self):
+        return f"{self.sender.username}: {self.message[:50]}"
+
+
+class Conversation(models.Model):
+    """
+    Represents a conversation between a doctor and patient.
+    Automatically created when an appointment is made.
+    """
+    doctor = models.ForeignKey(User, on_delete=models.CASCADE, related_name='doctor_conversations')
+    patient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='patient_conversations')
+    room_name = models.CharField(max_length=255, unique=True)
+    last_message = models.TextField(blank=True, null=True)
+    last_message_time = models.DateTimeField(auto_now_add=True)
+    unread_count_doctor = models.IntegerField(default=0)
+    unread_count_patient = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-last_message_time']
+        unique_together = ['doctor', 'patient']
+
+    def __str__(self):
+        return f"Conversation: Dr. {self.doctor.username} - {self.patient.username}"
+
+    def get_other_user(self, current_user):
+        """Get the other participant in the conversation"""
+        if current_user == self.doctor:
+            return self.patient
+        return self.doctor
+
+    def get_unread_count(self, user):
+        """Get unread count for a specific user"""
+        if user.role == 'doctor':
+            return self.unread_count_doctor
+        return self.unread_count_patient
+
+    def mark_as_read(self, user):
+        """Mark conversation as read for a specific user"""
+        if user.role == 'doctor':
+            self.unread_count_doctor = 0
+        else:
+            self.unread_count_patient = 0
+        self.save()

@@ -27,13 +27,13 @@
       </a>
     </li>
 
-    <li class="{% if active_page == 'chat' %}active{% endif %}">
-      <a href="">
+    <li class="{% if request.resolver_match.url_name == 'dashboard_chat' %}active{% endif %}">
+      <a href="{% url 'dashboard_chat' %}">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
         </svg>
         <span>Chat</span>
-        <span class="badge">03</span>
+        <span class="badge" id="total-unread-badge"></span>
       </a>
     </li>
 
