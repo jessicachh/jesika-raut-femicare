@@ -37,8 +37,8 @@
       </a>
     </li>
 
-    <li class="{% if active_page == 'profile' %}active{% endif %}">
-      <a href="">
+    <li class="{% if request.resolver_match.url_name == 'dashboard_profile' %}active{% endif %}">
+      <a href="{% url 'dashboard_profile' %}">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
           <circle cx="12" cy="7" r="4"/>
@@ -47,8 +47,8 @@
       </a>
     </li>
 
-    <li class="{% if active_page == 'settings' %}active{% endif %}">
-      <a href="">
+    <li class="{% if request.resolver_match.url_name == 'dashboard_settings' %}active{% endif %}">
+      <a href="{% url 'dashboard_settings' %}">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="3"/>
           <path d="M12 1v6m0 6v6M5.64 5.64l4.24 4.24m4.24 4.24l4.24 4.24m0-12.72l-4.24 4.24m-4.24 4.24L5.64 18.36"/>

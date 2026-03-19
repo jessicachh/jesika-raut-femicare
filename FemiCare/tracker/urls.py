@@ -22,6 +22,15 @@ urlpatterns = [
     # Dashboard pages (login required)
     path('dashboard/', views.dashboard_home, name='dashboard_home'),
     path('dashboard/appointments/', views.appointment, name='appointment'),
+    path('dashboard/profile/', views.profile_view, name='dashboard_profile'),
+    path('dashboard/profile/documents/upload/', views.upload_user_documents, name='upload_user_documents'),
+    path('dashboard/settings/', views.settings_view, name='dashboard_settings'),
+    path('dashboard/change-password/', views.change_password, name='change_password'),
+    path('dashboard/verify-email-code/', views.verify_email_code, name='verify_email_code'),
+    path('dashboard/delete-account/', views.delete_account, name='delete_account'),
+    path('notifications/', views.get_notifications, name='get_notifications'),
+    path('notifications/mark-read/<int:notification_id>/', views.mark_as_read, name='mark_as_read'),
+    path('notifications/mark-all-read/', views.mark_all_as_read, name='mark_all_as_read'),
 
     # Public doctor profile (USER)
     path('doctors/<int:pk>/', views.public_doctor_profile, name='public_doctor_profile'),

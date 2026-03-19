@@ -27,6 +27,11 @@ class UserProfile(models.Model):
     )
 
     date_of_birth = models.DateField(null=True, blank=True)
+    phone_number = models.CharField(max_length=20, blank=True)
+    profile_picture = models.ImageField(upload_to='profile_pictures/', null=True, blank=True)
+    height_cm = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    weight_kg = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    address = models.CharField(max_length=255, blank=True)
     cycle_length = models.IntegerField(null=True, blank=True)  # ✅ FIX
     last_period_date = models.DateField(null=True, blank=True)
 
@@ -281,3 +286,69 @@ class Conversation(models.Model):
         else:
             self.unread_count_patient = 0
         self.save()
+
+
+class UserDocument(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='documents'
+    )
+    file = models.FileField(upload_to='user_documents/')
+    original_name = models.CharField(max_length=255, blank=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-uploaded_at']
+
+    def save(self, *args, **kwargs):
+        if self.file and not self.original_name:
+            self.original_name = self.file.name.split('/')[-1]
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.user.username} - {self.original_name or self.file.name}"
+
+
+class HealthLog(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='health_logs'
+    )
+    height_cm = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    weight_kg = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.username} health log ({self.created_at:%Y-%m-%d %H:%M})"
+
+
+class Notification(models.Model):
+    TYPE_CHOICES = (
+        ('appointment', 'Appointment'),
+        ('profile', 'Profile'),
+        ('system', 'System'),
+        ('cycle', 'Cycle'),
+        ('email', 'Email'),
+    )
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='notifications'
+    )
+    title = models.CharField(max_length=150)
+    message = models.TextField()
+    type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='system')
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.username} - {self.title}"

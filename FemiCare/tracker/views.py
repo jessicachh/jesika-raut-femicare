@@ -1,10 +1,30 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login as auth_login, logout as auth_logout, logout
+from django.contrib.auth import update_session_auth_hash
+from django.contrib.auth.forms import PasswordChangeForm
 from django.contrib import messages
+import random
+import time
+from django.http import JsonResponse
 from .models import User
 from django.contrib.auth.decorators import login_required
-from .models import UserProfile, DoctorProfile, DoctorAvailability, Appointment, DoctorReview
-from .forms import CycleLogForm
+from .models import (
+    UserProfile,
+    DoctorProfile,
+    DoctorAvailability,
+    Appointment,
+    DoctorReview,
+    UserDocument,
+    HealthLog,
+    Notification,
+)
+from .forms import (
+    CycleLogForm,
+    UserProfileForm,
+    AccountSettingsForm,
+    EmailVerificationForm,
+    UserDocumentUploadForm,
+)
 from .models import CycleLog
 from tracker.ml.predict import predict_cycle
 from datetime import timedelta, datetime
@@ -244,6 +264,19 @@ def book_appointment(request, slot_id):
         slot.is_active = False
         slot.save()
 
+        _create_notification(
+            slot.doctor,
+            'New appointment request',
+            f'{request.user.username} requested an appointment on {slot.date}.',
+            'appointment',
+        )
+        _create_notification(
+            request.user,
+            'Appointment requested',
+            'Your appointment request has been submitted.',
+            'appointment',
+        )
+
         # Email logic remains same...
         messages.success(request, "Request sent!")
         return redirect("appointment")
@@ -343,6 +376,21 @@ def respond_appointment(request, appointment_id):
 
         appointment.save()
 
+        if action == 'approve':
+            _create_notification(
+                appointment.user,
+                'Appointment accepted',
+                f'Your appointment with Dr. {request.user.doctor_profile.full_name} was accepted.',
+                'appointment',
+            )
+        elif action == 'reject':
+            _create_notification(
+                appointment.user,
+                'Appointment rejected',
+                f'Your appointment was rejected. Reason: {reject_reason or "Not provided"}.',
+                'appointment',
+            )
+
         # Notification Logic...
         try:
             send_mail(
@@ -417,6 +465,393 @@ def logout_view(request):
 # Dashboard views
 # -----------------------------
 from django.contrib.auth.decorators import login_required
+
+
+def _bootstrapize_password_form(form):
+    for field in form.fields.values():
+        existing = field.widget.attrs.get('class', '')
+        field.widget.attrs['class'] = f"{existing} form-control".strip()
+
+
+def _create_notification(user, title, message, notification_type='system'):
+    if not user:
+        return
+
+    Notification.objects.create(
+        user=user,
+        title=title,
+        message=message,
+        type=notification_type,
+    )
+
+
+def _relative_time(value):
+    now = timezone.now()
+    diff = now - value
+    seconds = int(diff.total_seconds())
+
+    if seconds < 60:
+        return 'just now'
+
+    minutes = seconds // 60
+    if minutes < 60:
+        return f'{minutes} min ago'
+
+    hours = minutes // 60
+    if hours < 24:
+        return f'{hours} hr ago'
+
+    days = hours // 24
+    return f'{days} day ago' if days == 1 else f'{days} days ago'
+
+
+def _clear_email_verification_session(request):
+    request.session.pop('pending_email', None)
+    request.session.pop('email_otp_code', None)
+    request.session.pop('email_otp_created_at', None)
+
+
+def _send_email_verification_code(request, new_email):
+    otp = str(random.SystemRandom().randint(100000, 999999))
+
+    request.session['pending_email'] = new_email
+    request.session['email_otp_code'] = otp
+    request.session['email_otp_created_at'] = int(time.time())
+
+    send_mail(
+        subject='FemiCare Email Verification Code',
+        message=(
+            f'Use this verification code to confirm your new email address: {otp}\n\n'
+            'This code expires in 10 minutes.'
+        ),
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[new_email],
+        fail_silently=False,
+    )
+
+
+@login_required
+def profile_view(request):
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    last_log = HealthLog.objects.filter(user=request.user).order_by('-created_at').first()
+    documents = UserDocument.objects.filter(user=request.user)
+
+    if request.method == 'POST':
+        form = UserProfileForm(
+            request.POST,
+            request.FILES,
+            instance=profile,
+            user=request.user,
+            last_log=last_log,
+        )
+        if form.is_valid():
+            previous_height = last_log.height_cm if last_log else None
+            previous_weight = last_log.weight_kg if last_log else None
+
+            updated_profile = form.save()
+
+            current_height = updated_profile.height_cm
+            current_weight = updated_profile.weight_kg
+            if current_height != previous_height or current_weight != previous_weight:
+                HealthLog.objects.create(
+                    user=request.user,
+                    height_cm=current_height,
+                    weight_kg=current_weight,
+                )
+
+            _create_notification(
+                request.user,
+                'Profile updated',
+                'Your profile information has been updated.',
+                'profile',
+            )
+            messages.success(request, 'Profile updated successfully.')
+            return redirect('dashboard_profile')
+    else:
+        form = UserProfileForm(instance=profile, user=request.user, last_log=last_log)
+
+    return render(
+        request,
+        'dashboard/profile.html',
+        {
+            'form': form,
+            'upload_form': UserDocumentUploadForm(),
+            'documents': documents,
+        },
+    )
+
+
+@login_required
+def upload_user_documents(request):
+    if request.method != 'POST':
+        return redirect('dashboard_profile')
+
+    form = UserDocumentUploadForm(request.POST, request.FILES)
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    last_log = HealthLog.objects.filter(user=request.user).order_by('-created_at').first()
+    profile_form = UserProfileForm(instance=profile, user=request.user, last_log=last_log)
+    documents = UserDocument.objects.filter(user=request.user)
+
+    if form.is_valid():
+        uploaded_files = form.cleaned_data.get('documents', [])
+
+        if not uploaded_files:
+            messages.error(request, 'Please select at least one file to upload.')
+            return redirect('dashboard_profile')
+
+        for file_obj in uploaded_files:
+            UserDocument.objects.create(
+                user=request.user,
+                file=file_obj,
+                original_name=file_obj.name,
+            )
+
+        messages.success(request, 'Document(s) uploaded successfully.')
+        return redirect('dashboard_profile')
+
+    messages.error(request, 'Please upload valid files (PDF, JPG, JPEG, PNG).')
+    return render(
+        request,
+        'dashboard/profile.html',
+        {
+            'form': profile_form,
+            'upload_form': form,
+            'documents': documents,
+        },
+    )
+
+
+@login_required
+def settings_view(request):
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+
+    if request.method == 'POST':
+        account_form = AccountSettingsForm(request.POST, instance=profile, user=request.user)
+        password_form = PasswordChangeForm(request.user)
+        verification_form = EmailVerificationForm()
+        _bootstrapize_password_form(password_form)
+
+        if account_form.is_valid():
+            new_email = account_form.cleaned_data['email'].strip().lower()
+            email_changed = new_email != request.user.email
+
+            if email_changed:
+                account_form.save(update_email=False)
+                try:
+                    _send_email_verification_code(request, new_email)
+                    _create_notification(
+                        request.user,
+                        'Email verification required',
+                        f'A verification code was sent to {new_email}.',
+                        'email',
+                    )
+                    messages.info(request, 'Verification code sent to your new email. Enter the code to confirm change.')
+                except Exception:
+                    _clear_email_verification_session(request)
+                    messages.error(request, 'Unable to send verification code. Please try again.')
+            else:
+                account_form.save(update_email=True)
+                _clear_email_verification_session(request)
+                _create_notification(
+                    request.user,
+                    'Settings updated',
+                    'Your account settings were updated.',
+                    'system',
+                )
+                messages.success(request, 'Account settings updated successfully.')
+
+            return redirect('dashboard_settings')
+    else:
+        account_form = AccountSettingsForm(instance=profile, user=request.user)
+        password_form = PasswordChangeForm(request.user)
+        verification_form = EmailVerificationForm()
+        _bootstrapize_password_form(password_form)
+
+    return render(
+        request,
+        'dashboard/settings.html',
+        {
+            'account_form': account_form,
+            'password_form': password_form,
+            'verification_form': verification_form,
+            'pending_email': request.session.get('pending_email'),
+        },
+    )
+
+
+@login_required
+def verify_email_code(request):
+    if request.method != 'POST':
+        return redirect('dashboard_settings')
+
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    account_form = AccountSettingsForm(instance=profile, user=request.user)
+    password_form = PasswordChangeForm(request.user)
+    _bootstrapize_password_form(password_form)
+
+    verification_form = EmailVerificationForm(request.POST)
+    pending_email = request.session.get('pending_email')
+    session_code = request.session.get('email_otp_code')
+    created_at = request.session.get('email_otp_created_at')
+
+    if not pending_email or not session_code or not created_at:
+        messages.error(request, 'No pending email verification found. Please try updating email again.')
+        return redirect('dashboard_settings')
+
+    if verification_form.is_valid():
+        if (int(time.time()) - int(created_at)) > 600:
+            _clear_email_verification_session(request)
+            messages.error(request, 'Verification code expired. Please request a new one.')
+            return redirect('dashboard_settings')
+
+        input_code = verification_form.cleaned_data['code']
+        if input_code == session_code:
+            request.user.email = pending_email
+            request.user.save(update_fields=['email'])
+            _clear_email_verification_session(request)
+            _create_notification(
+                request.user,
+                'Email updated',
+                'Your email address has been verified and updated.',
+                'email',
+            )
+            messages.success(request, 'Email verified and updated successfully.')
+            return redirect('dashboard_settings')
+
+        messages.error(request, 'Invalid verification code. Please try again.')
+
+    return render(
+        request,
+        'dashboard/settings.html',
+        {
+            'account_form': account_form,
+            'password_form': password_form,
+            'verification_form': verification_form,
+            'pending_email': pending_email,
+        },
+    )
+
+
+@login_required
+def get_notifications(request):
+    notifications = Notification.objects.filter(user=request.user).order_by('-created_at')[:20]
+    unread_count = Notification.objects.filter(user=request.user, is_read=False).count()
+
+    payload = [
+        {
+            'id': item.id,
+            'title': item.title,
+            'message': item.message,
+            'type': item.type,
+            'is_read': item.is_read,
+            'created_at': item.created_at.isoformat(),
+            'relative_time': _relative_time(item.created_at),
+        }
+        for item in notifications
+    ]
+
+    return JsonResponse({'notifications': payload, 'unread_count': unread_count})
+
+
+@login_required
+def mark_as_read(request, notification_id):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=405)
+
+    notification = get_object_or_404(Notification, id=notification_id, user=request.user)
+    if not notification.is_read:
+        notification.is_read = True
+        notification.save(update_fields=['is_read'])
+
+    unread_count = Notification.objects.filter(user=request.user, is_read=False).count()
+    return JsonResponse({'success': True, 'unread_count': unread_count})
+
+
+@login_required
+def mark_all_as_read(request):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=405)
+
+    Notification.objects.filter(user=request.user, is_read=False).update(is_read=True)
+    return JsonResponse({'success': True, 'unread_count': 0})
+
+
+@login_required
+def delete_account(request):
+    if request.method != 'POST':
+        return redirect('dashboard_settings')
+
+    user = request.user
+
+    from .models import Conversation, ChatMessage
+
+    doctor_rooms = list(Conversation.objects.filter(doctor=user).values_list('room_name', flat=True))
+    patient_rooms = list(Conversation.objects.filter(patient=user).values_list('room_name', flat=True))
+    room_names = list(set(doctor_rooms + patient_rooms))
+
+    for message in ChatMessage.objects.filter(room_name__in=room_names).exclude(file=''):
+        if message.file:
+            message.file.delete(save=False)
+
+    for document in UserDocument.objects.filter(user=user):
+        if document.file:
+            document.file.delete(save=False)
+
+    try:
+        profile = user.user_profile
+        if profile.profile_picture:
+            profile.profile_picture.delete(save=False)
+    except UserProfile.DoesNotExist:
+        pass
+
+    try:
+        doctor_profile = user.doctor_profile
+        if doctor_profile.photo:
+            doctor_profile.photo.delete(save=False)
+        if doctor_profile.certificate:
+            doctor_profile.certificate.delete(save=False)
+    except DoctorProfile.DoesNotExist:
+        pass
+
+    user.delete()
+    auth_logout(request)
+    messages.success(request, 'Your account has been deleted successfully.')
+    return redirect('login')
+
+
+@login_required
+def change_password(request):
+    if request.method != 'POST':
+        return redirect('dashboard_settings')
+
+    form = PasswordChangeForm(request.user, request.POST)
+    _bootstrapize_password_form(form)
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    account_form = AccountSettingsForm(instance=profile, user=request.user)
+
+    if form.is_valid():
+        user = form.save()
+        update_session_auth_hash(request, user)
+        _create_notification(
+            request.user,
+            'Password changed',
+            'Your password has been changed successfully.',
+            'system',
+        )
+        messages.success(request, 'Password changed successfully.')
+        return redirect('dashboard_settings')
+
+    messages.error(request, 'Please fix the password form errors and try again.')
+    return render(
+        request,
+        'dashboard/settings.html',
+        {
+            'account_form': account_form,
+            'password_form': form,
+            'verification_form': EmailVerificationForm(),
+            'pending_email': request.session.get('pending_email'),
+        },
+    )
 
 @login_required
 def dashboard_home(request):
@@ -668,6 +1103,13 @@ def add_cycle_log(request):
                     )
             cycle.save()
 
+            _create_notification(
+                request.user,
+                'Cycle prediction updated',
+                'Your new cycle log has been saved and prediction generated.',
+                'cycle',
+            )
+
             # Save trigger in session
             request.session["show_prediction"] = True
             request.session["last_cycle_id"] = cycle.id
@@ -736,7 +1178,6 @@ def dashboard_chat_redirect(request, appointment_id):
     return redirect('chat_room', appointment_id=appointment_id)
 
 
-from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 import os
 
