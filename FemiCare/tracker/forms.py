@@ -32,29 +32,23 @@ class CycleLogForm(forms.ModelForm):
             'last_period_start',
             'length_of_cycle',
             'length_of_menses',
-            'mean_menses_length',
             'mean_bleeding_intensity',
             'total_menses_score',
             'unusual_bleeding',
-            'height_cm',
-            'weight_kg',
         ]
 
         labels = {
             'last_period_start': 'When did your last period start?',
-            'length_of_cycle': 'About how many days were there from the start of one period to the start of the next?',
+            'length_of_cycle': 'Cycle Length (days)',
             'length_of_menses': 'How many days did your period bleeding last?',
-            'mean_menses_length': 'Usual period length',
             'mean_bleeding_intensity': 'How heavy was your period flow on most days?',
             'total_menses_score': 'How painful was your period?',
             'unusual_bleeding': 'Any signs of unusual bleeding?',
-            'height_cm': 'Height (cm)',
-            'weight_kg': 'Weight (kg)',
         }
 
         help_texts = {
             "last_period_start": "Select the first day of bleeding.",
-            "length_of_cycle": "From the start of one period to the next.",
+            "length_of_cycle": "Typical days from one period start to the next.",
             "length_of_menses": "From first bleeding day to when it stopped.",
             "unusual_bleeding": "Bleeding between periods or irregular bleeding.",
         }
@@ -83,10 +77,33 @@ class CycleLogForm(forms.ModelForm):
             )
 
         if last_log:
-            self.fields['height_cm'].initial = last_log.height_cm
-            self.fields['weight_kg'].initial = last_log.weight_kg
-            self.fields['mean_menses_length'].initial = last_log.mean_menses_length
             self.fields['length_of_cycle'].initial = last_log.length_of_cycle
+            self.fields['length_of_menses'].initial = last_log.length_of_menses
+            self.fields['mean_bleeding_intensity'].initial = last_log.mean_bleeding_intensity
+            self.fields['total_menses_score'].initial = last_log.total_menses_score
+            self.fields['unusual_bleeding'].initial = last_log.unusual_bleeding
+
+    def clean_length_of_cycle(self):
+        value = self.cleaned_data.get('length_of_cycle')
+        if value is None:
+            return value
+
+        if value < 21 or value > 35:
+            raise forms.ValidationError(
+                "According to the American College of Obstetricians and Gynecologists, a cycle length of 21 to 35 days is within the normal range. If your average cycle is below 21 days or above 35 days, you may have irregular cycles, so speak to a health care professional for more information."
+            )
+        return value
+
+    def clean_length_of_menses(self):
+        value = self.cleaned_data.get('length_of_menses')
+        if value is None:
+            return value
+
+        if value < 2 or value > 7:
+            raise forms.ValidationError(
+                "According to the American College of Obstetricians and Gynecologists, a typical period lasts between two to seven days. If your period lasts less than two days or more than seven days, you may be experiencing abnormal bleeding. Speak to a health care professional for more information."
+            )
+        return value
 
 
 class UserProfileForm(forms.ModelForm):

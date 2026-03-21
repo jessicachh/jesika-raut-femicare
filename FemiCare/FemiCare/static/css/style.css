@@ -2174,3 +2174,136 @@ body {
     .chat-input-area { border-top: 1px solid #eee; padding: 15px; }
     .btn-primary { background-color: #b92222; border: none; } /* Matching Femicare Red */
     .btn-primary:hover { background-color: #961b1b; }
+
+/* Public Resources Page */
+.resources-wrapper {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 42px 20px 70px;
+}
+
+.resources-header {
+  text-align: center;
+  margin-bottom: 34px;
+}
+
+.resources-title {
+  font-family: var(--font-title);
+  color: var(--color-primary);
+  font-size: clamp(1.9rem, 3vw, 2.6rem);
+  margin: 12px 0 10px;
+}
+
+.resources-subtitle {
+  margin: 0 auto;
+  max-width: 760px;
+  color: #515151;
+  font-family: var(--font-body);
+  line-height: 1.65;
+}
+
+.resources-section {
+  margin-top: 26px;
+}
+
+.resources-section-title {
+  font-family: var(--font-title);
+  color: #171717;
+  font-size: clamp(1.2rem, 2.2vw, 1.55rem);
+  margin: 0 0 14px;
+}
+
+.resource-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.resource-card {
+  border: 1px solid rgba(185, 34, 34, 0.14);
+  border-radius: 14px;
+  background: #fff;
+  padding: 16px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.05);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.resource-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.07);
+}
+
+.resource-card h3 {
+  margin: 0 0 8px;
+  font-family: var(--font-title);
+  font-size: 1.08rem;
+  color: #141414;
+}
+
+.resource-card p {
+  margin: 0;
+  color: #4f4f4f;
+  font-family: var(--font-body);
+  line-height: 1.56;
+}
+
+.resource-card a {
+  display: inline-flex;
+  margin-top: 11px;
+  color: var(--color-primary);
+  text-decoration: none;
+  font-family: var(--font-body);
+  font-weight: 700;
+}
+
+.resource-card a:hover {
+  text-decoration: underline;
+}
+
+.resource-videos-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.video-card {
+  border: 1px solid rgba(185, 34, 34, 0.14);
+  border-radius: 14px;
+  background: #fff;
+  overflow: hidden;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.05);
+}
+
+.video-frame-wrap {
+  position: relative;
+  width: 100%;
+  padding-top: 56.25%;
+}
+
+.video-frame-wrap iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.resources-last-section {
+  margin-bottom: 10px;
+}
+
+.resource-cards-grid-compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 900px) {
+  .resource-cards-grid,
+  .resource-videos-grid,
+  .resource-cards-grid-compact {
+    grid-template-columns: 1fr;
+  }
+
+  .resources-wrapper {
+    padding: 34px 16px 56px;
+  }
+}

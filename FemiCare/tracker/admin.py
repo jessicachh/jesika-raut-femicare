@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import User, DoctorProfile, UserProfile
+from .models import User, DoctorProfile, UserProfile, TwoFactorCode
 from django.core.mail import send_mail
 from django.contrib.sites.shortcuts import get_current_site
 from django.urls import reverse
@@ -58,4 +58,11 @@ class UserProfileAdmin(admin.ModelAdmin):
 
 @admin.register(User)
 class UserAdmin(admin.ModelAdmin):
-    list_display = ('username', 'email', 'role', 'is_active', 'is_verified')
+    list_display = ('username', 'email', 'role', 'is_active', 'is_verified', 'is_two_factor_enabled')
+
+
+@admin.register(TwoFactorCode)
+class TwoFactorCodeAdmin(admin.ModelAdmin):
+    list_display = ('user', 'purpose', 'code', 'expires_at', 'used_at', 'created_at')
+    list_filter = ('purpose',)
+    search_fields = ('user__username', 'user__email', 'code')

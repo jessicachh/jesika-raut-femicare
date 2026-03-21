@@ -55,6 +55,10 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.sites', 
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
+    'allauth.socialaccount.providers.google',
     'channels',
     'tracker.apps.TrackerConfig', 
 ]
@@ -79,8 +83,14 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'allauth.account.middleware.AccountMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]
+
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+    'allauth.account.auth_backends.AuthenticationBackend',
 ]
 
 ROOT_URLCONF = 'FemiCare.urls'
@@ -168,8 +178,50 @@ EMAIL_HOST_USER = 'jsscraut@gmail.com'
 EMAIL_HOST_PASSWORD = 'qtow ufan vbzs zjea'
 DEFAULT_FROM_EMAIL = 'FemiCare <jsscraut@gmail.com>'
 
-SITE_ID = 2
+SITE_ID = int(os.getenv('SITE_ID', '2'))
+
+ACCOUNT_LOGIN_METHODS = {'email', 'username'}
+ACCOUNT_SIGNUP_FIELDS = ['email*', 'username*', 'password1*', 'password2*']
+ACCOUNT_EMAIL_VERIFICATION = 'none'
+ACCOUNT_UNIQUE_EMAIL = True
+SOCIALACCOUNT_AUTO_SIGNUP = True
+SOCIALACCOUNT_LOGIN_ON_GET = True
+SOCIALACCOUNT_EMAIL_AUTHENTICATION = True
+SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
+
+GOOGLE_CLIENT_ID = (
+    os.getenv('GOOGLE_CLIENT_ID')
+    or os.getenv('GOOGLE_OAUTH_CLIENT_ID')
+    or os.getenv('SOCIAL_AUTH_GOOGLE_OAUTH2_KEY')
+    or ''
+)
+GOOGLE_CLIENT_SECRET = (
+    os.getenv('GOOGLE_CLIENT_SECRET')
+    or os.getenv('GOOGLE_OAUTH_CLIENT_SECRET')
+    or os.getenv('SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET')
+    or ''
+)
+
+SOCIALACCOUNT_PROVIDERS = {
+    'google': {
+        'SCOPE': ['profile', 'email'],
+        'AUTH_PARAMS': {'access_type': 'online'},
+    }
+}
+
+if GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET:
+    SOCIALACCOUNT_PROVIDERS['google']['APP'] = {
+        'client_id': GOOGLE_CLIENT_ID,
+        'secret': GOOGLE_CLIENT_SECRET,
+        'key': '',
+    }
+
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SAMESITE = 'Lax'
+REMEMBER_ME_AGE = 60 * 60 * 24 * 14
+TWO_FACTOR_CODE_TTL = 600
 
 LOGIN_URL = "login"
-LOGIN_REDIRECT_URL = "home"
+LOGIN_REDIRECT_URL = "post_auth_redirect"
 LOGOUT_REDIRECT_URL = "login"

@@ -1,4 +1,5 @@
 {% load static %}
+{% load socialaccount %}
 
 <head>
   <!-- Google Font -->
@@ -92,10 +93,17 @@
         <p class="or">or</p>
 
         <!-- GOOGLE SIGNUP -->
-        <button class="google-btn">
+        {% if google_oauth_ready %}
+        <a class="google-btn" href="{% provider_login_url 'google' process='signup' %}">
           <i class="ph ph-google-logo"></i>
           Sign up with Google
+        </a>
+        {% else %}
+        <button class="google-btn" type="button" disabled aria-disabled="true" title="Google signup is not configured yet">
+          <i class="ph ph-google-logo"></i>
+          Sign up with Google (setup required)
         </button>
+        {% endif %}
 
       </div>
     </div>

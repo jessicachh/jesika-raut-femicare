@@ -863,7 +863,6 @@ body {
     align-items: center;
     gap: 15px;
 }
-
 /* Make arrows rounded */
 .fc-prev-button,
 .fc-next-button {
@@ -898,6 +897,807 @@ body {
   border-radius: 8px;
   font-size: 13px;
   cursor: pointer;
+}
+
+/* ===============================
+     Menstrual Health Insights
+================================ */
+
+.health-summary-cards {
+    margin-bottom: 24px;
+}
+
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.summary-card {
+    background: var(--color-white);
+    border: 1px solid var(--color-border);
+    border-radius: 14px;
+    padding: 18px;
+    box-shadow: var(--shadow-sm);
+    min-height: 120px;
+}
+
+.summary-label {
+    margin-bottom: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-light);
+}
+
+.summary-value {
+    margin: 0;
+    font-size: 1.4rem;
+    font-family: var(--font-title);
+    color: var(--color-text);
+}
+
+.greeting-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.greeting-row {
+    width: 100%;
+}
+
+.greeting-content h4 {
+    font-family: var(--font-title);
+}
+
+.greeting-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--color-text);
+    line-height: 1.2;
+}
+
+.greeting-sub {
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--color-text);
+    line-height: 1.35;
+}
+
+.greeting-note {
+    font-size: 0.88rem;
+    font-style: italic;
+    color: var(--color-text-light);
+    line-height: 1.4;
+}
+
+.period-status {
+    min-width: 260px;
+    border-radius: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg);
+}
+
+.period-status p {
+    color: var(--color-text);
+    font-weight: 600;
+}
+
+.period-status-active {
+    border-color: rgba(185, 34, 34, 0.35);
+    background: rgba(185, 34, 34, 0.08);
+}
+
+.period-status-upcoming {
+    border-color: rgba(14, 116, 144, 0.35);
+    background: rgba(14, 116, 144, 0.08);
+}
+
+.period-status-neutral {
+    border-color: var(--color-border);
+}
+
+.calendar-header {
+    margin-bottom: 8px;
+}
+
+.cycle-log-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: nowrap;
+}
+
+.cycle-log-title {
+    font-size: 0.95rem;
+    white-space: nowrap;
+}
+
+.cycle-log-count {
+    font-size: 0.82rem;
+    white-space: nowrap;
+}
+
+.modal-wide {
+    max-width: 650px;
+}
+
+.symptom-section {
+    border: 1px solid var(--color-border);
+}
+
+.symptom-header {
+    width: 100%;
+    border: none;
+    background: transparent;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-weight: 700;
+    color: var(--color-text);
+    cursor: pointer;
+}
+
+.symptom-toggle-icon {
+    font-size: 18px;
+    line-height: 1;
+    color: var(--color-primary);
+}
+
+.symptom-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.28s ease;
+}
+
+.symptom-content.is-open {
+    max-height: 460px;
+    margin-top: 14px;
+}
+
+.symptom-recent h6 {
+    font-size: 13px;
+    color: var(--color-text-light);
+    font-weight: 600;
+}
+
+.symptom-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.symptom-chip {
+    border: 1px solid var(--color-border);
+    background: var(--color-white);
+    color: var(--color-text);
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: 12px;
+    line-height: 1.1;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.symptom-chip:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+.symptom-chip.active {
+    border-color: var(--color-primary);
+    background: rgba(185, 34, 34, 0.08);
+    color: var(--color-primary);
+    font-weight: 600;
+}
+
+.symptom-recent-chip {
+    padding-right: 9px;
+}
+
+.symptom-scroll {
+    max-height: 250px;
+    overflow-y: auto;
+    padding-right: 2px;
+}
+
+.symptom-scroll::-webkit-scrollbar {
+    width: 6px;
+}
+
+.symptom-scroll::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 999px;
+}
+
+.symptom-save-btn {
+    width: 100%;
+    border-radius: 10px;
+    font-weight: 600;
+}
+
+.period-checkin-symptoms {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    max-height: 180px;
+    overflow-y: auto;
+    padding-right: 2px;
+}
+
+.period-checkin-chip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+
+.period-checkin-chip input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.period-checkin-chip span {
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: 12px;
+    color: var(--color-text);
+    background: var(--color-white);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.period-checkin-chip input:checked + span {
+    border-color: var(--color-primary);
+    background: rgba(185, 34, 34, 0.08);
+    color: var(--color-primary);
+    font-weight: 600;
+}
+
+.cycle-validation-error {
+    margin-top: 6px;
+    margin-bottom: 0;
+    font-size: 12px;
+    line-height: 1.45;
+    color: #8a5d5d;
+}
+
+#saveCycleBtn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.day-counter {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    flex-wrap: nowrap;
+}
+
+.day-counter-btn {
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-white);
+    color: var(--color-text);
+    font-weight: 700;
+    cursor: pointer;
+    line-height: 1;
+    transition: all 0.2s ease;
+}
+
+.day-counter-btn:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+.day-counter-input {
+    flex: 1;
+    min-width: 0;
+    text-align: center;
+}
+
+.day-counter-input::-webkit-outer-spin-button,
+.day-counter-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.day-counter-input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+.day-counter-label {
+    font-size: 13px;
+    color: var(--color-text-light);
+    white-space: nowrap;
+}
+
+.day-counter-warning {
+    color: #dc3545;
+    font-size: 14px;
+    line-height: 1;
+    margin-left: 2px;
+    flex: 0 0 auto;
+}
+
+.day-counter.counter-invalid .day-counter-input {
+    border-color: #dc3545;
+}
+
+.day-counter.counter-valid .day-counter-input {
+    border-color: #6da97c;
+}
+
+.day-counter-input.is-invalid {
+    background-image: none;
+    padding-right: 0.75rem;
+}
+
+.cycle-validation-panel {
+    width: 100%;
+    margin-top: 0.75rem;
+    padding: 0.75rem 0.85rem;
+    border-radius: 10px;
+    border: 1px solid rgba(220, 53, 69, 0.25);
+    background: rgba(220, 53, 69, 0.07);
+}
+
+.cycle-validation-panel .cycle-validation-error {
+    margin-top: 0;
+}
+
+.cycle-validation-panel .cycle-validation-error + .cycle-validation-error {
+    margin-top: 0.55rem;
+}
+
+.mood-card {
+    border: 1px solid rgba(185, 34, 34, 0.12);
+}
+
+.mood-options-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.form-card {
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 14px;
+    background: var(--color-bg);
+}
+
+.form-section {
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    background: var(--color-white);
+    padding: 12px;
+}
+
+.form-section-title {
+    font-weight: 700;
+    color: var(--color-primary);
+    margin-bottom: 10px;
+}
+
+.insights-container {
+    width: 100%;
+}
+
+.chart-card {
+    min-height: 360px;
+}
+
+.chart-card canvas {
+    display: block;
+    width: 100% !important;
+    height: 250px !important;
+}
+
+.mini-insights .insight-card {
+    min-height: 190px;
+}
+
+.mini-insights .insight-card canvas {
+    display: block;
+    width: 100% !important;
+    height: 95px !important;
+}
+
+.calendar-compact #compactCalendar {
+    min-height: 280px;
+}
+
+.calendar-compact .fc-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px !important;
+}
+
+.calendar-compact .fc-toolbar-title {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.calendar-compact .fc-prev-button,
+.calendar-compact .fc-next-button {
+    width: 30px !important;
+    height: 30px !important;
+    border-radius: 50% !important;
+    padding: 0 !important;
+    font-size: 12px !important;
+}
+
+.calendar-compact .fc-daygrid-day-number {
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.calendar-compact .fc-daygrid-day-frame {
+    min-height: 42px;
+    padding: 2px 3px;
+}
+
+.calendar-compact .fc-daygrid-event {
+    font-size: 0;
+    line-height: 0;
+    min-height: 6px;
+    width: 6px;
+    border-radius: 50% !important;
+    margin: 1px auto;
+    padding: 0 !important;
+}
+
+.calendar-compact .fc-event-title,
+.calendar-compact .fc-event-time,
+.calendar-compact .fc-daygrid-event-dot {
+    display: none !important;
+}
+
+.calendar-day {
+    max-height: 48px;
+}
+
+.menstrual-insight {
+    border: 1px solid rgba(185, 34, 34, 0.08);
+}
+
+.insight-section-header {
+    margin-bottom: 14px;
+}
+
+.insight-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.insight-metric-item {
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.insight-metric-item span {
+    font-size: 12px;
+    color: var(--color-text-light);
+}
+
+.insight-metric-item strong {
+    color: var(--color-text);
+    font-weight: 700;
+}
+
+.insight-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+}
+
+.insight-card {
+    background: var(--color-white);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 14px;
+}
+
+.insight-card h6 {
+    margin-bottom: 8px;
+    color: var(--color-primary);
+    font-weight: 700;
+}
+
+.insight-card p {
+    color: var(--color-text-light);
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.trend-chart-wrap {
+    position: relative;
+    height: 290px;
+}
+
+.trend-placeholder {
+    padding: 14px;
+    border-radius: 10px;
+    border: 1px dashed var(--color-border);
+    color: var(--color-text-light);
+    background: var(--color-bg);
+}
+
+.health-summary p {
+    color: var(--color-text-light);
+    line-height: 1.7;
+}
+
+.health-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.health-summary-card {
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 14px;
+    background: var(--color-white);
+}
+
+.health-summary-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+.health-summary-help {
+    font-size: 13px;
+    color: var(--color-text-light);
+    line-height: 1.5;
+}
+
+.mood-emoji-trend {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.mood-emoji-row {
+    display: grid;
+    grid-template-columns: 20px 1fr auto;
+    align-items: center;
+    gap: 8px;
+}
+
+.mood-emoji {
+    font-size: 14px;
+    line-height: 1;
+}
+
+.mood-emoji-row progress {
+    width: 100%;
+    height: 8px;
+    appearance: none;
+}
+
+.mood-emoji-row progress::-webkit-progress-bar {
+    background: #e5e7eb;
+    border-radius: 999px;
+}
+
+.mood-emoji-row progress::-webkit-progress-value {
+    background: var(--color-primary);
+    border-radius: 999px;
+}
+
+.mood-emoji-row progress::-moz-progress-bar {
+    background: var(--color-primary);
+    border-radius: 999px;
+}
+
+.mood-emoji-row strong {
+    font-size: 12px;
+    color: var(--color-text-light);
+    min-width: 14px;
+    text-align: right;
+}
+
+.mood-tip {
+    font-size: 12px;
+    color: var(--color-primary);
+    font-style: italic;
+    line-height: 1.45;
+}
+
+.phase-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.phase-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--color-text-light);
+}
+
+.phase-legend-item::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.phase-legend-menstrual::before {
+    background: rgba(185, 34, 34, 0.86);
+}
+
+.phase-legend-follicular::before {
+    background: rgba(249, 115, 22, 0.82);
+}
+
+.phase-legend-ovulation::before {
+    background: rgba(14, 116, 144, 0.82);
+}
+
+.phase-legend-luteal::before {
+    background: rgba(99, 102, 241, 0.8);
+}
+
+.symptom-frequency-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.symptom-frequency-item {
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    background: var(--color-bg);
+}
+
+.symptom-frequency-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 6px;
+    font-size: 13px;
+}
+
+.symptom-frequency-head strong {
+    color: var(--color-primary);
+}
+
+.symptom-frequency-progress {
+    width: 100%;
+    height: 8px;
+    appearance: none;
+}
+
+.symptom-frequency-progress::-webkit-progress-bar {
+    background-color: #e5e7eb;
+    border-radius: 999px;
+}
+
+.symptom-frequency-progress::-webkit-progress-value {
+    background-color: var(--color-primary);
+    border-radius: 999px;
+}
+
+.symptom-frequency-progress::-moz-progress-bar {
+    background-color: var(--color-primary);
+    border-radius: 999px;
+}
+
+.recent-cycle-symptoms h6 {
+    font-size: 13px;
+    color: var(--color-text-light);
+    font-weight: 600;
+}
+
+.recent-cycle-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.symptom-recent-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    padding: 5px 9px;
+    background: var(--color-white);
+    font-size: 12px;
+    color: var(--color-text);
+}
+
+.symptom-recent-pill small {
+    color: var(--color-text-light);
+}
+
+.right-insights-panel {
+    position: sticky;
+    top: 16px;
+    align-self: flex-start;
+    height: fit-content;
+    overflow: visible;
+    padding-right: 0;
+}
+
+.insights-container .row {
+    align-items: flex-start;
+}
+
+@media (max-width: 1199px) {
+    .right-insights-panel {
+        position: static;
+        top: auto;
+        overflow: visible;
+        padding-right: 0;
+    }
+}
+
+@media (max-width: 768px) {
+    .summary-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .trend-chart-wrap {
+        height: 240px;
+    }
+
+    .summary-value {
+        font-size: 1.25rem;
+    }
+
+    .health-summary-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .right-insights-panel {
+        position: static;
+        top: auto;
+    }
+
+    .chart-card {
+        min-height: 320px;
+    }
+
+    .chart-card canvas {
+        height: 210px !important;
+    }
+
+    .period-status {
+        min-width: 100%;
+    }
+
+    .mood-options-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 .slot-btn:hover {

@@ -11,10 +11,12 @@ class User(AbstractUser):
         ('doctor', 'Doctor'),
     )
     
-    role = models.CharField(max_length=10, choices=ROLE_CHOICES)
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='user')
     is_verified = models.BooleanField(default=False)  # for doctors only
 
     has_accepted_terms = models.BooleanField(default=False)
+    is_two_factor_enabled = models.BooleanField(default=False)
+    two_factor_enabled_at = models.DateTimeField(null=True, blank=True)
     
     def __str__(self):
         return self.username
@@ -29,6 +31,7 @@ class UserProfile(models.Model):
     date_of_birth = models.DateField(null=True, blank=True)
     phone_number = models.CharField(max_length=20, blank=True)
     profile_picture = models.ImageField(upload_to='profile_pictures/', null=True, blank=True)
+    has_accepted_terms = models.BooleanField(default=False)
     height_cm = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     weight_kg = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     address = models.CharField(max_length=255, blank=True)
@@ -327,6 +330,124 @@ class HealthLog(models.Model):
         return f"{self.user.username} health log ({self.created_at:%Y-%m-%d %H:%M})"
 
 
+class MoodEntry(models.Model):
+    MOOD_CHOICES = (
+        ('happy', 'Happy'),
+        ('sad', 'Sad'),
+        ('stressed', 'Stressed'),
+        ('calm', 'Calm'),
+        ('irritated', 'Irritated'),
+        ('energetic', 'Energetic'),
+    )
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='mood_entries'
+    )
+    mood = models.CharField(max_length=20, choices=MOOD_CHOICES)
+    date = models.DateField(default=timezone.now)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-date', '-created_at']
+        unique_together = ('user', 'date')
+
+    def __str__(self):
+        return f"{self.user.username} mood on {self.date:%Y-%m-%d}: {self.mood}"
+
+
+class PredictionFeedback(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='prediction_feedbacks'
+    )
+    cycle_log = models.OneToOneField(
+        'CycleLog',
+        on_delete=models.CASCADE,
+        related_name='feedback',
+        null=True,
+        blank=True,
+    )
+    predicted_date = models.DateField()
+    actual_date = models.DateField(null=True, blank=True)
+    is_correct = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.username} prediction feedback ({self.predicted_date})"
+
+
+class SymptomLog(models.Model):
+    SOURCE_CHOICES = (
+        ('manual', 'Manual Add Symptom'),
+        ('first_login', 'First Login Period Form'),
+    )
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='symptom_logs'
+    )
+    cycle_log = models.ForeignKey(
+        'CycleLog',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='symptom_logs',
+    )
+    symptom = models.CharField(max_length=100)
+    source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default='manual')
+    date = models.DateField(default=timezone.now)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-date', '-created_at']
+        unique_together = ('user', 'symptom', 'date')
+
+    def __str__(self):
+        return f"{self.user.username} - {self.symptom} ({self.date:%Y-%m-%d})"
+
+
+class PeriodCheckIn(models.Model):
+    PAIN_LEVEL_CHOICES = (
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High'),
+    )
+
+    BLOOD_FLOW_CHOICES = (
+        ('light', 'Light'),
+        ('normal', 'Normal'),
+        ('heavy', 'Heavy'),
+    )
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='period_checkins'
+    )
+    cycle_log = models.ForeignKey(
+        'CycleLog',
+        on_delete=models.CASCADE,
+        related_name='period_checkins'
+    )
+    pain_level = models.CharField(max_length=20, choices=PAIN_LEVEL_CHOICES)
+    blood_flow = models.CharField(max_length=20, choices=BLOOD_FLOW_CHOICES)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        unique_together = ('user', 'cycle_log')
+
+    def __str__(self):
+        return f"{self.user.username} check-in ({self.cycle_log_id})"
+
+
 class Notification(models.Model):
     TYPE_CHOICES = (
         ('appointment', 'Appointment'),
@@ -352,3 +473,29 @@ class Notification(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.title}"
+
+
+class TwoFactorCode(models.Model):
+    PURPOSE_CHOICES = (
+        ('login', 'Login Verification'),
+        ('setup', '2FA Setup Verification'),
+        ('settings_enable', 'Enable 2FA'),
+        ('settings_disable', 'Disable 2FA'),
+    )
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='two_factor_codes'
+    )
+    code = models.CharField(max_length=6)
+    purpose = models.CharField(max_length=30, choices=PURPOSE_CHOICES)
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.username} - {self.purpose}"

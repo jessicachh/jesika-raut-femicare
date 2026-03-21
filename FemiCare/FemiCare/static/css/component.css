@@ -278,6 +278,12 @@ input:focus {
   margin-top: 1rem;
 }
 
+a.google-btn,
+a.google-login-btn {
+  text-decoration: none;
+  color: inherit;
+}
+
 .or {
   margin: 1rem 0 0.5rem;
   color: #666;
@@ -370,6 +376,21 @@ input:focus {
   font-weight: 500;
 }
 
+.remember-me-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: #444;
+  margin-bottom: 0;
+}
+
+.remember-me-row input {
+  width: auto;
+  padding: 0;
+  margin: 0;
+}
+
 .forgot-password:hover {
   text-decoration: underline;
 }
@@ -417,6 +438,38 @@ input:focus {
 .signup-redirect a {
   color: var(--color-primary);
   text-decoration: none;
+}
+
+.auth-single-panel {
+  flex: 1 1 100%;
+}
+
+.auth-card-wide {
+  max-width: 500px;
+}
+
+.auth-subtitle {
+  margin-top: 2px;
+  margin-bottom: 14px;
+  color: #5e5e5e;
+  font-size: 0.94rem;
+  line-height: 1.45;
+}
+
+.auth-actions-vertical {
+  gap: 10px;
+}
+
+.auth-inline-form {
+  margin-top: 12px;
+}
+
+.auth-inline-form .google-btn {
+  margin-top: 0;
+}
+
+.auth-message-line {
+  color: #b92222;
 }
 
 /* RIGHT IMAGE SECTION */
@@ -502,6 +555,14 @@ input:focus {
 
 /* Responsive */
 @media (max-width: 768px) {
+  .remember-me-row {
+    font-size: 0.85rem;
+  }
+
+  .auth-card-wide {
+    max-width: 100%;
+  }
+
   .footer-container {
     flex-direction: column;
     text-align: center;

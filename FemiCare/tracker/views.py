@@ -17,6 +17,11 @@ from .models import (
     UserDocument,
     HealthLog,
     Notification,
+    MoodEntry,
+    PredictionFeedback,
+    SymptomLog,
+    PeriodCheckIn,
+    TwoFactorCode,
 )
 from .forms import (
     CycleLogForm,
@@ -32,6 +37,132 @@ from django.utils import timezone
 from django.core.paginator import Paginator
 from django.core.mail import send_mail
 from django.conf import settings
+from django.db.models import Avg, Count, Q
+from django.utils.dateparse import parse_date
+
+
+SYMPTOM_OPTIONS = [
+    'Abdominal Cramps',
+    'Appetite Changes',
+    'Bladder Incontinence',
+    'Bloating',
+    'Breast Pain',
+    'Chills',
+    'Constipation',
+    'Diarrhea',
+    'Dry Skin',
+    'Fatigue',
+    'Hair Loss',
+    'Headache',
+    'Hot Flashes',
+    'Lower Back Pain',
+    'Memory Lapse',
+    'Mood Changes',
+    'Nausea',
+    'Night Sweats',
+    'Pelvic Pain',
+    'Sleep Changes',
+    'Vaginal Dryness',
+    'Acne',
+]
+
+
+def _set_login_session_expiry(request, remember_me):
+    if remember_me:
+        request.session.set_expiry(getattr(settings, 'REMEMBER_ME_AGE', 60 * 60 * 24 * 14))
+    else:
+        request.session.set_expiry(0)
+
+
+def _issue_two_factor_code(user, purpose):
+    code_value = f"{random.SystemRandom().randint(0, 999999):06d}"
+    expires_at = timezone.now() + timedelta(seconds=getattr(settings, 'TWO_FACTOR_CODE_TTL', 600))
+    return TwoFactorCode.objects.create(
+        user=user,
+        code=code_value,
+        purpose=purpose,
+        expires_at=expires_at,
+    )
+
+
+def _send_two_factor_code_email(user, code_obj):
+    send_mail(
+        subject='FemiCare Verification Code',
+        message=(
+            f'Your verification code is: {code_obj.code}\n\n'
+            'This code expires in 10 minutes. If this was not you, please ignore this email.'
+        ),
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[user.email],
+        fail_silently=False,
+    )
+
+
+def _validate_two_factor_code(user, purpose, submitted_code):
+    now = timezone.now()
+    code_obj = (
+        TwoFactorCode.objects
+        .filter(
+            user=user,
+            purpose=purpose,
+            used_at__isnull=True,
+            expires_at__gt=now,
+        )
+        .order_by('-created_at')
+        .first()
+    )
+
+    if not code_obj or code_obj.code != (submitted_code or '').strip():
+        return False
+
+    code_obj.used_at = now
+    code_obj.save(update_fields=['used_at'])
+    return True
+
+
+def _redirect_user_after_login(request, user):
+    if user.role == 'doctor':
+        try:
+            profile = user.doctor_profile
+        except DoctorProfile.DoesNotExist:
+            return redirect('doctor_details')
+
+        terms_accepted = bool(getattr(user, 'has_accepted_terms', False))
+        if not terms_accepted:
+            return redirect('terms_and_conditions')
+
+        if not profile.is_verified:
+            return render(request, 'doctor_pending.html', {'profile': profile})
+        return redirect('doctor_dashboard')
+
+    profile, _ = UserProfile.objects.get_or_create(user=user)
+
+    profile_incomplete = (
+        not profile.date_of_birth or
+        profile.height_cm in (None, 0) or
+        profile.weight_kg in (None, 0)
+    )
+    if profile_incomplete:
+        return redirect('user_profile')
+
+    terms_accepted = bool(profile.has_accepted_terms or getattr(user, 'has_accepted_terms', False))
+    if not terms_accepted:
+        return redirect('terms_and_conditions')
+
+    return redirect('dashboard_home')
+
+
+def _is_google_oauth_ready():
+    has_env_config = bool(getattr(settings, 'GOOGLE_CLIENT_ID', '')) and bool(getattr(settings, 'GOOGLE_CLIENT_SECRET', ''))
+    if has_env_config:
+        return True
+
+    try:
+        from allauth.socialaccount.models import SocialApp
+    except Exception:
+        return False
+
+    return SocialApp.objects.filter(provider='google', sites__id=getattr(settings, 'SITE_ID', 1)).exists()
 # -----------------------------
 # Public pages
 # -----------------------------
@@ -48,17 +179,22 @@ def contact(request):
     return render(request, 'contact.html')
 
 
+def resources(request):
+    return render(request, 'resources.html')
+
+
 @login_required
 def terms_and_conditions(request):
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+
     if request.method == "POST":
         user = request.user
         user.has_accepted_terms = True
-        user.save()
-        
-        if user.role == 'doctor':
-            return redirect('doctor_dashboard')
-        else:
-            return redirect('dashboard_home')
+        user.save(update_fields=['has_accepted_terms'])
+        profile.has_accepted_terms = True
+        profile.save(update_fields=['has_accepted_terms'])
+
+        return _redirect_user_after_login(request, user)
             
     return render(request, 'terms_and_conditions.html')
 
@@ -86,13 +222,17 @@ def explore_doctors(request):
 def signup_view(request):
     if request.method == 'POST':
         username = request.POST.get('username')
-        email = request.POST.get('email')
+        email = (request.POST.get('email') or '').strip().lower()
         password = request.POST.get('password')
         confirm = request.POST.get('confirm_password')
-        role = request.POST.get('role')
+        role = request.POST.get('role') or 'user'
 
         if password != confirm:
             messages.error(request, "Passwords do not match")
+            return redirect('signup')
+
+        if User.objects.filter(email=email).exists():
+            messages.error(request, "Email already exists")
             return redirect('signup')
 
         if User.objects.filter(username=username).exists():
@@ -106,16 +246,14 @@ def signup_view(request):
             role=role
         )
         
-        # Automatically log the user in
         auth_login(request, user)
 
-        # Direct first-time user to their profile page
-        if role == 'doctor':
-            return redirect('doctor_details')
-        else:
-            return redirect('user_profile')
+        request.session['prompt_2fa_after_signup'] = True
+        request.session['post_signup_next'] = 'doctor_details' if role == 'doctor' else 'user_profile'
+        return redirect('two_factor_setup_prompt')
 
-    return render(request, 'signup.html')
+    google_oauth_ready = _is_google_oauth_ready()
+    return render(request, 'signup.html', {'google_oauth_ready': google_oauth_ready})
 
 
 
@@ -123,6 +261,7 @@ def login_view(request):
     if request.method == 'POST':
         username = request.POST.get('username')
         password = request.POST.get('password')
+        remember_me = request.POST.get('remember_me') == 'on'
 
         user = authenticate(request, username=username, password=password)
 
@@ -130,46 +269,276 @@ def login_view(request):
             messages.error(request, "Invalid username or password")
             return redirect('login')
 
-        auth_login(request, user)
+        if user.is_two_factor_enabled:
+            if not user.email:
+                messages.error(request, '2FA is enabled but your account has no email address.')
+                return redirect('login')
 
-        if not getattr(user, 'has_accepted_terms', False):
-            return redirect('terms_and_conditions')
-
-        if user.role == 'doctor':
+            code_obj = _issue_two_factor_code(user, 'login')
             try:
-                profile = user.doctor_profile
-            except DoctorProfile.DoesNotExist:
-                return redirect('doctor_details')
+                _send_two_factor_code_email(user, code_obj)
+            except Exception:
+                messages.error(request, 'Unable to send verification code. Please try again.')
+                return redirect('login')
 
-            if not profile.is_verified:
-                return render(request, 'doctor_pending.html', {'profile': profile})
-            
-            return redirect('doctor_dashboard')
+            request.session['pending_login_user_id'] = user.id
+            request.session['pending_login_remember_me'] = remember_me
+            request.session['pending_login_backend'] = getattr(
+                user,
+                'backend',
+                settings.AUTHENTICATION_BACKENDS[0],
+            )
+            messages.info(request, 'A verification code was sent to your email.')
+            return redirect('two_factor_login_verify')
 
-        else:
-            profile, created = UserProfile.objects.get_or_create(user=user)
-            if created or not profile.date_of_birth:
-                return redirect('user_profile')
-            return redirect('dashboard_home')
+        auth_login(request, user)
+        _set_login_session_expiry(request, remember_me)
+        return _redirect_user_after_login(request, user)
 
-    return render(request, 'login.html')
+    google_oauth_ready = _is_google_oauth_ready()
+    return render(request, 'login.html', {'google_oauth_ready': google_oauth_ready})
+
+
+@login_required
+def post_auth_redirect(request):
+    if request.session.pop('prompt_2fa_after_signup', False):
+        return redirect('two_factor_setup_prompt')
+    return _redirect_user_after_login(request, request.user)
+
+
+@login_required
+def two_factor_setup_prompt(request):
+    next_route = request.session.get('post_signup_next') or ('doctor_details' if request.user.role == 'doctor' else 'user_profile')
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        if action == 'later':
+            messages.info(request, 'You can enable 2FA later from Settings.')
+            request.session.pop('prompt_2fa_after_signup', None)
+            return redirect(next_route)
+
+        if action == 'enable':
+            if not request.user.email:
+                messages.error(request, 'Please add a valid email address before enabling 2FA.')
+                return redirect(next_route)
+
+            code_obj = _issue_two_factor_code(request.user, 'setup')
+            try:
+                _send_two_factor_code_email(request.user, code_obj)
+            except Exception:
+                messages.error(request, 'Unable to send verification code. Please try again.')
+                return redirect('two_factor_setup_prompt')
+
+            messages.info(request, 'Verification code sent to your email.')
+            return redirect('two_factor_setup_verify')
+
+    return render(request, 'two_factor_setup_prompt.html', {'next_route': next_route})
+
+
+@login_required
+def two_factor_setup_verify(request):
+    next_route = request.session.get('post_signup_next') or ('doctor_details' if request.user.role == 'doctor' else 'user_profile')
+
+    if request.method == 'POST':
+        code = request.POST.get('code')
+        if _validate_two_factor_code(request.user, 'setup', code):
+            request.user.is_two_factor_enabled = True
+            request.user.two_factor_enabled_at = timezone.now()
+            request.user.save(update_fields=['is_two_factor_enabled', 'two_factor_enabled_at'])
+            request.session.pop('prompt_2fa_after_signup', None)
+            messages.success(request, 'Two-factor authentication enabled successfully.')
+            return redirect(next_route)
+
+        messages.error(request, 'Invalid or expired verification code.')
+
+    return render(
+        request,
+        'two_factor_verify.html',
+        {
+            'title': 'Enable Two-Factor Authentication',
+            'subtitle': 'Enter the 6-digit code sent to your email to complete setup.',
+            'verify_url_name': 'two_factor_setup_verify',
+            'resend_url_name': 'two_factor_setup_resend',
+        },
+    )
+
+
+@login_required
+def two_factor_setup_resend(request):
+    if request.method != 'POST':
+        return redirect('two_factor_setup_verify')
+
+    code_obj = _issue_two_factor_code(request.user, 'setup')
+    try:
+        _send_two_factor_code_email(request.user, code_obj)
+        messages.info(request, 'A new verification code was sent.')
+    except Exception:
+        messages.error(request, 'Unable to resend verification code. Please try again.')
+    return redirect('two_factor_setup_verify')
+
+
+def two_factor_login_verify(request):
+    pending_user_id = request.session.get('pending_login_user_id')
+    if not pending_user_id:
+        messages.error(request, 'Your login session expired. Please login again.')
+        return redirect('login')
+
+    user = User.objects.filter(id=pending_user_id).first()
+    if not user:
+        request.session.pop('pending_login_user_id', None)
+        request.session.pop('pending_login_remember_me', None)
+        request.session.pop('pending_login_backend', None)
+        messages.error(request, 'Invalid login session. Please login again.')
+        return redirect('login')
+
+    if request.method == 'POST':
+        code = request.POST.get('code')
+        if _validate_two_factor_code(user, 'login', code):
+            remember_me = bool(request.session.pop('pending_login_remember_me', False))
+            backend = request.session.pop('pending_login_backend', settings.AUTHENTICATION_BACKENDS[0])
+            request.session.pop('pending_login_user_id', None)
+            auth_login(request, user, backend=backend)
+            _set_login_session_expiry(request, remember_me)
+            return _redirect_user_after_login(request, user)
+
+        messages.error(request, 'Invalid or expired verification code.')
+
+    return render(
+        request,
+        'two_factor_verify.html',
+        {
+            'title': 'Login Verification',
+            'subtitle': f'Enter the 6-digit code sent to {user.email}.',
+            'verify_url_name': 'two_factor_login_verify',
+            'resend_url_name': 'two_factor_login_resend',
+        },
+    )
+
+
+def two_factor_login_resend(request):
+    pending_user_id = request.session.get('pending_login_user_id')
+    if not pending_user_id:
+        messages.error(request, 'Your login session expired. Please login again.')
+        return redirect('login')
+
+    user = User.objects.filter(id=pending_user_id).first()
+    if not user:
+        messages.error(request, 'Unable to resend code. Please login again.')
+        return redirect('login')
+
+    code_obj = _issue_two_factor_code(user, 'login')
+    try:
+        _send_two_factor_code_email(user, code_obj)
+        messages.info(request, 'A new verification code was sent to your email.')
+    except Exception:
+        messages.error(request, 'Unable to resend code right now.')
+    return redirect('two_factor_login_verify')
+
+
+@login_required
+def enable_two_factor(request):
+    if request.method != 'POST':
+        return redirect('dashboard_settings')
+
+    if not request.user.email:
+        messages.error(request, 'Please set an email before enabling 2FA.')
+        return redirect('dashboard_settings')
+
+    code_obj = _issue_two_factor_code(request.user, 'settings_enable')
+    try:
+        _send_two_factor_code_email(request.user, code_obj)
+    except Exception:
+        messages.error(request, 'Unable to send verification code.')
+        return redirect('dashboard_settings')
+
+    request.session['pending_2fa_action'] = 'enable'
+    messages.info(request, 'Verification code sent to your email.')
+    return redirect('two_factor_settings_verify')
+
+
+@login_required
+def disable_two_factor(request):
+    if request.method != 'POST':
+        return redirect('dashboard_settings')
+
+    code_obj = _issue_two_factor_code(request.user, 'settings_disable')
+    try:
+        _send_two_factor_code_email(request.user, code_obj)
+    except Exception:
+        messages.error(request, 'Unable to send verification code.')
+        return redirect('dashboard_settings')
+
+    request.session['pending_2fa_action'] = 'disable'
+    messages.info(request, 'Verification code sent to your email.')
+    return redirect('two_factor_settings_verify')
+
+
+@login_required
+def two_factor_settings_verify(request):
+    action = request.session.get('pending_2fa_action')
+    if action not in {'enable', 'disable'}:
+        messages.error(request, 'No pending 2FA action found.')
+        return redirect('dashboard_settings')
+
+    purpose = 'settings_enable' if action == 'enable' else 'settings_disable'
+
+    if request.method == 'POST':
+        code = request.POST.get('code')
+        if _validate_two_factor_code(request.user, purpose, code):
+            request.user.is_two_factor_enabled = action == 'enable'
+            request.user.two_factor_enabled_at = timezone.now() if action == 'enable' else None
+            request.user.save(update_fields=['is_two_factor_enabled', 'two_factor_enabled_at'])
+            request.session.pop('pending_2fa_action', None)
+            messages.success(request, 'Two-factor authentication settings updated.')
+            return redirect('dashboard_settings')
+
+        messages.error(request, 'Invalid or expired verification code.')
+
+    return render(
+        request,
+        'two_factor_verify.html',
+        {
+            'title': 'Verify 2FA Change',
+            'subtitle': 'Enter the 6-digit code sent to your email.',
+            'verify_url_name': 'two_factor_settings_verify',
+            'resend_url_name': 'enable_two_factor' if action == 'enable' else 'disable_two_factor',
+        },
+    )
 
 
 @login_required
 def user_profile(request):
-    profile, created = UserProfile.objects.get_or_create(user=request.user)
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
 
     # If profile already filled, redirect to dashboard
-    if profile.date_of_birth and request.method != 'POST':
-        return redirect('dashboard_home')
+    profile_complete = (
+        profile.date_of_birth and
+        profile.height_cm not in (None, 0) and
+        profile.weight_kg not in (None, 0)
+    )
+    if profile_complete and request.method != 'POST':
+        return _redirect_user_after_login(request, request.user)
 
     if request.method == 'POST':
         profile.date_of_birth = request.POST.get('dob')
-        profile.cycle_length = request.POST.get('cycle_length')
-        profile.last_period_date = request.POST.get('last_period_date')
+
+        height_raw = request.POST.get('height_cm')
+        weight_raw = request.POST.get('weight_kg')
+
+        try:
+            height_val = float(height_raw)
+            weight_val = float(weight_raw)
+            if height_val <= 0 or weight_val <= 0:
+                raise ValueError
+        except (TypeError, ValueError):
+            messages.error(request, 'Please enter valid height and weight values greater than 0.')
+            return render(request, 'user_profile.html', {'profile': profile})
+
+        profile.height_cm = height_val
+        profile.weight_kg = weight_val
         profile.save()
 
-        return redirect('dashboard_home')
+        return _redirect_user_after_login(request, request.user)
 
     return render(request, 'user_profile.html', {'profile': profile})
 
@@ -624,6 +993,7 @@ def upload_user_documents(request):
 @login_required
 def settings_view(request):
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    two_factor_enabled = request.user.is_two_factor_enabled
 
     if request.method == 'POST':
         account_form = AccountSettingsForm(request.POST, instance=profile, user=request.user)
@@ -675,6 +1045,7 @@ def settings_view(request):
             'password_form': password_form,
             'verification_form': verification_form,
             'pending_email': request.session.get('pending_email'),
+            'two_factor_enabled': two_factor_enabled,
         },
     )
 
@@ -728,6 +1099,7 @@ def verify_email_code(request):
             'password_form': password_form,
             'verification_form': verification_form,
             'pending_email': pending_email,
+            'two_factor_enabled': request.user.is_two_factor_enabled,
         },
     )
 
@@ -850,6 +1222,7 @@ def change_password(request):
             'password_form': form,
             'verification_form': EmailVerificationForm(),
             'pending_email': request.session.get('pending_email'),
+            'two_factor_enabled': request.user.is_two_factor_enabled,
         },
     )
 
@@ -857,6 +1230,356 @@ def change_password(request):
 def dashboard_home(request):
     logs = CycleLog.objects.filter(user=request.user)
     latest_cycle = logs.first()
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    today = timezone.localdate()
+    current_hour = timezone.localtime().hour
+
+    if current_hour < 12:
+        greeting_prefix = "Good Morning"
+    elif current_hour < 18:
+        greeting_prefix = "Good Afternoon"
+    else:
+        greeting_prefix = "Good Evening"
+
+    today_mood_entry = MoodEntry.objects.filter(user=request.user, date=today).first()
+    today_mood_label = today_mood_entry.get_mood_display() if today_mood_entry else None
+    show_mood_prompt = today_mood_entry is None
+
+    greeting_text = (
+        f"{greeting_prefix}, you are feeling {today_mood_label} today"
+        if today_mood_label else
+        f"{greeting_prefix}, tell us how you are feeling today"
+    )
+
+    mood_counts = dict(
+        MoodEntry.objects.filter(user=request.user)
+        .values('mood')
+        .annotate(total=Count('id'))
+        .values_list('mood', 'total')
+    )
+    mood_chart_labels = [label for _, label in MoodEntry.MOOD_CHOICES]
+    mood_chart_values = [mood_counts.get(code, 0) for code, _ in MoodEntry.MOOD_CHOICES]
+
+    cycle_log_qs = CycleLog.objects.filter(user=request.user)
+
+    symptom_frequency = list(
+        SymptomLog.objects.filter(user=request.user, source__in=['manual', 'first_login'])
+        .values('symptom')
+        .annotate(count=Count('id'))
+        .order_by('-count', 'symptom')[:10]
+    )
+    max_symptom_frequency = symptom_frequency[0]['count'] if symptom_frequency else 1
+
+    recent_cycle_symptoms = list(
+        SymptomLog.objects.filter(user=request.user, source__in=['manual', 'first_login'])
+        .values('symptom', 'date')
+        .order_by('-date', '-created_at')[:8]
+    )
+
+    most_common_symptom = symptom_frequency[0]['symptom'] if symptom_frequency else 'No Data Yet'
+
+    today_symptoms_qs = SymptomLog.objects.filter(user=request.user, date=today).order_by('created_at')
+    selected_today_symptoms = list(today_symptoms_qs.values_list('symptom', flat=True))
+
+    recent_symptoms = []
+    for symptom in SymptomLog.objects.filter(user=request.user, source__in=['manual', 'first_login']).order_by('-date', '-created_at').values_list('symptom', flat=True):
+        if symptom not in recent_symptoms:
+            recent_symptoms.append(symptom)
+        if len(recent_symptoms) >= 8:
+            break
+
+    appointments_count = Appointment.objects.filter(user=request.user).count()
+
+    height_cm = profile.height_cm
+    weight_kg = profile.weight_kg
+
+    if height_cm is None and latest_cycle:
+        height_cm = latest_cycle.height_cm
+    if weight_kg is None and latest_cycle:
+        weight_kg = latest_cycle.weight_kg
+
+    bmi = None
+    if height_cm and weight_kg:
+        try:
+            height_m = float(height_cm) / 100
+            if height_m > 0:
+                bmi = round(float(weight_kg) / (height_m ** 2), 1)
+        except (TypeError, ValueError, ZeroDivisionError):
+            bmi = None
+
+    cycle_logs = list(logs.exclude(last_period_start__isnull=True).order_by('last_period_start'))
+    cycle_lengths = [log.length_of_cycle for log in cycle_logs if log.length_of_cycle]
+    menses_lengths = [log.length_of_menses for log in cycle_logs if log.length_of_menses]
+
+    avg_cycle_length = None
+    if cycle_lengths:
+        avg_cycle_length = round(sum(cycle_lengths) / len(cycle_lengths), 1)
+
+    avg_menses_length = None
+    if menses_lengths:
+        avg_menses_length = round(sum(menses_lengths) / len(menses_lengths), 1)
+
+    phase_labels = ['Menstrual', 'Follicular', 'Ovulation', 'Luteal']
+    phase_values = [25, 35, 10, 30]
+    cycle_days = int(round(avg_cycle_length)) if avg_cycle_length else None
+    menstrual_days = int(round(avg_menses_length)) if avg_menses_length else 5
+
+    if cycle_days and cycle_days > 0:
+        menstrual_days = max(2, min(menstrual_days, max(cycle_days - 3, 2)))
+        ovulation_days = 1
+        luteal_days = 14 if cycle_days >= 24 else max(8, cycle_days // 3)
+        remaining_days = cycle_days - menstrual_days - ovulation_days
+
+        if remaining_days > 1:
+            luteal_days = min(luteal_days, remaining_days - 1)
+            follicular_days = remaining_days - luteal_days
+            if follicular_days < 1:
+                follicular_days = 1
+                luteal_days = max(1, remaining_days - 1)
+
+            raw_percentages = [
+                (menstrual_days / cycle_days) * 100,
+                (follicular_days / cycle_days) * 100,
+                (ovulation_days / cycle_days) * 100,
+                (luteal_days / cycle_days) * 100,
+            ]
+            phase_values = [int(round(value)) for value in raw_percentages]
+            rounding_diff = 100 - sum(phase_values)
+            phase_values[1] += rounding_diff
+
+    last_30_start = today - timedelta(days=29)
+    recent_mood_entries = list(
+        MoodEntry.objects.filter(user=request.user, date__gte=last_30_start)
+        .order_by('date')
+        .values_list('mood', flat=True)
+    )
+
+    mood_trend_buckets = {
+        'happy': {'label': 'Happy', 'emoji': '😊', 'codes': {'happy', 'calm', 'energetic'}},
+        'neutral': {'label': 'Neutral', 'emoji': '😐', 'codes': {'stressed'}},
+        'sad': {'label': 'Sad', 'emoji': '😔', 'codes': {'sad', 'irritated'}},
+    }
+
+    mood_trend_points = {'happy': 0, 'neutral': 0, 'sad': 0}
+    for mood_code in recent_mood_entries:
+        for key, bucket in mood_trend_buckets.items():
+            if mood_code in bucket['codes']:
+                mood_trend_points[key] += 1
+                break
+
+    mood_score_map = {
+        'energetic': 3,
+        'happy': 3,
+        'calm': 2,
+        'stressed': 1,
+        'irritated': 0,
+        'sad': 0,
+    }
+    mood_scores = [mood_score_map.get(code, 1) for code in recent_mood_entries]
+    mood_split = len(mood_scores) // 2
+    first_half_avg = sum(mood_scores[:mood_split]) / mood_split if mood_split else None
+    second_half_len = len(mood_scores) - mood_split
+    second_half_avg = sum(mood_scores[mood_split:]) / second_half_len if second_half_len else None
+
+    if not recent_mood_entries:
+        mood_trend_summary = 'No mood check-ins in the last 30 days.'
+    else:
+        most_common_mood_code = max(
+            mood_counts,
+            key=mood_counts.get,
+            default='irritated'
+        )
+        mood_label_map = dict(MoodEntry.MOOD_CHOICES)
+        most_common_mood_label = mood_label_map.get(most_common_mood_code, 'Unknown')
+
+        if first_half_avg is not None and second_half_avg is not None and second_half_avg > first_half_avg:
+            mood_trend_summary = f'Most common mood: {most_common_mood_label}. Mood improved in the second half of the cycle.'
+        elif first_half_avg is not None and second_half_avg is not None and second_half_avg < first_half_avg:
+            mood_trend_summary = f'Most common mood: {most_common_mood_label}. Mood dipped in the second half of the cycle.'
+        else:
+            mood_trend_summary = f'Most common mood: {most_common_mood_label}.'
+
+    mood_trend_tip = 'Mood swings are normal during luteal phase.'
+    mood_trend_max = max(mood_trend_points.values()) if any(mood_trend_points.values()) else 1
+
+    last_period_date = cycle_logs[-1].last_period_start if cycle_logs else None
+    predicted_next_period = latest_cycle.predicted_next_period if latest_cycle else None
+
+    if not predicted_next_period and last_period_date and avg_cycle_length:
+        predicted_next_period = last_period_date + timedelta(days=int(round(avg_cycle_length)))
+
+    active_cycle = cycle_log_qs.exclude(last_period_start__isnull=True).filter(last_period_start__lte=today).order_by('-last_period_start').first()
+    is_on_period = False
+    show_period_checkin_prompt = False
+
+    if active_cycle and active_cycle.length_of_menses:
+        period_end = active_cycle.last_period_start + timedelta(days=max(active_cycle.length_of_menses, 1) - 1)
+        is_on_period = active_cycle.last_period_start <= today <= period_end
+        if is_on_period:
+            show_period_checkin_prompt = not PeriodCheckIn.objects.filter(user=request.user, cycle_log=active_cycle).exists()
+
+    if show_period_checkin_prompt:
+        show_mood_prompt = False
+
+    period_status_text = "No active cycle today"
+    period_status_variant = "neutral"
+    if is_on_period and active_cycle:
+        period_status_text = "You are on your period today"
+        period_status_variant = "active"
+    elif last_period_date and latest_cycle and latest_cycle.length_of_menses:
+        bleeding_end = last_period_date + timedelta(days=max(latest_cycle.length_of_menses, 1) - 1)
+        if last_period_date <= today <= bleeding_end:
+            period_status_text = "You are on your period today"
+            period_status_variant = "active"
+        elif predicted_next_period:
+            days_until_period = (predicted_next_period - today).days
+            if 0 <= days_until_period <= 7:
+                period_status_text = f"Your period is expected in {days_until_period} day(s)"
+                period_status_variant = "upcoming"
+            elif days_until_period < 0:
+                period_status_text = f"Your period was expected {abs(days_until_period)} day(s) ago"
+                period_status_variant = "upcoming"
+    elif predicted_next_period:
+        days_until_period = (predicted_next_period - today).days
+        if 0 <= days_until_period <= 7:
+            period_status_text = f"Your period is expected in {days_until_period} day(s)"
+            period_status_variant = "upcoming"
+
+    cycle_is_irregular = None
+    cycle_spread = None
+    if len(cycle_lengths) >= 3:
+        cycle_spread = max(cycle_lengths) - min(cycle_lengths)
+        cycle_is_irregular = cycle_spread > 7
+    elif len(cycle_lengths) >= 1:
+        cycle_is_irregular = False
+
+    cycle_pattern_short = "No Data"
+    cycle_pattern_value = "No Data Yet"
+    cycle_pattern_helper = "Start logging your cycle to understand your monthly pattern."
+    if cycle_lengths:
+        if cycle_spread is None or cycle_spread <= 3:
+            cycle_pattern_short = "Regular"
+            cycle_pattern_value = "Regular"
+            cycle_pattern_helper = "Your cycle is mostly consistent from month to month."
+        elif cycle_spread <= 7:
+            cycle_pattern_short = "Slightly Irregular"
+            cycle_pattern_value = "Slightly Irregular"
+            cycle_pattern_helper = "Your cycle is mostly consistent with minor variations."
+        else:
+            cycle_pattern_short = "Irregular"
+            cycle_pattern_value = "Irregular"
+            cycle_pattern_helper = "Your cycle varies more than usual. Keep tracking and monitor changes."
+
+    menstrual_insights = []
+    if not cycle_lengths:
+        menstrual_insights.append(
+            "Start tracking your cycle to receive personalized menstrual insights."
+        )
+    elif cycle_is_irregular:
+        menstrual_insights.append(
+            "Your cycle appears irregular. Consider consulting a doctor for guidance."
+        )
+    else:
+        menstrual_insights.append("Your cycle appears regular and stable.")
+
+    symptom_insights = []
+    if not cycle_logs:
+        symptom_insights.append("Track your symptoms to get deeper health insights.")
+    else:
+        high_cramp_logs = sum(1 for log in cycle_logs if (log.total_menses_score or 0) >= 6)
+        heavy_bleeding_logs = sum(1 for log in cycle_logs if log.mean_bleeding_intensity == 3)
+        unusual_bleeding_logs = sum(1 for log in cycle_logs if log.unusual_bleeding)
+        score_variation = len({log.total_menses_score for log in cycle_logs if log.total_menses_score is not None}) > 1
+
+        if high_cramp_logs >= 2:
+            symptom_insights.append(
+                "You have reported frequent cramps. Monitoring intensity or consulting a doctor is recommended."
+            )
+        if heavy_bleeding_logs >= 2 or unusual_bleeding_logs >= 1:
+            symptom_insights.append(
+                "Bleeding pattern changes detected. Keep tracking and discuss persistent changes with a clinician."
+            )
+        if score_variation:
+            symptom_insights.append("Mood variations detected during cycle phases.")
+
+        if not symptom_insights:
+            symptom_insights.append("Symptoms appear stable based on your recent cycle logs.")
+
+    bmi_insight = "Add height and weight details for BMI-based menstrual guidance."
+    if bmi is not None:
+        if bmi < 18.5:
+            bmi_insight = "Low body weight may affect menstrual consistency."
+        elif bmi > 24.9:
+            bmi_insight = "Body weight can impact hormonal balance and cycle regularity."
+        else:
+            bmi_insight = "Your BMI is within a healthy range, supporting stable cycles."
+
+    personalized_insights = [
+        {
+            "title": "Cycle Regularity",
+            "message": menstrual_insights[0],
+        },
+        {
+            "title": "Symptom Pattern",
+            "message": symptom_insights[0],
+        },
+        {
+            "title": "Health Recommendation",
+            "message": "Continue consistent cycle and symptom tracking to improve menstrual health predictions.",
+        },
+    ]
+
+    trend_logs = cycle_logs[-8:]
+    cycle_trend_labels = [log.last_period_start.strftime("%b %d") for log in trend_logs]
+    cycle_trend_values = [log.length_of_cycle for log in trend_logs]
+
+    cycle_label = "insufficient data"
+    if cycle_lengths:
+        cycle_label = "irregular" if cycle_is_irregular else "regular"
+
+    bmi_summary = "BMI data is currently incomplete"
+    body_health_value = "No Data Yet"
+    body_health_helper = "Update your profile height and weight to get personalized body health status."
+    if bmi is not None:
+        if bmi < 18.5:
+            bmi_summary = "your BMI is on the lower side"
+            body_health_value = "Underweight"
+            body_health_helper = "Your BMI suggests lower weight than recommended for your height."
+        elif bmi > 24.9:
+            bmi_summary = "your BMI is above the healthy range"
+            body_health_value = "Overweight"
+            body_health_helper = "Your BMI suggests a slightly higher weight than recommended."
+        else:
+            bmi_summary = "your BMI is within a healthy range"
+            body_health_value = "Healthy"
+            body_health_helper = "Your BMI is in a healthy range for your height."
+
+    symptom_summary = (
+        "symptom patterns are limited"
+        if symptom_insights and "Track your symptoms" in symptom_insights[0]
+        else "symptom tracking indicates useful menstrual trends"
+    )
+
+    health_summary_text = (
+        f"Based on your menstrual and health data, your cycle appears {cycle_label}, "
+        f"{bmi_summary}, and {symptom_summary}. Maintaining consistent tracking and consulting "
+        "healthcare professionals can help improve reproductive health."
+    )
+
+    feedback_target = None
+    feedback_log_ids = set(
+        PredictionFeedback.objects.filter(user=request.user, cycle_log__isnull=False)
+        .values_list('cycle_log_id', flat=True)
+    )
+    for log in logs.exclude(predicted_next_period__isnull=True).order_by('-predicted_next_period'):
+        if log.predicted_next_period <= today and log.id not in feedback_log_ids:
+            feedback_target = log
+            break
+
+    feedback_stats = PredictionFeedback.objects.filter(user=request.user)
+    total_feedback = feedback_stats.count()
+    correct_feedback = feedback_stats.filter(is_correct=True).count()
+    prediction_accuracy = round((correct_feedback / total_feedback) * 100, 1) if total_feedback else 0
 
     # 👇 ONE-TIME session trigger (KEEP THIS)
     show_prediction = request.session.pop("show_prediction", False)
@@ -876,7 +1599,201 @@ def dashboard_home(request):
         "logs": logs,
         "cycle": cycle,
         "show_prediction": show_prediction,
+        "height_cm": height_cm,
+        "weight_kg": weight_kg,
+        "bmi": bmi,
+        "appointments_count": appointments_count,
+        "avg_cycle_length": avg_cycle_length,
+        "last_period_date": last_period_date,
+        "predicted_next_period": predicted_next_period,
+        "menstrual_insights": menstrual_insights,
+        "symptom_insights": symptom_insights,
+        "bmi_insight": bmi_insight,
+        "personalized_insights": personalized_insights,
+        "cycle_trend_labels": cycle_trend_labels,
+        "cycle_trend_values": cycle_trend_values,
+        "health_summary_text": health_summary_text,
+        "greeting_text": greeting_text,
+        "today_mood_label": today_mood_label,
+        "show_mood_prompt": show_mood_prompt,
+        "show_period_checkin_prompt": show_period_checkin_prompt,
+        "active_cycle_id": active_cycle.id if active_cycle else None,
+        "mood_chart_labels": mood_chart_labels,
+        "mood_chart_values": mood_chart_values,
+        "phase_labels": phase_labels,
+        "phase_values": phase_values,
+        "symptom_frequency": symptom_frequency,
+        "max_symptom_frequency": max_symptom_frequency,
+        "recent_cycle_symptoms": recent_cycle_symptoms,
+        "most_common_symptom": most_common_symptom,
+        "mood_trend_points": mood_trend_points,
+        "mood_trend_max": mood_trend_max,
+        "mood_trend_summary": mood_trend_summary,
+        "mood_trend_tip": mood_trend_tip,
+        "period_status_text": period_status_text,
+        "period_status_variant": period_status_variant,
+        "feedback_target": feedback_target,
+        "prediction_accuracy": prediction_accuracy,
+        "total_feedback": total_feedback,
+        "cycle_pattern_short": cycle_pattern_short,
+        "cycle_pattern_value": cycle_pattern_value,
+        "cycle_pattern_helper": cycle_pattern_helper,
+        "body_health_value": body_health_value,
+        "body_health_helper": body_health_helper,
+        "symptom_options": SYMPTOM_OPTIONS,
+        "selected_today_symptoms": selected_today_symptoms,
+        "recent_symptoms": recent_symptoms,
     })
+
+
+@login_required
+def submit_mood_checkin(request):
+    if request.method != 'POST':
+        return redirect('dashboard_home')
+
+    mood_value = request.POST.get('mood', '').strip().lower()
+    allowed_moods = {choice[0] for choice in MoodEntry.MOOD_CHOICES}
+
+    if mood_value not in allowed_moods:
+        messages.error(request, 'Please choose a valid mood option.')
+        return redirect('dashboard_home')
+
+    MoodEntry.objects.update_or_create(
+        user=request.user,
+        date=timezone.localdate(),
+        defaults={'mood': mood_value}
+    )
+
+    messages.success(request, 'Mood check-in saved for today.')
+    return redirect('dashboard_home')
+
+
+@login_required
+def submit_prediction_feedback(request):
+    if request.method != 'POST':
+        return redirect('dashboard_home')
+
+    cycle_log_id = request.POST.get('cycle_log_id')
+    response = request.POST.get('is_correct')
+    actual_date_raw = request.POST.get('actual_date')
+
+    if not cycle_log_id or response not in {'yes', 'no'}:
+        messages.error(request, 'Invalid feedback submission.')
+        return redirect('dashboard_home')
+
+    cycle_log = get_object_or_404(CycleLog, id=cycle_log_id, user=request.user)
+    if not cycle_log.predicted_next_period:
+        messages.error(request, 'This prediction does not have a valid predicted date.')
+        return redirect('dashboard_home')
+
+    is_correct = response == 'yes'
+    actual_date = cycle_log.predicted_next_period if is_correct else parse_date(actual_date_raw or '')
+
+    if not is_correct and not actual_date:
+        messages.error(request, 'Please provide the actual period start date.')
+        return redirect('dashboard_home')
+
+    PredictionFeedback.objects.update_or_create(
+        user=request.user,
+        cycle_log=cycle_log,
+        defaults={
+            'predicted_date': cycle_log.predicted_next_period,
+            'actual_date': actual_date,
+            'is_correct': is_correct,
+        }
+    )
+
+    messages.success(request, 'Prediction feedback saved. Thank you.')
+    return redirect('dashboard_home')
+
+
+@login_required
+def submit_period_checkin(request):
+    if request.method != 'POST':
+        return redirect('dashboard_home')
+
+    cycle_log_id = request.POST.get('cycle_log_id')
+    pain_level = request.POST.get('pain_level', '').strip().lower()
+    blood_flow = request.POST.get('blood_flow', '').strip().lower()
+    selected_symptoms = [value.strip() for value in request.POST.getlist('symptoms') if value.strip()]
+
+    cycle_log = get_object_or_404(CycleLog, id=cycle_log_id, user=request.user)
+
+    valid_pain_levels = {choice[0] for choice in PeriodCheckIn.PAIN_LEVEL_CHOICES}
+    valid_blood_flows = {choice[0] for choice in PeriodCheckIn.BLOOD_FLOW_CHOICES}
+    valid_symptoms = set(SYMPTOM_OPTIONS)
+
+    if pain_level not in valid_pain_levels or blood_flow not in valid_blood_flows:
+        messages.error(request, 'Please complete pain level and blood flow.')
+        return redirect('dashboard_home')
+
+    selected_symptoms = [symptom for symptom in selected_symptoms if symptom in valid_symptoms]
+
+    checkin, created = PeriodCheckIn.objects.get_or_create(
+        user=request.user,
+        cycle_log=cycle_log,
+        defaults={
+            'pain_level': pain_level,
+            'blood_flow': blood_flow,
+        },
+    )
+
+    if not created:
+        messages.info(request, 'You already submitted this cycle check-in.')
+        return redirect('dashboard_home')
+
+    SymptomLog.objects.bulk_create(
+        [
+            SymptomLog(
+                user=request.user,
+                cycle_log=cycle_log,
+                symptom=symptom,
+                source='first_login',
+                date=timezone.localdate(),
+            )
+            for symptom in selected_symptoms
+        ]
+    )
+
+    messages.success(request, 'Period check-in saved successfully.')
+    return redirect('dashboard_home')
+
+
+@login_required
+def save_symptoms(request):
+    if request.method != 'POST':
+        return redirect('dashboard_home')
+
+    selected_symptoms = [value.strip() for value in request.POST.getlist('symptoms') if value.strip()]
+    valid_values = set(SYMPTOM_OPTIONS)
+    selected_symptoms = [value for value in selected_symptoms if value in valid_values]
+
+    today = timezone.localdate()
+    active_cycle = (
+        CycleLog.objects.filter(user=request.user)
+        .exclude(last_period_start__isnull=True)
+        .filter(last_period_start__lte=today)
+        .order_by('-last_period_start')
+        .first()
+    )
+
+    SymptomLog.objects.filter(user=request.user, date=today, source='manual').delete()
+
+    SymptomLog.objects.bulk_create(
+        [
+            SymptomLog(
+                user=request.user,
+                cycle_log=active_cycle,
+                symptom=symptom,
+                source='manual',
+                date=today,
+            )
+            for symptom in selected_symptoms
+        ]
+    )
+
+    messages.success(request, 'Symptoms updated successfully.')
+    return redirect('dashboard_home')
 
 @login_required
 def appointment(request):
@@ -1019,16 +1936,40 @@ def delete_availability(request, pk):
 @login_required
 def add_cycle_log(request):
     if request.method == "POST":
-        form = CycleLogForm(request.POST)
+        form = CycleLogForm(request.POST, user=request.user)
 
         if form.is_valid():
             cycle = form.save(commit=False)
             cycle.user = request.user
 
+            user_profile, _ = UserProfile.objects.get_or_create(user=request.user)
+
+            # Always source anthropometrics from profile, not form input.
+            cycle.height_cm = float(user_profile.height_cm) if user_profile.height_cm is not None else None
+            cycle.weight_kg = float(user_profile.weight_kg) if user_profile.weight_kg is not None else None
+
+            previous_logs = CycleLog.objects.filter(user=request.user).exclude(last_period_start__isnull=True)
+            last_log = previous_logs.order_by('-last_period_start').first()
+
+            # Respect user-provided cycle length from the form (validated in CycleLogForm).
+            if cycle.length_of_cycle is None and last_log and last_log.length_of_cycle:
+                cycle.length_of_cycle = last_log.length_of_cycle
+
+            # Mean menses length is derived from current input, with historical fallback.
+            if cycle.length_of_menses:
+                cycle.mean_menses_length = cycle.length_of_menses
+            else:
+                historical_mean = previous_logs.aggregate(avg_menses=Avg('mean_menses_length')).get('avg_menses')
+                cycle.mean_menses_length = int(round(historical_mean)) if historical_mean else 5
+
             # ---- BMI calculation ----
             if cycle.height_cm and cycle.weight_kg:
                 height_m = cycle.height_cm / 100
                 cycle.bmi = round(cycle.weight_kg / (height_m ** 2), 2)
+            elif last_log and last_log.bmi is not None:
+                cycle.bmi = last_log.bmi
+            else:
+                cycle.bmi = 22.0
 
             # ---- ML FEATURES (UNCHANGED) ----
             features = [
@@ -1115,6 +2056,11 @@ def add_cycle_log(request):
             request.session["last_cycle_id"] = cycle.id
 
             return redirect("dashboard_home")
+        for field_errors in form.errors.values():
+            for err in field_errors:
+                messages.error(request, err)
+        return redirect("dashboard_home")
+    return redirect("dashboard_home")
         
 
 

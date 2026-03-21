@@ -6,6 +6,7 @@ from .models import DoctorProfile
 from django.core.mail import EmailMultiAlternatives # Use this for HTML
 from django.utils.html import strip_tags
 from django.template.loader import render_to_string
+from allauth.account.signals import user_signed_up
 
 
 @receiver(pre_save, sender=DoctorProfile)
@@ -54,3 +55,16 @@ def update_profile_completion(sender, instance, **kwargs):
     DoctorProfile.objects.filter(pk=instance.pk).update(
         is_profile_complete=instance.is_profile_complete
     )
+
+
+@receiver(user_signed_up)
+def prompt_2fa_after_allauth_signup(request, user, **kwargs):
+    if request is None:
+        return
+
+    if not user.role:
+        user.role = 'user'
+        user.save(update_fields=['role'])
+
+    request.session['prompt_2fa_after_signup'] = True
+    request.session['post_signup_next'] = 'doctor_details' if user.role == 'doctor' else 'user_profile'
