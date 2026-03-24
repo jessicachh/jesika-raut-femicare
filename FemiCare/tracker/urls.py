@@ -40,8 +40,13 @@ urlpatterns = [
     path('dashboard/delete-account/', views.delete_account, name='delete_account'),
     path('dashboard/mood-checkin/', views.submit_mood_checkin, name='submit_mood_checkin'),
     path('dashboard/prediction-feedback/', views.submit_prediction_feedback, name='submit_prediction_feedback'),
+    path('dashboard/log-period-start/', views.log_period_start_view, name='log_period_start'),
+    path('dashboard/end-period/', views.end_period_view, name='end_period'),
+    path('dashboard/reports/', views.dashboard_reports, name='dashboard_reports'),
+    path('dashboard/reports/export-pdf/', views.export_reports_pdf, name='export_reports_pdf'),
     path('dashboard/period-checkin/', views.submit_period_checkin, name='submit_period_checkin'),
     path('dashboard/save-symptoms/', views.save_symptoms, name='save_symptoms'),
+    path('dashboard/emergency/request/', views.submit_emergency_request, name='submit_emergency_request'),
     path('notifications/', views.get_notifications, name='get_notifications'),
     path('notifications/mark-read/<int:notification_id>/', views.mark_as_read, name='mark_as_read'),
     path('notifications/mark-all-read/', views.mark_all_as_read, name='mark_all_as_read'),
@@ -64,11 +69,22 @@ urlpatterns = [
     
     # This allows the "Accept/Reject" buttons to work
     path('appointment/respond/<int:appointment_id>/', views.respond_appointment, name='respond_appointment'),
+    path('doctor/emergency/accept/<int:emergency_request_id>/', views.accept_emergency_request, name='accept_emergency_request'),
 
     path('dashboard/add-cycle-log/', views.add_cycle_log, name='add_cycle_log'),
 
     # Chat 
     path('chat/<int:appointment_id>/', views.chat_room, name='chat_room'),
+    path(
+        'chat/<int:appointment_id>/documents/<int:document_id>/',
+        views.consultation_patient_document,
+        name='consultation_patient_document'
+    ),
+    path(
+        'chat/<int:appointment_id>/files/<int:message_id>/',
+        views.consultation_chat_file,
+        name='consultation_chat_file'
+    ),
     path('upload-chat-file/', views.upload_chat_file, name='upload_chat_file'),
     path('api/conversations/', views.get_conversations, name='get_conversations'),
     

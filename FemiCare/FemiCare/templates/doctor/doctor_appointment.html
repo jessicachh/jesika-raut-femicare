@@ -27,6 +27,35 @@
 </div>
 </div>
 
+<section class="dashboard-card mb-4">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <h5 class="mb-0">Emergency Request Queue</h5>
+        <span class="badge bg-danger text-white">{{ emergency_pending_requests|length }} pending</span>
+    </div>
+    {% if emergency_pending_requests %}
+        {% for item in emergency_pending_requests %}
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 border rounded p-3 mb-2 bg-light">
+                <div>
+                    <strong>Emergency Request #{{ item.id }}</strong>
+                    <p class="mb-0 text-muted small">A patient requires urgent consultation. Created {{ item.created_at|date:"M d, Y H:i" }}.</p>
+                </div>
+                <div>
+                    {% if doctor_has_future_slots %}
+                    <form method="POST" action="{% url 'accept_emergency_request' item.id %}">
+                        {% csrf_token %}
+                        <button class="btn btn-danger">Accept Emergency</button>
+                    </form>
+                    {% else %}
+                    <button class="btn btn-secondary" disabled>No available slots</button>
+                    {% endif %}
+                </div>
+            </div>
+        {% endfor %}
+    {% else %}
+        <p class="text-muted mb-0">No emergency requests right now.</p>
+    {% endif %}
+</section>
+
 <!-- Tabs -->
 <ul class="nav nav-pills mb-4" id="appt-tabs" role="tablist">
     <li class="nav-item">

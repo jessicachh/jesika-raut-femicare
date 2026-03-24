@@ -100,6 +100,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     'file_url': data.get('file_url'),
                     'file_name': data.get('file_name'),
                     'file_type': data.get('file_type'),
+                    'message_id': data.get('message_id'),
                     'message': data.get('message', ''),
                     'username': self.scope["user"].username
                 }
@@ -184,6 +185,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 'file_url': event['file_url'],
                 'file_name': event['file_name'],
                 'file_type': event['file_type'],
+                'message_id': event.get('message_id'),
                 'message': event.get('message', ''),
                 'sender': event['username']
             }))

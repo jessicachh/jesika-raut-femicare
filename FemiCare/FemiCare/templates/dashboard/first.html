@@ -40,16 +40,71 @@
         </aside>
       </section>
 
+      {% if show_emergency_panel %}
+      <section class="dashboard-card emergency-alert-panel mb-4" role="alert" aria-live="polite">
+        <div class="emergency-alert-head">
+          <h5 class="mb-1">Emergency Alert</h5>
+          <span class="emergency-risk-badge">Risk Score: {{ emergency_risk_score }}</span>
+        </div>
+        <p class="emergency-alert-message mb-3">You may be experiencing symptoms that require attention. Please monitor your health and consult a doctor if needed. Do not panic.</p>
+        <div class="emergency-alert-actions">
+          <a href="{% url 'resources' %}" class="btn btn-outline-danger">View Resources</a>
+          <form method="POST" action="{% url 'submit_emergency_request' %}" class="d-inline-block">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger">Book Emergency Doctor</button>
+          </form>
+          <a href="tel:102" class="btn btn-outline-danger">Contact Emergency</a>
+        </div>
+      </section>
+      {% endif %}
+
       {% if feedback_target %}
       <section class="dashboard-card mood-card mb-4">
         <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
           <div>
             <h5 class="mb-1">Prediction Feedback</h5>
-            <p class="mb-0 text-muted">Did your period start on {{ feedback_target.predicted_next_period|date:"M d, Y" }}?</p>
+            <p class="mb-0 text-muted">Update your period status for {{ feedback_target.predicted_start_date|default:feedback_target.predicted_next_period|date:"M d, Y" }}.</p>
           </div>
-          <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#predictionFeedbackModal">
-            Submit Feedback
+          {% if is_active_period %}
+          <div class="d-flex gap-2 flex-wrap align-items-center">
+            <span class="text-muted">Your period is currently ongoing</span>
+            <button type="button" class="btn btn-secondary" disabled>Log Period</button>
+            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#endPeriodModal">
+              End Period
+            </button>
+          </div>
+          {% else %}
+          <div class="d-flex gap-2 flex-wrap">
+            <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#predictionFeedbackModal">
+              Submit Feedback
+            </button>
+            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#manualPeriodModal">
+              Log Period
+            </button>
+          </div>
+          {% endif %}
+        </div>
+      </section>
+      {% else %}
+      <section class="dashboard-card mood-card mb-4">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+          <div>
+            <h5 class="mb-1">Manual Period Logging</h5>
+            <p class="mb-0 text-muted">Started early or at an unexpected time? Log your actual period start date.</p>
+          </div>
+          {% if is_active_period %}
+          <div class="d-flex gap-2 flex-wrap align-items-center">
+            <span class="text-muted">Your period is currently ongoing</span>
+            <button type="button" class="btn btn-secondary" disabled>Log Period</button>
+            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#endPeriodModal">
+              End Period
+            </button>
+          </div>
+          {% else %}
+          <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#manualPeriodModal">
+            Log Period
           </button>
+          {% endif %}
         </div>
       </section>
       {% endif %}
@@ -94,13 +149,13 @@
             </article>
           </div>
           <div class="col-12 col-lg-6">
-            <article class="dashboard-card chart-card">
+            <article class="dashboard-card chart-card symptom-frequency-card">
               <div class="d-flex justify-content-between align-items-center mb-3">
                 <h5 class="mb-0">Symptom Frequency</h5>
                 <span class="text-muted small">Based on your cycle logs</span>
               </div>
               {% if symptom_frequency %}
-              <div class="symptom-frequency-list">
+              <div class="symptom-frequency-list symptom-frequency-scroll">
                 {% for item in symptom_frequency %}
                 <div class="symptom-frequency-item">
                   <div class="symptom-frequency-head">
@@ -218,6 +273,13 @@
           <span class="small text-muted">Tap to expand</span>
         </div>
         <div id="compactCalendar"></div>
+        <div class="calendar-legend mt-2">
+          <span class="calendar-legend-item"><span class="calendar-legend-dot calendar-legend-dot-current"></span>Current period</span>
+          <span class="calendar-legend-item"><span class="calendar-legend-dot calendar-legend-dot-predicted"></span>Predicted period</span>
+          <span class="calendar-legend-item"><span class="calendar-legend-dot calendar-legend-dot-actual"></span>Past cycle</span>
+          <span class="calendar-legend-item"><span class="calendar-legend-dot calendar-legend-dot-ovulation"></span>Ovulation</span>
+          <span class="calendar-legend-item"><span class="calendar-legend-dot calendar-legend-dot-fertile"></span>Fertile window</span>
+        </div>
       </section>
 
       <section class="dashboard-card symptom-section mb-4">
@@ -271,7 +333,7 @@
               </div>
             </div>
 
-            <div class="modal fade" id="historyModal{{ log.id }}" tabindex="-1">
+            <div class="modal fade history-cycle-modal" id="historyModal{{ log.id }}" tabindex="-1">
               <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
                   <div class="modal-header">
@@ -309,7 +371,16 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <div id="calendarFull"></div>
+        <div class="calendar-legend mb-2">
+          <span class="calendar-legend-item"><span class="calendar-legend-dot calendar-legend-dot-current"></span>Current period</span>
+          <span class="calendar-legend-item"><span class="calendar-legend-dot calendar-legend-dot-predicted"></span>Predicted period</span>
+          <span class="calendar-legend-item"><span class="calendar-legend-dot calendar-legend-dot-actual"></span>Past cycle</span>
+          <span class="calendar-legend-item"><span class="calendar-legend-dot calendar-legend-dot-ovulation"></span>Ovulation</span>
+          <span class="calendar-legend-item"><span class="calendar-legend-dot calendar-legend-dot-fertile"></span>Fertile window</span>
+        </div>
+        <div class="vertical-calendar-scroll">
+          <div id="calendarFull"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -501,12 +572,14 @@
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
-          <p class="mb-3">Did your period start on {{ feedback_target.predicted_next_period|date:"M d, Y" }}?</p>
-          <div class="d-flex gap-2 mb-3">
-            <button type="button" class="btn btn-outline-success feedback-choice" data-feedback="yes">Yes</button>
-            <button type="button" class="btn btn-outline-danger feedback-choice" data-feedback="no">No</button>
+          <p class="mb-3">Did your period start on {{ feedback_target.predicted_start_date|default:feedback_target.predicted_next_period|date:"M d, Y" }}?</p>
+          <div class="d-flex flex-wrap gap-2 mb-3">
+            <button type="button" class="btn btn-outline-success feedback-status-choice" data-status="yes">Yes</button>
+            <button type="button" class="btn btn-outline-danger feedback-status-choice" data-status="started_earlier">Started earlier</button>
+            <button type="button" class="btn btn-outline-warning feedback-status-choice" data-status="still_not_started">Still not started</button>
+            <button type="button" class="btn btn-outline-primary feedback-status-choice" data-status="started_today">Started today</button>
           </div>
-          <input type="hidden" name="is_correct" id="feedbackIsCorrect">
+          <input type="hidden" name="feedback_status" id="feedbackStatusInput">
           <div id="actualDateWrap" class="d-none">
             <label class="form-label" for="actualDateInput">Actual period start date</label>
             <input type="date" class="form-control" name="actual_date" id="actualDateInput">
@@ -521,6 +594,77 @@
 </div>
 {% endif %}
 
+<div class="modal fade" id="manualPeriodModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content mood-card">
+      <form method="POST" action="{% url 'log_period_start' %}">
+        {% csrf_token %}
+        <div class="modal-header">
+          <h5 class="modal-title">Log Period Start</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label" for="manualPeriodStartDate">Period Start Date</label>
+            <input type="date" class="form-control" name="start_date" id="manualPeriodStartDate" required>
+          </div>
+          <div>
+            <label class="form-label" for="manualPeriodEndDate">Period End Date (optional for recent periods)</label>
+            <input type="date" class="form-control" name="end_date" id="manualPeriodEndDate">
+            <small class="text-muted">For periods started in the last 3 days, leave end date blank and use End Period later.</small>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-danger">Save Period Date</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="endPeriodModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content mood-card">
+      <form method="POST" action="{% url 'end_period' %}">
+        {% csrf_token %}
+        <div class="modal-header">
+          <h5 class="modal-title">End Period</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <label class="form-label" for="periodEndDate">Period End Date</label>
+          <input type="date" class="form-control" name="end_date" id="periodEndDate" required>
+          <small class="text-muted">End date cannot be before start date or in the future.</small>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-danger">Save End Date</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="floating-emergency-wrap" id="floatingEmergencyWrap">
+  <button type="button" class="floating-emergency-btn" id="floatingEmergencyBtn" aria-expanded="false" aria-controls="floatingEmergencyMenu" title="Emergency options">
+    <i class="bi bi-exclamation-triangle-fill"></i>
+  </button>
+  <div class="floating-emergency-menu" id="floatingEmergencyMenu" aria-label="Emergency options menu">
+    <h6>Emergency Options</h6>
+    <a href="{% url 'resources' %}" class="floating-emergency-link">View Resources</a>
+    <form method="POST" action="{% url 'submit_emergency_request' %}">
+      {% csrf_token %}
+      <input type="hidden" name="reason" value="Urgent consultation needed.">
+      <button type="submit" class="floating-emergency-link floating-emergency-link-button">Book Emergency Doctor</button>
+    </form>
+    <a href="tel:102" class="floating-emergency-link">Contact Emergency</a>
+    {% if active_emergency_request %}
+    <p class="floating-emergency-status mb-0">
+      Active request #{{ active_emergency_request.id }} ({{ active_emergency_request.get_status_display }})
+    </p>
+    {% endif %}
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 {{ mood_chart_labels|json_script:"mood-chart-labels" }}
 {{ mood_chart_values|json_script:"mood-chart-values" }}
@@ -528,82 +672,136 @@
 {{ phase_values|json_script:"phase-chart-values" }}
 {{ selected_today_symptoms|json_script:"selected-today-symptoms" }}
 {{ recent_symptoms|json_script:"recent-symptoms" }}
+{{ calendar_actual_ranges|json_script:"calendar-actual-ranges" }}
+{{ calendar_predicted_ranges|json_script:"calendar-predicted-ranges" }}
+{{ calendar_current_period_range|json_script:"calendar-current-period-range" }}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
   var compactCalendarEl = document.getElementById('compactCalendar');
   var fullCalendarEl = document.getElementById('calendarFull');
-  var events = [];
   var rawLogs = [];
 
   {% for log in logs|slice:":120" %}
     rawLogs.push({
       start: {% if log.last_period_start %}'{{ log.last_period_start|date:"Y-m-d" }}'{% else %}null{% endif %},
       cycleLength: {% if log.length_of_cycle %}{{ log.length_of_cycle }}{% else %}null{% endif %},
+      mensesLength: {% if log.length_of_menses %}{{ log.length_of_menses }}{% else %}null{% endif %},
       prediction: {% if log.predicted_next_period %}'{{ log.predicted_next_period|date:"Y-m-d" }}'{% else %}null{% endif %},
+      ovulation: {% if log.estimated_ovulation_day %}'{{ log.estimated_ovulation_day|date:"Y-m-d" }}'{% else %}null{% endif %},
+      fertileStart: {% if log.fertile_window_start %}'{{ log.fertile_window_start|date:"Y-m-d" }}'{% else %}null{% endif %},
+      fertileEnd: {% if log.fertile_window_end %}'{{ log.fertile_window_end|date:"Y-m-d" }}'{% else %}null{% endif %},
       intensity: {% if log.mean_bleeding_intensity %}{{ log.mean_bleeding_intensity }}{% else %}0{% endif %},
       mensesScore: {% if log.total_menses_score or log.total_menses_score == 0 %}{{ log.total_menses_score }}{% else %}null{% endif %},
       unusualBleeding: {% if log.unusual_bleeding %}true{% else %}false{% endif %}
     });
-
-    {% if log.last_period_start %}
-    events.push({
-      title: '🩸 Start',
-      start: '{{ log.last_period_start|date:"Y-m-d" }}',
-      color: '#dc3545'
-    });
-    {% endif %}
-
-    {% if log.predicted_next_period %}
-    events.push({
-      title: '🔮 Predicted',
-      start: '{{ log.predicted_next_period|date:"Y-m-d" }}',
-      color: '#ff85a2'
-    });
-    {% endif %}
-
-    {% if log.estimated_ovulation_day %}
-    events.push({
-      title: '🟣 Ovulation',
-      start: '{{ log.estimated_ovulation_day|date:"Y-m-d" }}',
-      color: '#6f42c1'
-    });
-    {% endif %}
-
-    {% if log.fertile_window_start and log.fertile_window_end %}
-    events.push({
-      title: '🌿 Fertile',
-      start: '{{ log.fertile_window_start|date:"Y-m-d" }}',
-      end: '{{ log.fertile_window_end|date:"Y-m-d" }}',
-      display: 'background',
-      color: '#198754'
-    });
-    {% endif %}
   {% endfor %}
+
+  var calendarActualRanges = JSON.parse(document.getElementById('calendar-actual-ranges').textContent || '[]');
+  var calendarPredictedRanges = JSON.parse(document.getElementById('calendar-predicted-ranges').textContent || '[]');
+  var calendarCurrentPeriodRange = JSON.parse(document.getElementById('calendar-current-period-range').textContent || 'null');
+
+  function toBackgroundRangeEvents(ranges, className) {
+    return (ranges || []).map(function (item) {
+      return {
+        title: item.title || '',
+        start: item.start,
+        end: item.end,
+        display: 'background',
+        allDay: true,
+        classNames: [className]
+      };
+    });
+  }
+
+  function toRangeStartMarkers(ranges, className, label) {
+    return (ranges || []).map(function (item) {
+      return {
+        title: label,
+        start: item.start,
+        allDay: true,
+        classNames: ['calendar-start-marker', className]
+      };
+    });
+  }
+
+  function toOvulationEvents(records) {
+    return (records || [])
+      .filter(function (item) { return !!item.ovulation; })
+      .map(function (item) {
+        return {
+          title: 'Ovulation',
+          start: item.ovulation,
+          allDay: true,
+          classNames: ['calendar-ovulation-marker']
+        };
+      });
+  }
+
+  function toFertileWindowEvents(records) {
+    return (records || [])
+      .filter(function (item) { return !!item.fertileStart && !!item.fertileEnd; })
+      .map(function (item) {
+        var fertileEndExclusive = new Date(item.fertileEnd + 'T00:00:00');
+        fertileEndExclusive.setDate(fertileEndExclusive.getDate() + 1);
+
+        return {
+          title: 'Fertile window',
+          start: item.fertileStart,
+          end: fertileEndExclusive.toISOString().slice(0, 10),
+          display: 'background',
+          allDay: true,
+          classNames: ['calendar-fertile-window']
+        };
+      });
+  }
+
+  var currentRanges = (calendarCurrentPeriodRange && calendarCurrentPeriodRange.start)
+    ? [calendarCurrentPeriodRange]
+    : [];
+
+  var events = []
+    .concat(toBackgroundRangeEvents(calendarActualRanges, 'calendar-range-actual'))
+    .concat(toBackgroundRangeEvents(calendarPredictedRanges, 'calendar-range-predicted'))
+    .concat(toBackgroundRangeEvents(currentRanges, 'calendar-range-current'))
+    .concat(toFertileWindowEvents(rawLogs))
+    .concat(toRangeStartMarkers(calendarActualRanges, 'calendar-start-actual', 'Past cycle'))
+    .concat(toRangeStartMarkers(calendarPredictedRanges, 'calendar-start-predicted', 'Predicted'))
+    .concat(toRangeStartMarkers(currentRanges, 'calendar-start-current', 'Current period'))
+    .concat(toOvulationEvents(rawLogs));
 
   var compactCalendar = new FullCalendar.Calendar(compactCalendarEl, {
     initialView: 'dayGridMonth',
-    height: 280,
+    height: 220,
     headerToolbar: {
-      left: 'prev',
+      left: '',
       center: 'title',
-      right: 'next'
+      right: ''
     },
+    fixedWeekCount: false,
     dayCellDidMount: function (arg) {
       arg.el.classList.add('calendar-day');
     },
-    dayMaxEvents: false,
+    dayMaxEvents: 2,
     events: events
   });
   compactCalendar.render();
 
   var fullCalendar = new FullCalendar.Calendar(fullCalendarEl, {
-    initialView: 'dayGridMonth',
+    initialView: 'multiMonthSix',
+    views: {
+      multiMonthSix: {
+        type: 'multiMonth',
+        duration: { months: 6 }
+      }
+    },
+    multiMonthMaxColumns: 1,
     height: 'auto',
     headerToolbar: {
-      left: 'prev,next today',
+      left: 'today',
       center: 'title',
       right: ''
     },
+    fixedWeekCount: false,
     events: events
   });
 
@@ -618,6 +816,15 @@ document.addEventListener('DOMContentLoaded', function () {
       fullCalendar.updateSize();
     });
   }
+
+  var historyCycleModals = document.querySelectorAll('.history-cycle-modal');
+  historyCycleModals.forEach(function (modalEl) {
+    modalEl.addEventListener('show.bs.modal', function () {
+      if (modalEl.parentElement !== document.body) {
+        document.body.appendChild(modalEl);
+      }
+    });
+  });
 
   var cycleLengthInput = document.getElementById('id_length_of_cycle');
   var mensesLengthInput = document.getElementById('id_length_of_menses');
@@ -746,6 +953,30 @@ document.addEventListener('DOMContentLoaded', function () {
   var symptomForm = document.getElementById('symptomForm');
   var selectedSymptoms = new Set(JSON.parse(document.getElementById('selected-today-symptoms').textContent || '[]'));
   var initialRecentSymptoms = JSON.parse(document.getElementById('recent-symptoms').textContent || '[]');
+  var floatingEmergencyWrap = document.getElementById('floatingEmergencyWrap');
+  var floatingEmergencyBtn = document.getElementById('floatingEmergencyBtn');
+  var floatingEmergencyMenu = document.getElementById('floatingEmergencyMenu');
+
+  if (floatingEmergencyWrap && floatingEmergencyBtn && floatingEmergencyMenu) {
+    floatingEmergencyBtn.addEventListener('click', function () {
+      var isOpen = floatingEmergencyWrap.classList.toggle('is-open');
+      floatingEmergencyBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    });
+
+    document.addEventListener('click', function (event) {
+      if (!floatingEmergencyWrap.contains(event.target)) {
+        floatingEmergencyWrap.classList.remove('is-open');
+        floatingEmergencyBtn.setAttribute('aria-expanded', 'false');
+      }
+    });
+
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') {
+        floatingEmergencyWrap.classList.remove('is-open');
+        floatingEmergencyBtn.setAttribute('aria-expanded', 'false');
+      }
+    });
+  }
 
   function syncChipStates() {
     symptomChips.forEach(function (chip) {
@@ -854,22 +1085,30 @@ document.addEventListener('DOMContentLoaded', function () {
   }
   {% endif %}
 
-  var feedbackChoices = document.querySelectorAll('.feedback-choice');
+  var feedbackChoices = document.querySelectorAll('.feedback-status-choice');
   feedbackChoices.forEach(function (button) {
     button.addEventListener('click', function () {
-      var selected = button.getAttribute('data-feedback');
-      var hiddenInput = document.getElementById('feedbackIsCorrect');
+      var selected = button.getAttribute('data-status');
+      var hiddenInput = document.getElementById('feedbackStatusInput');
       var dateWrap = document.getElementById('actualDateWrap');
+      var dateInput = document.getElementById('actualDateInput');
       if (hiddenInput) {
         hiddenInput.value = selected;
       }
       feedbackChoices.forEach(function (btn) { btn.classList.remove('active'); });
       button.classList.add('active');
       if (dateWrap) {
-        if (selected === 'no') {
+        if (selected === 'started_earlier') {
           dateWrap.classList.remove('d-none');
+          if (dateInput) {
+            dateInput.required = true;
+          }
         } else {
           dateWrap.classList.add('d-none');
+          if (dateInput) {
+            dateInput.required = false;
+            dateInput.value = '';
+          }
         }
       }
     });

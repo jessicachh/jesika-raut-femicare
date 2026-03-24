@@ -5,7 +5,7 @@ from django.contrib.auth.forms import PasswordChangeForm
 from django.contrib import messages
 import random
 import time
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse, FileResponse
 from .models import User
 from django.contrib.auth.decorators import login_required
 from .models import (
@@ -22,9 +22,12 @@ from .models import (
     SymptomLog,
     PeriodCheckIn,
     TwoFactorCode,
+    EmergencyRequest,
 )
 from .forms import (
     CycleLogForm,
+    PeriodLogForm,
+    EndPeriodForm,
     UserProfileForm,
     AccountSettingsForm,
     EmailVerificationForm,
@@ -38,7 +41,11 @@ from django.core.paginator import Paginator
 from django.core.mail import send_mail
 from django.conf import settings
 from django.db.models import Avg, Count, Q
+from django.db import transaction
 from django.utils.dateparse import parse_date
+from django.urls import reverse
+from django.template.loader import render_to_string
+import logging
 
 
 SYMPTOM_OPTIONS = [
@@ -65,6 +72,37 @@ SYMPTOM_OPTIONS = [
     'Vaginal Dryness',
     'Acne',
 ]
+
+HIGH_RISK_SYMPTOMS = {
+    'Pelvic Pain',
+    'Abdominal Cramps',
+    'Bladder Incontinence',
+    'Night Sweats',
+    'Hair Loss',
+    'Memory Lapse',
+    'Hot Flashes',
+    'Vaginal Dryness',
+}
+
+MEDIUM_RISK_SYMPTOMS = {
+    'Fatigue',
+    'Nausea',
+    'Headache',
+    'Diarrhea',
+    'Constipation',
+    'Sleep Changes',
+    'Mood Changes',
+}
+
+RISK_SYMPTOMS = HIGH_RISK_SYMPTOMS | MEDIUM_RISK_SYMPTOMS
+logger = logging.getLogger(__name__)
+
+EMERGENCY_ALERT_TITLE = 'Health Alert'
+EMERGENCY_ALERT_MESSAGE = (
+    'You may be experiencing symptoms that require attention. '
+    'Please monitor your health and consult a doctor if needed. Do not panic.'
+)
+DELAYED_PERIOD_MESSAGE = 'Your period seems delayed. Please monitor your health and consult a doctor if needed.'
 
 
 def _set_login_session_expiry(request, remember_me):
@@ -118,6 +156,69 @@ def _validate_two_factor_code(user, purpose, submitted_code):
     code_obj.used_at = now
     code_obj.save(update_fields=['used_at'])
     return True
+
+
+def _to_positive_int(value, fallback=None):
+    try:
+        parsed = int(round(float(value)))
+        return parsed if parsed > 0 else fallback
+    except (TypeError, ValueError):
+        return fallback
+
+
+def _period_end_exclusive(start_date, length_days):
+    safe_length = max(_to_positive_int(length_days, 1), 1)
+    return start_date + timedelta(days=safe_length)
+
+
+def _serialize_period_range(start_date, length_days, kind, title):
+    if not start_date:
+        return None
+    return {
+        'title': title,
+        'start': start_date.isoformat(),
+        'end': _period_end_exclusive(start_date, length_days).isoformat(),
+        'kind': kind,
+    }
+
+
+def _build_logged_period_ranges(cycle_logs, fallback_menses_length):
+    ranges = []
+    for log in cycle_logs:
+        if not log.last_period_start:
+            continue
+
+        menses_length = log.length_of_menses or fallback_menses_length
+        serialized = _serialize_period_range(
+            log.last_period_start,
+            menses_length,
+            'actual',
+            'Past cycle',
+        )
+        if serialized:
+            ranges.append(serialized)
+    return ranges
+
+
+def _generate_rolling_prediction_starts(last_period_start, cycle_length_days, reference_date, count=3):
+    cycle_length = _to_positive_int(cycle_length_days)
+    if not last_period_start or not cycle_length:
+        return []
+
+    starts = []
+    next_start = last_period_start + timedelta(days=cycle_length)
+
+    for _ in range(count):
+        starts.append(next_start)
+        next_start = next_start + timedelta(days=cycle_length)
+
+    while starts and starts[-1] <= reference_date and len(starts) < 24:
+        for _ in range(count):
+            starts.append(next_start)
+            next_start = next_start + timedelta(days=cycle_length)
+
+    upcoming = [item for item in starts if item >= reference_date]
+    return upcoming[:count] if upcoming else starts[:count]
 
 
 def _redirect_user_after_login(request, user):
@@ -565,7 +666,7 @@ def doctor_details(request):
     
 
         # IMPORTANT: Redirect to pending page
-        return redirect(request, 'doctor_pending.html')
+        return render(request, 'doctor_pending.html', {'profile': profile})
 
     return render(request, 'doctor_details.html', {'profile': profile})
 
@@ -652,6 +753,52 @@ def book_appointment(request, slot_id):
     
     return redirect("public_doctor_profile", pk=slot.doctor.doctorprofile.id)
 
+
+@login_required
+def submit_emergency_request(request):
+    if request.method != 'POST':
+        return redirect('dashboard_home')
+
+    if request.user.role != 'user':
+        messages.error(request, 'Only users can submit emergency requests.')
+        return redirect('dashboard_home')
+
+    reason = request.POST.get('reason', '').strip()
+    emergency_request = create_emergency_request(request.user, reason=reason)
+    if not emergency_request:
+        messages.error(request, 'Unable to create emergency request right now.')
+        return redirect('dashboard_home')
+
+    if emergency_request.status != 'pending':
+        messages.info(request, 'You already have an active emergency request.')
+        return redirect('dashboard_home')
+
+    notified = notify_available_doctors(emergency_request)
+    if notified:
+        messages.success(request, 'Emergency request submitted. Available doctors have been notified.')
+    else:
+        messages.warning(request, 'Emergency request submitted. No doctors are currently available; we will keep trying.')
+
+    return redirect('dashboard_home')
+
+
+@login_required
+def accept_emergency_request(request, emergency_request_id):
+    if request.method != 'POST':
+        return redirect('doctor_appointment')
+
+    if request.user.role != 'doctor':
+        return redirect('home')
+
+    emergency_request = get_object_or_404(EmergencyRequest, id=emergency_request_id)
+    assigned = assign_doctor_to_request(emergency_request, request.user)
+    if not assigned:
+        messages.error(request, 'This emergency request is already assigned or no matching slot is available.')
+        return redirect('doctor_appointment')
+
+    messages.success(request, f'Emergency request #{assigned.id} accepted and appointment scheduled.')
+    return redirect('doctor_appointment')
+
 @login_required
 def doctor_appointment(request):
     if request.user.role != 'doctor':
@@ -670,6 +817,20 @@ def doctor_appointment(request):
     ongoing_appointments = []
     completed_appointments = []
     rejected_appointments = []
+
+    now = timezone.localtime(timezone.now())
+    emergency_pending_requests = list(
+        EmergencyRequest.objects.filter(status='pending')
+        .exclude(user=request.user)
+        .order_by('-created_at')
+    )
+
+    doctor_has_future_slots = DoctorAvailability.objects.filter(
+        doctor=request.user,
+        is_active=True,
+    ).filter(
+        Q(date__gt=now.date()) | Q(date=now.date(), start_time__gte=now.time())
+    ).filter(appointment__isnull=True).exists()
 
     for appt in appointments:
         # Combine date and time into a full datetime object for comparison
@@ -709,6 +870,8 @@ def doctor_appointment(request):
             rejected_appointments.append(appt)
 
     return render(request, 'doctor/doctor_appointment.html', {
+        'emergency_pending_requests': emergency_pending_requests,
+        'doctor_has_future_slots': doctor_has_future_slots,
         'pending_appointments': pending_appointments,
         'upcoming_appointments': upcoming_appointments,
         'ongoing_appointments': ongoing_appointments,
@@ -854,6 +1017,694 @@ def _create_notification(user, title, message, notification_type='system'):
     )
 
 
+def check_consecutive_symptoms(user, symptom):
+    today = timezone.localdate()
+    target_dates = {today - timedelta(days=offset) for offset in range(3)}
+    logged_dates = set(
+        SymptomLog.objects.filter(
+            user=user,
+            symptom=symptom,
+            date__in=target_dates,
+        ).values_list('date', flat=True)
+    )
+    return len(logged_dates) == len(target_dates) and logged_dates == target_dates
+
+
+def send_email_alert(user, symptom):
+    if not user or not user.email:
+        return
+
+    resources_path = reverse('resources')
+    doctor_path = reverse('explore_doctors')
+    site_base_url = getattr(settings, 'SITE_BASE_URL', '').rstrip('/')
+
+    resources_url = f"{site_base_url}{resources_path}" if site_base_url else resources_path
+    doctor_url = f"{site_base_url}{doctor_path}" if site_base_url else doctor_path
+
+    send_mail(
+        subject='Health Alert from FemiCare',
+        message=(
+            f'We noticed that you have logged {symptom} for multiple consecutive days.\n\n'
+            'This may need attention. No need to panic.\n\n'
+            f'Resources: {resources_url}\n'
+            f'Book a doctor consultation: {doctor_url}\n'
+        ),
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[user.email],
+        fail_silently=False,
+    )
+
+
+def trigger_health_alert(user, symptom):
+    if symptom not in RISK_SYMPTOMS:
+        return False
+
+    already_notified_today = Notification.objects.filter(
+        user=user,
+        title='Health Attention Needed',
+        message__icontains=symptom,
+        created_at__date=timezone.localdate(),
+    ).exists()
+    if already_notified_today:
+        return False
+
+    resources_path = reverse('resources')
+    doctor_path = reverse('explore_doctors')
+
+    _create_notification(
+        user,
+        'Health Attention Needed',
+        (
+            f'You have been experiencing {symptom} for multiple days. '
+            'This may require attention. Please take care and consider consulting a doctor if needed. '
+            f'Do not panic. Resources: {resources_path} | Doctor consultation: {doctor_path}'
+        ),
+        'cycle',
+    )
+
+    send_email_alert(user, symptom)
+    return True
+
+
+def calculate_risk_score(user, target_date=None):
+    if not user:
+        return {
+            'score': 0,
+            'level': 'none',
+            'symptoms': [],
+            'repeated_symptoms': [],
+            'multiple_symptoms': False,
+        }
+
+    target_date = target_date or timezone.localdate()
+    symptoms_today = list(
+        SymptomLog.objects.filter(user=user, date=target_date)
+        .values_list('symptom', flat=True)
+    )
+    unique_symptoms = sorted(set(symptoms_today))
+
+    score = 0
+    repeated_symptoms = []
+
+    for symptom in unique_symptoms:
+        if symptom in HIGH_RISK_SYMPTOMS:
+            score += 3
+        elif symptom in MEDIUM_RISK_SYMPTOMS:
+            score += 2
+
+        if symptom in RISK_SYMPTOMS and check_consecutive_symptoms(user, symptom):
+            score += 5
+            repeated_symptoms.append(symptom)
+
+    multiple_symptoms = len(unique_symptoms) >= 2
+    if multiple_symptoms:
+        score += 2
+
+    if score >= 9:
+        level = 'high'
+    elif score >= 5:
+        level = 'medium'
+    elif score >= 1:
+        level = 'low'
+    else:
+        level = 'none'
+
+    return {
+        'score': score,
+        'level': level,
+        'symptoms': unique_symptoms,
+        'repeated_symptoms': repeated_symptoms,
+        'multiple_symptoms': multiple_symptoms,
+    }
+
+
+def send_emergency_email(user, score=None, symptoms=None, subject='Health Alert from FemiCare', body_message=None):
+    if not user or not user.email:
+        return False
+
+    resources_path = reverse('resources')
+    doctor_path = reverse('explore_doctors')
+    site_base_url = getattr(settings, 'SITE_BASE_URL', '').rstrip('/')
+
+    resources_url = f"{site_base_url}{resources_path}" if site_base_url else resources_path
+    doctor_url = f"{site_base_url}{doctor_path}" if site_base_url else doctor_path
+
+    score_line = f'Risk score: {score}\n' if score is not None else ''
+    symptom_line = f"Today's symptoms: {', '.join(symptoms)}\n" if symptoms else ''
+    message = (
+        f"{body_message or EMERGENCY_ALERT_MESSAGE}\n\n"
+        f"{score_line}{symptom_line}\n"
+        f"Resources: {resources_url}\n"
+        f"Book a doctor consultation: {doctor_url}\n"
+    )
+
+    try:
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user.email],
+            fail_silently=False,
+        )
+        return True
+    except Exception:
+        logger.exception('Failed to send emergency email for user_id=%s', user.id)
+        return False
+
+
+def trigger_emergency_alert(user):
+    assessment = calculate_risk_score(user)
+    level = assessment['level']
+
+    if level in {'none', 'low'}:
+        assessment['triggered'] = False
+        return assessment
+
+    today = timezone.localdate()
+
+    if level == 'medium':
+        title = 'Health Warning'
+        message = (
+            'Your recent symptom pattern suggests moderate risk. '
+            'Please continue monitoring and consult a doctor if symptoms persist.'
+        )
+        exists_today = Notification.objects.filter(
+            user=user,
+            title=title,
+            created_at__date=today,
+        ).exists()
+        if not exists_today:
+            _create_notification(user, title, message, 'cycle')
+
+        assessment['triggered'] = not exists_today
+        assessment['notification_title'] = title
+        return assessment
+
+    exists_today = Notification.objects.filter(
+        user=user,
+        title=EMERGENCY_ALERT_TITLE,
+        created_at__date=today,
+    ).exists()
+
+    if not exists_today:
+        _create_notification(user, EMERGENCY_ALERT_TITLE, EMERGENCY_ALERT_MESSAGE, 'cycle')
+        send_emergency_email(
+            user,
+            score=assessment['score'],
+            symptoms=assessment['symptoms'],
+            subject='Emergency Health Alert from FemiCare',
+            body_message=EMERGENCY_ALERT_MESSAGE,
+        )
+
+    assessment['triggered'] = not exists_today
+    assessment['notification_title'] = EMERGENCY_ALERT_TITLE
+    return assessment
+
+
+def check_period_delay(user):
+    if not user:
+        return False
+
+    delay_threshold_days = max(int(getattr(settings, 'PERIOD_DELAY_ALERT_DAYS', 6)), 5)
+    threshold_date = timezone.localdate() - timedelta(days=delay_threshold_days)
+
+    delayed_cycle = (
+        CycleLog.objects.filter(user=user)
+        .filter(actual_start_date__isnull=True, start_date__isnull=True)
+        .filter(
+            Q(predicted_start_date__lte=threshold_date)
+            | Q(predicted_start_date__isnull=True, predicted_next_period__lte=threshold_date)
+        )
+        .order_by('-predicted_start_date', '-predicted_next_period', '-created_at')
+        .first()
+    )
+
+    if not delayed_cycle:
+        return False
+
+    today = timezone.localdate()
+    already_notified = Notification.objects.filter(
+        user=user,
+        title='Delayed Period Reminder',
+        created_at__date=today,
+    ).exists()
+    if already_notified:
+        return False
+
+    _create_notification(
+        user,
+        'Delayed Period Reminder',
+        DELAYED_PERIOD_MESSAGE,
+        'cycle',
+    )
+    send_emergency_email(
+        user,
+        subject='Delayed Period Alert from FemiCare',
+        body_message=DELAYED_PERIOD_MESSAGE,
+    )
+    return True
+
+
+def _get_available_doctors_for_emergency():
+    now = timezone.localtime(timezone.now())
+    today = now.date()
+    current_time = now.time()
+
+    available_doctor_ids = (
+        DoctorAvailability.objects.filter(is_active=True)
+        .filter(
+            Q(date__gt=today)
+            | Q(date=today, start_time__gte=current_time)
+        )
+        .filter(appointment__isnull=True)
+        .values_list('doctor_id', flat=True)
+        .distinct()
+    )
+    return User.objects.filter(id__in=available_doctor_ids, role='doctor', is_verified=True)
+
+
+def create_emergency_request(user, reason=''):
+    if not user or user.role != 'user':
+        return None
+
+    existing = EmergencyRequest.objects.filter(
+        user=user,
+        status__in=['pending', 'assigned'],
+    ).first()
+    if existing:
+        return existing
+
+    request_obj = EmergencyRequest.objects.create(
+        user=user,
+        reason=(reason or '').strip(),
+        status='pending',
+    )
+    _create_notification(
+        user,
+        'Emergency request submitted',
+        'Your emergency consultation request has been submitted. We are finding the earliest available doctor.',
+        'appointment',
+    )
+    return request_obj
+
+
+def notify_available_doctors(request_obj):
+    if not request_obj:
+        return 0
+
+    doctors = _get_available_doctors_for_emergency()
+    notified = 0
+
+    for doctor in doctors:
+        already_sent = Notification.objects.filter(
+            user=doctor,
+            title='Emergency consultation request',
+            message__icontains=f'#{request_obj.id}',
+            created_at__date=timezone.localdate(),
+        ).exists()
+        if already_sent:
+            continue
+
+        _create_notification(
+            doctor,
+            'Emergency consultation request',
+            f'A patient requires urgent consultation. Request #{request_obj.id}.',
+            'appointment',
+        )
+
+        if doctor.email:
+            try:
+                send_mail(
+                    subject='Urgent Consultation Request - FemiCare',
+                    message=(
+                        'A patient requires urgent consultation.\n'
+                        f'Request ID: #{request_obj.id}\n\n'
+                        'Please review your dashboard and accept if available.'
+                    ),
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[doctor.email],
+                    fail_silently=True,
+                )
+            except Exception:
+                logger.exception('Failed to send emergency email to doctor_id=%s', doctor.id)
+
+        notified += 1
+
+    return notified
+
+
+def send_patient_email(user, slot):
+    if not user or not user.email or not slot:
+        return False
+
+    try:
+        send_mail(
+            subject='Emergency Consultation Assigned - FemiCare',
+            message=(
+                'Your emergency consultation request has been assigned.\n\n'
+                f'Date: {slot.date:%Y-%m-%d}\n'
+                f'Time: {slot.start_time.strftime("%H:%M")} - {slot.end_time.strftime("%H:%M")}\n\n'
+                'Please join your dashboard at the scheduled time.'
+            ),
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user.email],
+            fail_silently=False,
+        )
+        return True
+    except Exception:
+        logger.exception('Failed to send emergency assignment email to user_id=%s', user.id)
+        return False
+
+
+def schedule_emergency_appointment(request_obj, doctor):
+    if not request_obj or not doctor:
+        return None
+
+    now = timezone.localtime(timezone.now())
+    today = now.date()
+    current_time = now.time()
+
+    slot = (
+        DoctorAvailability.objects.select_for_update()
+        .filter(doctor=doctor, is_active=True)
+        .filter(
+            Q(date__gt=today)
+            | Q(date=today, start_time__gte=current_time)
+        )
+        .filter(appointment__isnull=True)
+        .order_by('date', 'start_time')
+        .first()
+    )
+
+    if not slot:
+        return None
+
+    appointment = Appointment.objects.create(
+        user=request_obj.user,
+        doctor=doctor,
+        availability=slot,
+        status='approved',
+        patient_message=(request_obj.reason or 'Emergency consultation request')[:400],
+    )
+
+    slot.is_active = False
+    slot.save(update_fields=['is_active'])
+
+    _create_notification(
+        request_obj.user,
+        'Emergency appointment assigned',
+        f'Your emergency consultation was assigned for {slot.date:%b %d, %Y} at {slot.start_time.strftime("%H:%M")}.',
+        'appointment',
+    )
+    _create_notification(
+        doctor,
+        'Emergency appointment assigned',
+        f'You accepted emergency request #{request_obj.id}. The appointment has been scheduled automatically.',
+        'appointment',
+    )
+    send_patient_email(request_obj.user, slot)
+
+    return appointment
+
+
+def assign_doctor_to_request(request_obj, doctor):
+    if not request_obj or not doctor:
+        return None
+
+    with transaction.atomic():
+        locked = EmergencyRequest.objects.select_for_update().filter(id=request_obj.id).first()
+        if not locked or locked.status != 'pending':
+            return None
+
+        appointment = schedule_emergency_appointment(locked, doctor)
+        if not appointment:
+            return None
+
+        locked.status = 'assigned'
+        locked.assigned_doctor = doctor
+        locked.assigned_slot = appointment.availability
+        locked.save(update_fields=['status', 'assigned_doctor', 'assigned_slot', 'updated_at'])
+        return locked
+
+
+def trigger_period_day_reminder(user, predicted_next_period):
+    if not user or not predicted_next_period:
+        return False
+
+    today = timezone.localdate()
+    if predicted_next_period != today:
+        return False
+
+    exists_today = Notification.objects.filter(
+        user=user,
+        title='Period Day Reminder',
+        created_at__date=today,
+    ).exists()
+    if exists_today:
+        return False
+
+    _create_notification(
+        user,
+        'Period Day Reminder',
+        'Today is your predicted period day. Make sure to log your symptoms so we can support your health better.',
+        'cycle',
+    )
+    return True
+
+
+def _get_latest_confirmed_cycle(user):
+    return (
+        CycleLog.objects.filter(user=user, is_confirmed=True)
+        .filter(Q(start_date__isnull=False) | Q(actual_start_date__isnull=False) | Q(last_period_start__isnull=False))
+        .order_by('-start_date', '-actual_start_date', '-last_period_start', '-created_at')
+        .first()
+    )
+
+
+def _get_active_period(user):
+    return (
+        CycleLog.objects.filter(user=user)
+        .filter(start_date__isnull=False)
+        .filter(end_date__isnull=True)
+        .order_by('-start_date', '-actual_start_date', '-last_period_start', '-created_at')
+        .first()
+    )
+
+
+def is_period_active(user):
+    return _get_active_period(user) is not None
+
+
+def _resolve_prediction_date(cycle_log):
+    if not cycle_log:
+        return None
+    return cycle_log.predicted_start_date or cycle_log.predicted_next_period
+
+
+def _get_active_cycle_for_symptoms(user, target_date=None):
+    target_date = target_date or timezone.localdate()
+
+    active_period = _get_active_period(user)
+    if active_period:
+        period_start = active_period.start_date or active_period.actual_start_date or active_period.last_period_start
+        if period_start and period_start <= target_date:
+            return active_period
+
+    actual_cycle = (
+        CycleLog.objects.filter(user=user, is_confirmed=True)
+        .filter(
+            Q(start_date__lte=target_date)
+            | Q(actual_start_date__lte=target_date)
+            | Q(start_date__isnull=True, actual_start_date__isnull=True, last_period_start__lte=target_date)
+        )
+        .order_by('-start_date', '-actual_start_date', '-last_period_start', '-created_at')
+        .first()
+    )
+    if actual_cycle:
+        return actual_cycle
+
+    return (
+        CycleLog.objects.filter(user=user)
+        .exclude(last_period_start__isnull=True)
+        .filter(last_period_start__lte=target_date)
+        .order_by('-last_period_start')
+        .first()
+    )
+
+
+def update_cycle_prediction(user):
+    reference_cycle = _get_latest_confirmed_cycle(user)
+    if not reference_cycle:
+        return None
+
+    start_date = reference_cycle.start_date or reference_cycle.actual_start_date or reference_cycle.last_period_start
+    if not start_date:
+        return None
+
+    historical_cycle_lengths = list(
+        CycleLog.objects.filter(user=user)
+        .exclude(length_of_cycle__isnull=True)
+        .values_list('length_of_cycle', flat=True)
+    )
+    predicted_days = int(round(sum(historical_cycle_lengths) / len(historical_cycle_lengths))) if historical_cycle_lengths else 28
+    predicted_days = max(predicted_days, 1)
+
+    predicted_start = start_date + timedelta(days=predicted_days)
+    ovulation_day = predicted_start - timedelta(days=14)
+
+    reference_cycle.predicted_start_date = predicted_start
+    reference_cycle.predicted_next_period = predicted_start
+    reference_cycle.estimated_ovulation_day = ovulation_day
+    reference_cycle.fertile_window_start = ovulation_day - timedelta(days=5)
+    reference_cycle.fertile_window_end = ovulation_day
+    reference_cycle.save(
+        update_fields=[
+            'predicted_start_date',
+            'predicted_next_period',
+            'estimated_ovulation_day',
+            'fertile_window_start',
+            'fertile_window_end',
+        ]
+    )
+    return reference_cycle
+
+
+def create_period(user, start_date, end_date=None):
+    if not user or not start_date:
+        return None
+
+    today = timezone.localdate()
+    if start_date > today:
+        raise ValueError('Future dates are not allowed.')
+
+    if end_date:
+        if end_date < start_date:
+            raise ValueError('End date cannot be before start date.')
+        if end_date > today:
+            raise ValueError('End date cannot be in the future.')
+
+    active_period = _get_active_period(user)
+    if active_period:
+        active_start = active_period.start_date or active_period.actual_start_date or active_period.last_period_start
+        if active_start != start_date:
+            raise ValueError('Cannot create a new period while one is active.')
+
+    existing_cycle = (
+        CycleLog.objects.filter(user=user)
+        .filter(Q(start_date=start_date) | Q(actual_start_date=start_date) | Q(last_period_start=start_date))
+        .order_by('-created_at')
+        .first()
+    )
+
+    expected_end_date = start_date + timedelta(days=5)
+
+    if existing_cycle:
+        existing_cycle.start_date = start_date
+        existing_cycle.actual_start_date = start_date
+        existing_cycle.last_period_start = start_date
+        existing_cycle.expected_end_date = expected_end_date
+        existing_cycle.end_date = end_date
+        existing_cycle.is_confirmed = True
+        existing_cycle.save(
+            update_fields=[
+                'start_date',
+                'actual_start_date',
+                'last_period_start',
+                'expected_end_date',
+                'end_date',
+                'is_confirmed',
+            ]
+        )
+        SymptomLog.objects.filter(user=user, date=start_date, cycle_log__isnull=True).update(cycle_log=existing_cycle)
+        update_cycle_prediction(user)
+        return existing_cycle
+
+    latest_log = CycleLog.objects.filter(user=user).order_by('-created_at').first()
+    latest_confirmed = _get_latest_confirmed_cycle(user)
+    previous_start = None
+    if latest_confirmed:
+        previous_start = latest_confirmed.start_date or latest_confirmed.actual_start_date or latest_confirmed.last_period_start
+
+    derived_cycle_length = None
+    if previous_start and start_date > previous_start:
+        derived_cycle_length = (start_date - previous_start).days
+
+    user_profile, _ = UserProfile.objects.get_or_create(user=user)
+
+    base_cycle = latest_confirmed or latest_log
+    default_cycle_length = derived_cycle_length or (base_cycle.length_of_cycle if base_cycle and base_cycle.length_of_cycle else 28)
+    default_menses_length = base_cycle.length_of_menses if base_cycle and base_cycle.length_of_menses else 5
+    default_menses_score = base_cycle.total_menses_score if base_cycle and base_cycle.total_menses_score is not None else 3
+    default_intensity = base_cycle.mean_bleeding_intensity if base_cycle and base_cycle.mean_bleeding_intensity else 2
+
+    height_cm = float(user_profile.height_cm) if user_profile.height_cm is not None else (float(base_cycle.height_cm) if base_cycle and base_cycle.height_cm is not None else 0.0)
+    weight_kg = float(user_profile.weight_kg) if user_profile.weight_kg is not None else (float(base_cycle.weight_kg) if base_cycle and base_cycle.weight_kg is not None else 0.0)
+
+    bmi = None
+    if height_cm and weight_kg:
+        height_m = height_cm / 100
+        if height_m > 0:
+            bmi = round(weight_kg / (height_m ** 2), 2)
+
+    cycle = CycleLog.objects.create(
+        user=user,
+        start_date=start_date,
+        last_period_start=start_date,
+        actual_start_date=start_date,
+        end_date=end_date,
+        expected_end_date=expected_end_date,
+        is_confirmed=True,
+        length_of_cycle=default_cycle_length,
+        length_of_menses=default_menses_length,
+        mean_menses_length=default_menses_length,
+        mean_bleeding_intensity=default_intensity,
+        total_menses_score=default_menses_score,
+        unusual_bleeding=base_cycle.unusual_bleeding if base_cycle else False,
+        height_cm=height_cm,
+        weight_kg=weight_kg,
+        bmi=bmi,
+    )
+
+    SymptomLog.objects.filter(user=user, date=start_date, cycle_log__isnull=True).update(cycle_log=cycle)
+    update_cycle_prediction(user)
+    return cycle
+
+
+def end_period(user, end_date):
+    if not user:
+        return None
+
+    active_period = _get_active_period(user)
+    if not active_period:
+        raise ValueError('No active period found.')
+
+    start_date = active_period.start_date or active_period.actual_start_date or active_period.last_period_start
+    if not start_date:
+        raise ValueError('Active period is missing a valid start date.')
+
+    today = timezone.localdate()
+    if end_date > today:
+        raise ValueError('End date cannot be in the future.')
+    if end_date < start_date:
+        raise ValueError('End date cannot be before start date.')
+
+    active_period.end_date = end_date
+    active_period.length_of_menses = max((end_date - start_date).days + 1, 1)
+    active_period.mean_menses_length = active_period.length_of_menses
+    active_period.save(update_fields=['end_date', 'length_of_menses', 'mean_menses_length'])
+
+    update_cycle_prediction(user)
+    return active_period
+
+
+def log_period_start(user, date):
+    return create_period(user=user, start_date=date)
+
+
+def handle_delayed_period(user):
+    return check_period_delay(user)
+
+
 def _relative_time(value):
     now = timezone.now()
     diff = now - value
@@ -872,6 +1723,155 @@ def _relative_time(value):
 
     days = hours // 24
     return f'{days} day ago' if days == 1 else f'{days} days ago'
+
+
+def generate_report(user):
+    today = timezone.localdate()
+
+    cycle_logs = list(
+        CycleLog.objects.filter(user=user)
+        .exclude(last_period_start__isnull=True)
+        .order_by('-last_period_start')
+    )
+    cycle_lengths = [item.length_of_cycle for item in cycle_logs if item.length_of_cycle]
+    average_cycle_length = round(sum(cycle_lengths) / len(cycle_lengths), 1) if cycle_lengths else None
+
+    recent_period_dates = [item.last_period_start for item in cycle_logs[:6]]
+    predicted_next_period = None
+    if cycle_logs:
+        predicted_next_period = cycle_logs[0].predicted_start_date or cycle_logs[0].predicted_next_period
+
+    symptom_frequency = list(
+        SymptomLog.objects.filter(user=user)
+        .values('symptom')
+        .annotate(count=Count('id'))
+        .order_by('-count', 'symptom')[:10]
+    )
+
+    last_30_days = today - timedelta(days=29)
+    mood_entries = MoodEntry.objects.filter(user=user, date__gte=last_30_days)
+    mood_trends = list(
+        mood_entries.values('mood')
+        .annotate(count=Count('id'))
+        .order_by('-count', 'mood')
+    )
+
+    repeated_alert_notifications = list(
+        Notification.objects.filter(
+            user=user,
+            title='Health Attention Needed',
+        )
+        .order_by('-created_at')[:15]
+    )
+
+    repeated_symptom_alerts = []
+    symptom_dates = {}
+    for row in SymptomLog.objects.filter(user=user).values('symptom', 'date').order_by('symptom', 'date'):
+        symptom_dates.setdefault(row['symptom'], []).append(row['date'])
+
+    for symptom_name, dates in symptom_dates.items():
+        unique_dates = sorted(set(dates))
+        streak = 1
+        detected_on = None
+
+        for index in range(1, len(unique_dates)):
+            if (unique_dates[index] - unique_dates[index - 1]).days == 1:
+                streak += 1
+            else:
+                streak = 1
+
+            if streak >= 3:
+                detected_on = unique_dates[index]
+
+        if detected_on:
+            repeated_symptom_alerts.append(
+                {
+                    'symptom': symptom_name,
+                    'detected_on': detected_on,
+                }
+            )
+
+    repeated_symptom_alerts.sort(key=lambda item: item['detected_on'], reverse=True)
+
+    documents = list(
+        UserDocument.objects.filter(user=user)
+        .order_by('-uploaded_at')
+    )
+
+    appointments = list(
+        Appointment.objects.filter(user=user)
+        .select_related('doctor', 'doctor__doctor_profile', 'availability')
+        .order_by('-created_at')
+    )
+
+    consultation_history = []
+    for appt in appointments:
+        doctor_name = appt.doctor.get_full_name().strip() or appt.doctor.username
+        consultation_history.append(
+            {
+                'appointment_date': appt.availability.date if appt.availability_id else None,
+                'doctor_name': doctor_name,
+                'status': appt.status,
+                'created_at': appt.created_at,
+            }
+        )
+
+    return {
+        'generated_at': timezone.localtime(),
+        'cycle_summary': {
+            'average_cycle_length': average_cycle_length,
+            'last_period_dates': recent_period_dates,
+            'predicted_next_period': predicted_next_period,
+        },
+        'symptom_report': {
+            'most_frequent_symptoms': symptom_frequency,
+            'mood_trends': mood_trends,
+            'repeated_symptom_alerts': repeated_symptom_alerts,
+        },
+        'health_alerts': {
+            'symptoms_repeated_3_days': repeated_symptom_alerts,
+            'triggered_alerts': repeated_alert_notifications,
+        },
+        'medical_documents': documents,
+        'consultation_history': consultation_history,
+    }
+
+
+@login_required
+def dashboard_reports(request):
+    report_data = generate_report(request.user)
+    context = {
+        'active_page': 'reports',
+        'report_data': report_data,
+    }
+    return render(request, 'dashboard/reports.html', context)
+
+
+@login_required
+def export_reports_pdf(request):
+    report_data = generate_report(request.user)
+    context = {
+        'report_data': report_data,
+        'user': request.user,
+    }
+
+    html = render_to_string('dashboard/reports_pdf.html', context)
+
+    try:
+        from xhtml2pdf import pisa
+    except Exception:
+        messages.error(request, 'PDF export requires xhtml2pdf. Please install it in your environment.')
+        return redirect('dashboard_reports')
+
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = 'attachment; filename="femicare_health_report.pdf"'
+
+    pdf = pisa.CreatePDF(src=html, dest=response)
+    if pdf.err:
+        messages.error(request, 'Unable to generate PDF report at the moment.')
+        return redirect('dashboard_reports')
+
+    return response
 
 
 def _clear_email_verification_session(request):
@@ -1403,27 +2403,79 @@ def dashboard_home(request):
     mood_trend_max = max(mood_trend_points.values()) if any(mood_trend_points.values()) else 1
 
     last_period_date = cycle_logs[-1].last_period_start if cycle_logs else None
-    predicted_next_period = latest_cycle.predicted_next_period if latest_cycle else None
 
-    if not predicted_next_period and last_period_date and avg_cycle_length:
-        predicted_next_period = last_period_date + timedelta(days=int(round(avg_cycle_length)))
+    cycle_length_days = _to_positive_int(avg_cycle_length)
+    if not cycle_length_days and latest_cycle:
+        cycle_length_days = _to_positive_int(latest_cycle.length_of_cycle)
+    if not cycle_length_days:
+        cycle_length_days = 28
 
+    menses_length_days = _to_positive_int(avg_menses_length)
+    if not menses_length_days and latest_cycle:
+        menses_length_days = _to_positive_int(latest_cycle.length_of_menses)
+    if not menses_length_days:
+        menses_length_days = 5
+
+    predicted_cycle_starts = _generate_rolling_prediction_starts(
+        last_period_date,
+        cycle_length_days,
+        today,
+        count=3,
+    )
+
+    predicted_period_ranges = [
+        _serialize_period_range(start_date, menses_length_days, 'predicted', 'Predicted period')
+        for start_date in predicted_cycle_starts
+    ]
+    predicted_period_ranges = [item for item in predicted_period_ranges if item]
+
+    actual_period_ranges = _build_logged_period_ranges(cycle_logs[-24:], menses_length_days)
+
+    predicted_next_period = predicted_cycle_starts[0] if predicted_cycle_starts else None
+    if not predicted_next_period and latest_cycle and latest_cycle.predicted_next_period:
+        predicted_next_period = latest_cycle.predicted_next_period
+    if not predicted_next_period and last_period_date and cycle_length_days:
+        predicted_next_period = last_period_date + timedelta(days=cycle_length_days)
+
+    trigger_period_day_reminder(request.user, predicted_next_period)
+
+    active_period = _get_active_period(request.user)
     active_cycle = cycle_log_qs.exclude(last_period_start__isnull=True).filter(last_period_start__lte=today).order_by('-last_period_start').first()
     is_on_period = False
     show_period_checkin_prompt = False
+    current_period_range = None
 
-    if active_cycle and active_cycle.length_of_menses:
+    if active_period:
+        period_start = active_period.start_date or active_period.actual_start_date or active_period.last_period_start
+        period_end = active_period.end_date or active_period.expected_end_date
+        if period_start:
+            is_on_period = period_start <= today and (period_end is None or today <= period_end)
+            current_period_range = _serialize_period_range(
+                period_start,
+                (active_period.length_of_menses or 5),
+                'current',
+                'Current period',
+            )
+        if active_cycle and is_on_period:
+            show_period_checkin_prompt = not PeriodCheckIn.objects.filter(user=request.user, cycle_log=active_cycle).exists()
+    elif active_cycle and active_cycle.length_of_menses:
         period_end = active_cycle.last_period_start + timedelta(days=max(active_cycle.length_of_menses, 1) - 1)
         is_on_period = active_cycle.last_period_start <= today <= period_end
         if is_on_period:
             show_period_checkin_prompt = not PeriodCheckIn.objects.filter(user=request.user, cycle_log=active_cycle).exists()
+            current_period_range = _serialize_period_range(
+                active_cycle.last_period_start,
+                active_cycle.length_of_menses,
+                'current',
+                'Current period',
+            )
 
     if show_period_checkin_prompt:
         show_mood_prompt = False
 
     period_status_text = "No active cycle today"
     period_status_variant = "neutral"
-    if is_on_period and active_cycle:
+    if is_on_period and (active_period or active_cycle):
         period_status_text = "You are on your period today"
         period_status_variant = "active"
     elif last_period_date and latest_cycle and latest_cycle.length_of_menses:
@@ -1567,14 +2619,30 @@ def dashboard_home(request):
     )
 
     feedback_target = None
-    feedback_log_ids = set(
-        PredictionFeedback.objects.filter(user=request.user, cycle_log__isnull=False)
-        .values_list('cycle_log_id', flat=True)
-    )
+    feedback_map = {
+        item['cycle_log_id']: item['actual_date']
+        for item in PredictionFeedback.objects.filter(user=request.user, cycle_log__isnull=False)
+        .values('cycle_log_id', 'actual_date')
+    }
     for log in logs.exclude(predicted_next_period__isnull=True).order_by('-predicted_next_period'):
-        if log.predicted_next_period <= today and log.id not in feedback_log_ids:
+        predicted_date = _resolve_prediction_date(log)
+        if not predicted_date or predicted_date > today:
+            continue
+
+        if log.start_date or log.actual_start_date:
+            continue
+
+        feedback_actual_date = feedback_map.get(log.id)
+        if feedback_actual_date is None:
             feedback_target = log
             break
+
+    emergency_assessment = trigger_emergency_alert(request.user)
+    check_period_delay(request.user)
+    active_emergency_request = EmergencyRequest.objects.filter(
+        user=request.user,
+        status__in=['pending', 'assigned'],
+    ).first()
 
     feedback_stats = PredictionFeedback.objects.filter(user=request.user)
     total_feedback = feedback_stats.count()
@@ -1595,6 +2663,8 @@ def dashboard_home(request):
     return render(request, "dashboard/first.html", {
         # ✅ ONLY CHANGE IS HERE
         "form": CycleLogForm(user=request.user),
+        "period_log_form": PeriodLogForm(),
+        "end_period_form": EndPeriodForm(start_date=(active_period.start_date if active_period else None)),
 
         "logs": logs,
         "cycle": cycle,
@@ -1633,6 +2703,8 @@ def dashboard_home(request):
         "period_status_text": period_status_text,
         "period_status_variant": period_status_variant,
         "feedback_target": feedback_target,
+        "active_period": active_period,
+        "is_active_period": is_period_active(request.user),
         "prediction_accuracy": prediction_accuracy,
         "total_feedback": total_feedback,
         "cycle_pattern_short": cycle_pattern_short,
@@ -1643,6 +2715,16 @@ def dashboard_home(request):
         "symptom_options": SYMPTOM_OPTIONS,
         "selected_today_symptoms": selected_today_symptoms,
         "recent_symptoms": recent_symptoms,
+        "calendar_actual_ranges": actual_period_ranges,
+        "calendar_predicted_ranges": predicted_period_ranges,
+        "calendar_current_period_range": current_period_range,
+        "predicted_cycle_starts": [start.isoformat() for start in predicted_cycle_starts],
+        "show_emergency_panel": emergency_assessment.get('level') == 'high',
+        "emergency_alert_level": emergency_assessment.get('level'),
+        "emergency_risk_score": emergency_assessment.get('score', 0),
+        "emergency_alert_message": EMERGENCY_ALERT_MESSAGE,
+        "emergency_repeated_symptoms": emergency_assessment.get('repeated_symptoms', []),
+        "active_emergency_request": active_emergency_request,
     })
 
 
@@ -1674,36 +2756,151 @@ def submit_prediction_feedback(request):
         return redirect('dashboard_home')
 
     cycle_log_id = request.POST.get('cycle_log_id')
-    response = request.POST.get('is_correct')
+    response = (request.POST.get('feedback_status') or '').strip().lower()
+    legacy_response = (request.POST.get('is_correct') or '').strip().lower()
     actual_date_raw = request.POST.get('actual_date')
 
-    if not cycle_log_id or response not in {'yes', 'no'}:
+    if not response and legacy_response in {'yes', 'no'}:
+        response = 'yes' if legacy_response == 'yes' else 'started_earlier'
+
+    valid_responses = {'yes', 'started_earlier', 'still_not_started', 'started_today'}
+    if not cycle_log_id or response not in valid_responses:
         messages.error(request, 'Invalid feedback submission.')
         return redirect('dashboard_home')
 
     cycle_log = get_object_or_404(CycleLog, id=cycle_log_id, user=request.user)
-    if not cycle_log.predicted_next_period:
+    predicted_date = _resolve_prediction_date(cycle_log)
+    if not predicted_date:
         messages.error(request, 'This prediction does not have a valid predicted date.')
         return redirect('dashboard_home')
 
-    is_correct = response == 'yes'
-    actual_date = cycle_log.predicted_next_period if is_correct else parse_date(actual_date_raw or '')
+    today = timezone.localdate()
+    parsed_actual_date = parse_date(actual_date_raw or '')
 
-    if not is_correct and not actual_date:
-        messages.error(request, 'Please provide the actual period start date.')
+    if response == 'yes':
+        actual_date = predicted_date
+    elif response == 'started_today':
+        actual_date = today
+    elif response == 'started_earlier':
+        actual_date = parsed_actual_date
+        if not actual_date:
+            messages.error(request, 'Please select when your period started.')
+            return redirect('dashboard_home')
+        if actual_date >= predicted_date:
+            messages.error(request, 'For "Started earlier", choose a date before the predicted day.')
+            return redirect('dashboard_home')
+    else:
+        actual_date = None
+
+    if actual_date and actual_date > today:
+        messages.error(request, 'You cannot select a future period start date.')
         return redirect('dashboard_home')
+
+    is_correct = actual_date == predicted_date if actual_date else False
 
     PredictionFeedback.objects.update_or_create(
         user=request.user,
         cycle_log=cycle_log,
         defaults={
-            'predicted_date': cycle_log.predicted_next_period,
+            'predicted_date': predicted_date,
             'actual_date': actual_date,
             'is_correct': is_correct,
         }
     )
 
-    messages.success(request, 'Prediction feedback saved. Thank you.')
+    if actual_date:
+        try:
+            create_period(request.user, actual_date)
+        except ValueError as exc:
+            messages.error(request, str(exc))
+            return redirect('dashboard_home')
+        cycle_log.start_date = actual_date
+        cycle_log.actual_start_date = actual_date
+        cycle_log.expected_end_date = actual_date + timedelta(days=5)
+        cycle_log.end_date = None
+        cycle_log.is_confirmed = True
+        cycle_log.save(update_fields=['start_date', 'actual_start_date', 'expected_end_date', 'end_date', 'is_confirmed'])
+        update_cycle_prediction(request.user)
+        messages.success(request, 'Period start confirmed and cycle prediction updated.')
+        return redirect('dashboard_home')
+
+    cycle_log.actual_start_date = None
+    cycle_log.start_date = None
+    cycle_log.end_date = None
+    cycle_log.is_confirmed = False
+    cycle_log.save(update_fields=['actual_start_date', 'start_date', 'end_date', 'is_confirmed'])
+    handle_delayed_period(request.user)
+    messages.info(request, 'We will keep tracking and remind you daily until your period starts.')
+    return redirect('dashboard_home')
+
+
+@login_required
+def log_period_start_view(request):
+    if request.method != 'POST':
+        return redirect('dashboard_home')
+
+    form = PeriodLogForm(request.POST)
+    if not form.is_valid():
+        for field_errors in form.errors.values():
+            for err in field_errors:
+                messages.error(request, err)
+        return redirect('dashboard_home')
+
+    start_date = form.cleaned_data['start_date']
+    end_date = form.cleaned_data.get('end_date')
+
+    try:
+        cycle = create_period(request.user, start_date, end_date=end_date)
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return redirect('dashboard_home')
+
+    if cycle:
+        _create_notification(
+            request.user,
+            'Period start logged',
+            f'Period start date {start_date:%b %d, %Y} has been saved and predictions updated.',
+            'cycle',
+        )
+
+    if end_date:
+        messages.success(request, 'Past period logged successfully.')
+    else:
+        messages.success(request, 'Period start logged. Your period is currently ongoing.')
+    return redirect('dashboard_home')
+
+
+@login_required
+def end_period_view(request):
+    if request.method != 'POST':
+        return redirect('dashboard_home')
+
+    active_period = _get_active_period(request.user)
+    if not active_period:
+        messages.error(request, 'No active period found.')
+        return redirect('dashboard_home')
+
+    start_date = active_period.start_date or active_period.actual_start_date or active_period.last_period_start
+    form = EndPeriodForm(request.POST, start_date=start_date)
+    if not form.is_valid():
+        for field_errors in form.errors.values():
+            for err in field_errors:
+                messages.error(request, err)
+        return redirect('dashboard_home')
+
+    try:
+        ended = end_period(request.user, form.cleaned_data['end_date'])
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return redirect('dashboard_home')
+
+    _create_notification(
+        request.user,
+        'Period completed',
+        f'Your period ending on {ended.end_date:%b %d, %Y} was recorded successfully.',
+        'cycle',
+    )
+    messages.success(request, 'Period ended successfully.')
     return redirect('dashboard_home')
 
 
@@ -1755,6 +2952,14 @@ def submit_period_checkin(request):
         ]
     )
 
+    emergency_assessment = trigger_emergency_alert(request.user)
+    check_period_delay(request.user)
+
+    if emergency_assessment.get('level') == 'high' and emergency_assessment.get('triggered'):
+        messages.warning(request, 'Emergency health alert has been triggered. Please review resources and consult a doctor if needed.')
+    elif emergency_assessment.get('level') == 'medium' and emergency_assessment.get('triggered'):
+        messages.info(request, 'A health warning was added based on your latest symptom pattern.')
+
     messages.success(request, 'Period check-in saved successfully.')
     return redirect('dashboard_home')
 
@@ -1769,13 +2974,7 @@ def save_symptoms(request):
     selected_symptoms = [value for value in selected_symptoms if value in valid_values]
 
     today = timezone.localdate()
-    active_cycle = (
-        CycleLog.objects.filter(user=request.user)
-        .exclude(last_period_start__isnull=True)
-        .filter(last_period_start__lte=today)
-        .order_by('-last_period_start')
-        .first()
-    )
+    active_cycle = _get_active_cycle_for_symptoms(request.user, today)
 
     SymptomLog.objects.filter(user=request.user, date=today, source='manual').delete()
 
@@ -1791,6 +2990,14 @@ def save_symptoms(request):
             for symptom in selected_symptoms
         ]
     )
+
+    emergency_assessment = trigger_emergency_alert(request.user)
+    check_period_delay(request.user)
+
+    if emergency_assessment.get('level') == 'high' and emergency_assessment.get('triggered'):
+        messages.warning(request, 'Emergency health alert has been triggered. Please review resources and consult a doctor if needed.')
+    elif emergency_assessment.get('level') == 'medium' and emergency_assessment.get('triggered'):
+        messages.info(request, 'A health warning was added based on your latest symptom pattern.')
 
     messages.success(request, 'Symptoms updated successfully.')
     return redirect('dashboard_home')
@@ -1982,13 +3189,42 @@ def add_cycle_log(request):
                 cycle.bmi,
             ]
 
-            predicted_days = round(predict_cycle(features))
+            historical_cycle_lengths = list(
+                previous_logs
+                .exclude(length_of_cycle__isnull=True)
+                .values_list('length_of_cycle', flat=True)
+            )
+            if cycle.length_of_cycle:
+                historical_cycle_lengths.append(cycle.length_of_cycle)
+
+            if historical_cycle_lengths:
+                predicted_days = int(round(sum(historical_cycle_lengths) / len(historical_cycle_lengths)))
+            else:
+                predicted_days = round(predict_cycle(features))
 
             # ---- DATE CALCULATIONS ----
             if cycle.last_period_start:
+                active_period = _get_active_period(request.user)
+                if active_period:
+                    active_start = active_period.start_date or active_period.actual_start_date or active_period.last_period_start
+                    if active_start != cycle.last_period_start:
+                        messages.error(request, 'You already have an active period. Please end it before logging a new one.')
+                        return redirect("dashboard_home")
+
+                cycle.start_date = cycle.last_period_start
+                cycle.actual_start_date = cycle.last_period_start
+                cycle.is_confirmed = True
                 cycle.predicted_next_period = (
                     cycle.last_period_start + timedelta(days=predicted_days)
                 )
+                cycle.predicted_start_date = cycle.predicted_next_period
+                cycle.expected_end_date = cycle.last_period_start + timedelta(days=5)
+
+                derived_end_date = cycle.last_period_start + timedelta(days=max(cycle.length_of_menses, 1) - 1)
+                if derived_end_date <= timezone.localdate():
+                    cycle.end_date = derived_end_date
+                else:
+                    cycle.end_date = None
 
                 # Ovulation ≈ 14 days before next period
                 cycle.estimated_ovulation_day = (
@@ -2043,6 +3279,7 @@ def add_cycle_log(request):
                         "Are you sure? Short cycles may affect prediction accuracy."
                     )
             cycle.save()
+            update_cycle_prediction(request.user)
 
             _create_notification(
                 request.user,
@@ -2066,8 +3303,14 @@ def add_cycle_log(request):
 
 from .models import Appointment, ChatMessage
 # Chat Consultation
+@login_required
 def chat_room(request, appointment_id):
     appointment = get_object_or_404(Appointment, id=appointment_id)
+
+    # Only the patient and assigned doctor can access this room.
+    if request.user.id not in (appointment.user_id, appointment.doctor_id):
+        messages.error(request, "You do not have access to this consultation room.")
+        return redirect('dashboard_chat')
     
     # Logic: Only Approved appointments can chat
     if appointment.status != 'approved':
@@ -2098,8 +3341,13 @@ def chat_room(request, appointment_id):
     # Get previous history
     history = ChatMessage.objects.filter(room_name=room_name)
 
+    patient = appointment.user
+    patient_documents = UserDocument.objects.filter(user=patient).order_by('-uploaded_at')
+
     context = {
         'appointment': appointment,
+        'patient': patient,
+        'patient_documents': patient_documents,
         'room_name': room_name,
         'history': history,
         'is_active': is_active,
@@ -2108,6 +3356,43 @@ def chat_room(request, appointment_id):
         'conversation': conversation
     }
     return render(request, 'dashboard/room.html', context)
+
+
+@login_required
+def consultation_patient_document(request, appointment_id, document_id):
+    """Serve patient document only to the assigned doctor or the patient in this consultation."""
+    appointment = get_object_or_404(Appointment, id=appointment_id, status='approved')
+
+    if request.user.id not in (appointment.user_id, appointment.doctor_id):
+        return HttpResponse(status=403)
+
+    document = get_object_or_404(UserDocument, id=document_id, user=appointment.user)
+    as_attachment = request.GET.get('download') == '1'
+    filename = document.original_name or document.file.name.split('/')[-1]
+    return FileResponse(document.file.open('rb'), as_attachment=as_attachment, filename=filename)
+
+
+@login_required
+def consultation_chat_file(request, appointment_id, message_id):
+    """Serve chat attachment files only to participants of the approved consultation."""
+    appointment = get_object_or_404(Appointment, id=appointment_id, status='approved')
+
+    if request.user.id not in (appointment.user_id, appointment.doctor_id):
+        return HttpResponse(status=403)
+
+    expected_room_name = f"chat_{appointment.user_id}_{appointment.doctor_id}"
+    chat_message = get_object_or_404(
+        ChatMessage,
+        id=message_id,
+        room_name=expected_room_name,
+    )
+
+    if not chat_message.file:
+        return HttpResponse(status=404)
+
+    as_attachment = request.GET.get('download') == '1'
+    filename = chat_message.file.name.split('/')[-1]
+    return FileResponse(chat_message.file.open('rb'), as_attachment=as_attachment, filename=filename)
 
 
 @login_required
@@ -2135,10 +3420,24 @@ def upload_chat_file(request):
     
     file = request.FILES.get('file')
     room_name = request.POST.get('room_name')
+    appointment_id = request.POST.get('appointment_id')
     message_text = request.POST.get('message', '')
     
     if not file or not room_name:
         return JsonResponse({'success': False, 'error': 'Missing file or room name'})
+
+    appointment = None
+    try:
+        appointment = Appointment.objects.get(id=appointment_id, status='approved')
+    except (Appointment.DoesNotExist, ValueError, TypeError):
+        return JsonResponse({'success': False, 'error': 'Invalid appointment'})
+
+    if request.user.id not in (appointment.user_id, appointment.doctor_id):
+        return JsonResponse({'success': False, 'error': 'Unauthorized access'})
+
+    expected_room_name = f"chat_{appointment.user_id}_{appointment.doctor_id}"
+    if room_name != expected_room_name:
+        return JsonResponse({'success': False, 'error': 'Invalid chat room'})
     
     # Validate file type
     allowed_extensions = ['.jpg', '.jpeg', '.png', '.pdf', '.doc', '.docx']

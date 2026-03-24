@@ -529,7 +529,7 @@ body {
 .fab-add-cycle {
   position: fixed;
   bottom: 28px;
-  right: 28px;
+    right: 96px;
 
   display: flex;
   align-items: center;
@@ -834,6 +834,53 @@ body {
 /* Fertile Window background */
 .fc-bg-event {
     background-color: rgba(198, 40, 40, 0.08) !important;
+}
+
+.fc-bg-event.calendar-range-actual {
+    background: rgba(185, 28, 28, 0.18) !important;
+}
+
+.fc-bg-event.calendar-range-predicted {
+    background: rgba(236, 72, 153, 0.2) !important;
+}
+
+.fc-bg-event.calendar-range-current {
+    background: rgba(16, 185, 129, 0.25) !important;
+}
+
+.fc-bg-event.calendar-fertile-window {
+    background: rgba(56, 189, 248, 0.2) !important;
+}
+
+.fc-daygrid-event.calendar-start-marker {
+    border: none !important;
+    border-radius: 999px !important;
+    min-height: 6px;
+    line-height: 0;
+    padding: 0 !important;
+    font-size: 0 !important;
+}
+
+.fc-daygrid-event.calendar-start-current {
+    background: #059669 !important;
+}
+
+.fc-daygrid-event.calendar-start-predicted {
+    background: #ec4899 !important;
+}
+
+.fc-daygrid-event.calendar-start-actual {
+    background: #b91c1c !important;
+}
+
+.fc-daygrid-event.calendar-ovulation-marker {
+    background: #7c3aed !important;
+    border: none !important;
+    border-radius: 999px !important;
+    min-height: 6px;
+    line-height: 0;
+    padding: 0 !important;
+    font-size: 0 !important;
 }
 
 /* Remove blue links */
@@ -1298,6 +1345,11 @@ body {
     min-height: 360px;
 }
 
+.symptom-frequency-card {
+    display: flex;
+    flex-direction: column;
+}
+
 .chart-card canvas {
     display: block;
     width: 100% !important;
@@ -1315,7 +1367,8 @@ body {
 }
 
 .calendar-compact #compactCalendar {
-    min-height: 280px;
+    min-height: 220px;
+    max-width: 260px;
 }
 
 .calendar-compact .fc-toolbar {
@@ -1326,7 +1379,7 @@ body {
 }
 
 .calendar-compact .fc-toolbar-title {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
 }
 
@@ -1340,23 +1393,98 @@ body {
 }
 
 .calendar-compact .fc-daygrid-day-number {
-    font-size: 11px;
-    font-weight: 600;
+    font-size: 10px;
+    font-weight: 700;
 }
 
 .calendar-compact .fc-daygrid-day-frame {
-    min-height: 42px;
-    padding: 2px 3px;
+    min-height: 30px;
+    padding: 1px 2px;
 }
 
 .calendar-compact .fc-daygrid-event {
     font-size: 0;
     line-height: 0;
-    min-height: 6px;
-    width: 6px;
+    min-height: 5px;
+    width: 5px;
     border-radius: 50% !important;
     margin: 1px auto;
     padding: 0 !important;
+}
+
+.calendar-compact {
+    padding: 12px 12px 10px;
+}
+
+.calendar-compact .calendar-header {
+    margin-bottom: 6px !important;
+}
+
+.calendar-modal .modal-dialog {
+    max-width: 780px;
+}
+
+.calendar-modal .modal-body {
+    padding: 12px 16px 14px;
+}
+
+.vertical-calendar-scroll {
+    max-height: 62vh;
+    overflow-y: auto;
+    scroll-behavior: smooth;
+    padding-right: 4px;
+}
+
+.vertical-calendar-scroll .fc .fc-multimonth {
+    gap: 12px;
+}
+
+.vertical-calendar-scroll .fc .fc-multimonth-month {
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    overflow: hidden;
+    background: #fff;
+}
+
+.calendar-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+}
+
+.calendar-legend-item {
+    font-size: 11px;
+    color: var(--color-text-light);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.calendar-legend-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.calendar-legend-dot-current {
+    background: #059669;
+}
+
+.calendar-legend-dot-predicted {
+    background: #ec4899;
+}
+
+.calendar-legend-dot-actual {
+    background: #b91c1c;
+}
+
+.calendar-legend-dot-ovulation {
+    background: #7c3aed;
+}
+
+.calendar-legend-dot-fertile {
+    background: #38bdf8;
 }
 
 .calendar-compact .fc-event-title,
@@ -1570,6 +1698,12 @@ body {
     gap: 10px;
 }
 
+.symptom-frequency-scroll {
+    height: 250px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
 .symptom-frequency-item {
     border: 1px solid var(--color-border);
     border-radius: 10px;
@@ -1697,6 +1831,26 @@ body {
 
     .mood-options-grid {
         grid-template-columns: 1fr;
+    }
+
+    .floating-emergency-wrap {
+        right: 16px;
+        bottom: 16px;
+    }
+
+    .fab-add-cycle {
+        right: 74px;
+        bottom: 16px;
+    }
+
+    .floating-emergency-btn {
+        width: 50px;
+        height: 50px;
+    }
+
+    .floating-emergency-menu {
+        width: 220px;
+        bottom: 60px;
     }
 }
 
@@ -2615,6 +2769,308 @@ body {
 }
 
 /* ============================================
+   Consultation Chat + Patient Documents Layout
+   ============================================ */
+
+.chat-consultation-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    min-height: calc(100vh - 110px);
+}
+
+.chat-consultation-layout.with-docs {
+    grid-template-columns: minmax(0, 7fr) minmax(300px, 3fr);
+}
+
+.chat-main-container {
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100vh - 110px);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    background: var(--color-white);
+    overflow: hidden;
+}
+
+.chat-messages-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    background: #fffdf7;
+}
+
+.consultation-docs-panel {
+    position: sticky;
+    top: 88px;
+    align-self: start;
+    max-height: calc(100vh - 128px);
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #d9e3ef;
+    border-radius: 14px;
+    overflow: hidden;
+    background: linear-gradient(180deg, #f7fbff 0%, #ffffff 100%);
+    box-shadow: 0 10px 24px rgba(19, 56, 96, 0.08);
+}
+
+.consultation-docs-header {
+    padding: 14px 16px;
+    border-bottom: 1px solid #d9e3ef;
+    background: #eaf3fd;
+}
+
+.consultation-docs-header h5 {
+    margin: 0;
+    color: #124c8d;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.consultation-docs-header small {
+    display: block;
+    margin-top: 4px;
+    color: #4d6e91;
+    font-weight: 600;
+}
+
+.consultation-docs-body {
+    padding: 14px;
+    overflow-y: auto;
+}
+
+.consultation-docs-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.consultation-doc-item {
+    border: 1px solid #d8e2ec;
+    border-radius: 10px;
+    padding: 12px;
+    background: var(--color-white);
+}
+
+.consultation-doc-meta {
+    margin-bottom: 10px;
+}
+
+.consultation-doc-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+    height: 22px;
+    border-radius: 999px;
+    background: #124c8d;
+    color: #ffffff;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    margin-bottom: 8px;
+}
+
+.consultation-doc-name {
+    font-weight: 600;
+    color: var(--color-text);
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.consultation-doc-meta small {
+    color: var(--color-text-light);
+}
+
+.consultation-doc-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.consultation-docs-empty {
+    min-height: 180px;
+    border: 1px dashed #b6c9de;
+    border-radius: 12px;
+    background: #f8fbff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 8px;
+    color: #52739a;
+    padding: 20px;
+}
+
+.emergency-alert-panel {
+    border: 1px solid #f5c2c7;
+    background: linear-gradient(180deg, #fff5f5 0%, #ffffff 100%);
+}
+
+.emergency-alert-panel.is-idle {
+    border: 1px solid #d9e3ef;
+    background: linear-gradient(180deg, #f7fbff 0%, #ffffff 100%);
+}
+
+.emergency-alert-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.emergency-alert-head h5 {
+    color: #9f1239;
+}
+
+.emergency-risk-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 28px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: #b91c1c;
+    color: #ffffff;
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.emergency-risk-badge-idle {
+    background: #5b7ea4;
+}
+
+.emergency-alert-message {
+    color: #6b1d1d;
+    font-weight: 500;
+}
+
+.emergency-alert-meta {
+    color: var(--color-text-light);
+    font-size: 0.9rem;
+}
+
+.emergency-alert-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.emergency-resource-menu {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.emergency-resource-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 28px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(185, 34, 34, 0.2);
+    background: rgba(185, 34, 34, 0.05);
+    color: var(--color-primary);
+    text-decoration: none;
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.emergency-resource-link:hover {
+    background: rgba(185, 34, 34, 0.1);
+    color: var(--color-primary-dark);
+}
+
+.floating-emergency-wrap {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    z-index: 1060;
+}
+
+.floating-emergency-btn {
+    width: 56px;
+    height: 56px;
+    border: none;
+    border-radius: 50%;
+    background: #b91c1c;
+    color: #ffffff;
+    box-shadow: 0 10px 24px rgba(185, 28, 28, 0.35);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.35rem;
+}
+
+.floating-emergency-btn:hover {
+    background: #991b1b;
+}
+
+.floating-emergency-menu {
+    position: absolute;
+    right: 0;
+    bottom: 68px;
+    width: 250px;
+    background: #ffffff;
+    border: 1px solid #f1c9c9;
+    border-radius: 12px;
+    padding: 12px;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+    display: none;
+}
+
+.floating-emergency-wrap.is-open .floating-emergency-menu {
+    display: block;
+}
+
+.floating-emergency-menu h6 {
+    margin-bottom: 10px;
+    color: #9f1239;
+}
+
+.floating-emergency-link {
+    display: block;
+    width: 100%;
+    text-align: left;
+    border: 1px solid #f0d2d2;
+    background: #fff7f7;
+    color: #7f1d1d;
+    border-radius: 8px;
+    padding: 9px 10px;
+    margin-bottom: 8px;
+    text-decoration: none;
+    font-size: 0.92rem;
+    font-weight: 600;
+}
+
+.floating-emergency-link:hover {
+    background: #ffe9e9;
+    color: #7f1d1d;
+}
+
+.floating-emergency-link-button {
+    border: 1px solid #f0d2d2;
+    cursor: pointer;
+}
+
+.floating-emergency-status {
+    margin-top: 6px;
+    font-size: 0.78rem;
+    color: var(--color-text-light);
+}
+
+.consultation-docs-empty i {
+    font-size: 1.8rem;
+}
+
+/* ============================================
    File Attachment Styles
    ============================================ */
 
@@ -3441,5 +3897,116 @@ body {
 
     .image-message .chat-image {
         max-width: 220px;
+    }
+
+    .chat-main-container {
+        min-height: calc(100vh - 90px);
+    }
+}
+
+@media (max-width: 1199px) {
+    .chat-consultation-layout.with-docs {
+        grid-template-columns: 1fr;
+    }
+
+    .consultation-docs-panel {
+        position: static;
+        max-height: none;
+    }
+}
+
+/* Reports page */
+.reports-page {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.reports-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.reports-title {
+    margin: 0;
+}
+
+.reports-subtitle {
+    color: var(--color-text-light);
+}
+
+.reports-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.reports-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.report-card {
+    padding: 20px;
+}
+
+.report-card h5 {
+    margin-bottom: 12px;
+}
+
+.report-card p {
+    margin-bottom: 8px;
+}
+
+.report-card-wide {
+    grid-column: 1 / -1;
+}
+
+.report-list {
+    margin: 0;
+    padding-left: 18px;
+}
+
+.report-list li {
+    margin-bottom: 6px;
+    color: var(--color-text);
+}
+
+.report-table-wrap {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.report-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.report-table th,
+.report-table td {
+    border-bottom: 1px solid var(--color-border);
+    padding: 10px 8px;
+    text-align: left;
+    font-size: 14px;
+}
+
+.report-table th {
+    color: var(--color-text-light);
+    font-weight: 600;
+}
+
+@media (max-width: 992px) {
+    .reports-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .reports-header {
+        flex-direction: column;
+        align-items: stretch;
     }
 }

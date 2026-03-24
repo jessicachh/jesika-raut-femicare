@@ -1,4 +1,5 @@
 from django import forms
+from django.utils import timezone
 
 from .models import CycleLog, DoctorProfile, UserProfile
 
@@ -104,6 +105,86 @@ class CycleLogForm(forms.ModelForm):
                 "According to the American College of Obstetricians and Gynecologists, a typical period lasts between two to seven days. If your period lasts less than two days or more than seven days, you may be experiencing abnormal bleeding. Speak to a health care professional for more information."
             )
         return value
+
+
+class PeriodStartLogForm(forms.Form):
+    period_start_date = forms.DateField(
+        label='Period Start Date',
+        widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+    )
+
+    def clean_period_start_date(self):
+        value = self.cleaned_data.get('period_start_date')
+        if value and value > timezone.localdate():
+            raise forms.ValidationError('You cannot log a future period start date.')
+        return value
+
+
+class PeriodLogForm(forms.Form):
+    start_date = forms.DateField(
+        label='Period Start Date',
+        widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+    )
+    end_date = forms.DateField(
+        label='Period End Date',
+        required=False,
+        widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+    )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        start_date = cleaned_data.get('start_date')
+        end_date = cleaned_data.get('end_date')
+        today = timezone.localdate()
+
+        if not start_date:
+            return cleaned_data
+
+        if start_date > today:
+            self.add_error('start_date', 'Start date cannot be in the future.')
+            return cleaned_data
+
+        if end_date:
+            if end_date < start_date:
+                self.add_error('end_date', 'End date cannot be before start date.')
+            if end_date > today:
+                self.add_error('end_date', 'End date cannot be in the future.')
+
+        is_recent_period = (today - start_date).days <= 3
+
+        if is_recent_period and end_date:
+            self.add_error('end_date', 'For current or recent periods, leave end date empty and use End Period later.')
+
+        if not is_recent_period and not end_date:
+            self.add_error('end_date', 'Please provide end date for past periods older than 3 days.')
+
+        return cleaned_data
+
+
+class EndPeriodForm(forms.Form):
+    end_date = forms.DateField(
+        label='Period End Date',
+        widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        self.start_date = kwargs.pop('start_date', None)
+        super().__init__(*args, **kwargs)
+
+    def clean_end_date(self):
+        end_date = self.cleaned_data.get('end_date')
+        today = timezone.localdate()
+
+        if not end_date:
+            return end_date
+
+        if end_date > today:
+            raise forms.ValidationError('End date cannot be in the future.')
+
+        if self.start_date and end_date < self.start_date:
+            raise forms.ValidationError('End date cannot be before start date.')
+
+        return end_date
 
 
 class UserProfileForm(forms.ModelForm):

@@ -53,6 +53,9 @@ class CycleLog(models.Model):
     blank=True,
     help_text="First day of last period"
     )
+    start_date = models.DateField(null=True, blank=True)
+    end_date = models.DateField(null=True, blank=True)
+    expected_end_date = models.DateField(null=True, blank=True)
     
     # Cycle basics (USER INPUT)
     length_of_cycle = models.IntegerField(
@@ -89,6 +92,9 @@ class CycleLog(models.Model):
     bmi = models.FloatField(null=True, blank=True)
 
     # 🔮 PREDICTIONS (SYSTEM GENERATED)
+    actual_start_date = models.DateField(null=True, blank=True)
+    predicted_start_date = models.DateField(null=True, blank=True)
+    is_confirmed = models.BooleanField(default=False)
     predicted_next_period = models.DateField(null=True, blank=True)
     estimated_ovulation_day = models.DateField(null=True, blank=True)
     fertile_window_start = models.DateField(null=True, blank=True)
@@ -229,6 +235,45 @@ class Appointment(models.Model):
         return self.status == "pending" and (timezone.now() - self.created_at).total_seconds() >= 21600
     
 
+
+
+class EmergencyRequest(models.Model):
+    STATUS_CHOICES = (
+        ('pending', 'Pending'),
+        ('assigned', 'Assigned'),
+        ('completed', 'Completed'),
+    )
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='emergency_requests'
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    reason = models.TextField(blank=True)
+    assigned_doctor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='assigned_emergency_requests',
+        limit_choices_to={'role': 'doctor'},
+    )
+    assigned_slot = models.OneToOneField(
+        'DoctorAvailability',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='emergency_assignment',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"EmergencyRequest #{self.id} ({self.status})"
 
 
 class ChatMessage(models.Model):
