@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login as auth_login, logout as auth_logout, logout
 from django.contrib.auth import update_session_auth_hash
-from django.contrib.auth.forms import PasswordChangeForm
+from django.contrib.auth.views import PasswordResetConfirmView
 from django.contrib import messages
 import random
 import time
@@ -32,13 +32,17 @@ from .forms import (
     AccountSettingsForm,
     EmailVerificationForm,
     UserDocumentUploadForm,
+    RegistrationForm,
+    StrongPasswordChangeForm,
+    StrongSetPasswordForm,
+    DoctorEmailChangeRequestForm,
+    DeleteAccountForm,
 )
 from .models import CycleLog
 from tracker.ml.predict import predict_cycle
 from datetime import timedelta, datetime
 from django.utils import timezone
 from django.core.paginator import Paginator
-from django.core.mail import send_mail
 from django.conf import settings
 from django.db.models import Avg, Count, Q
 from django.db import transaction
@@ -46,6 +50,13 @@ from django.utils.dateparse import parse_date
 from django.urls import reverse
 from django.template.loader import render_to_string
 import logging
+from tracker.emails.utils import (
+    send_appointment_email as send_appointment_template_email,
+    send_emergency_email as send_emergency_template_email,
+    send_notification_email as send_notification_template_email,
+    send_profile_settings_change_email,
+    send_verification_email,
+)
 
 
 SYMPTOM_OPTIONS = [
@@ -124,15 +135,16 @@ def _issue_two_factor_code(user, purpose):
 
 
 def _send_two_factor_code_email(user, code_obj):
-    send_mail(
-        subject='FemiCare Verification Code',
-        message=(
-            f'Your verification code is: {code_obj.code}\n\n'
-            'This code expires in 10 minutes. If this was not you, please ignore this email.'
-        ),
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[user.email],
-        fail_silently=False,
+    send_verification_email(
+        user,
+        'two_factor',
+        {
+            'code': code_obj.code,
+            'expires_minutes': 10,
+            'subject': 'FemiCare Verification Code',
+            'action_url': reverse('dashboard_home'),
+            'action_label': 'Open Dashboard',
+        },
     )
 
 
@@ -250,6 +262,8 @@ def _redirect_user_after_login(request, user):
     if not terms_accepted:
         return redirect('terms_and_conditions')
 
+    _ensure_password_security_notice(user)
+
     return redirect('dashboard_home')
 
 
@@ -322,29 +336,24 @@ def explore_doctors(request):
 
 def signup_view(request):
     if request.method == 'POST':
-        username = request.POST.get('username')
-        email = (request.POST.get('email') or '').strip().lower()
-        password = request.POST.get('password')
-        confirm = request.POST.get('confirm_password')
-        role = request.POST.get('role') or 'user'
-
-        if password != confirm:
-            messages.error(request, "Passwords do not match")
+        form = RegistrationForm(request.POST)
+        if not form.is_valid():
+            for errors in form.errors.values():
+                for error in errors:
+                    messages.error(request, error)
             return redirect('signup')
 
-        if User.objects.filter(email=email).exists():
-            messages.error(request, "Email already exists")
-            return redirect('signup')
-
-        if User.objects.filter(username=username).exists():
-            messages.error(request, "Username already exists")
-            return redirect('signup')
+        username = form.cleaned_data['username']
+        email = form.cleaned_data['email']
+        password = form.cleaned_data['password']
+        role = form.cleaned_data['role'] or 'user'
 
         user = User.objects.create_user(
             username=username,
             email=email,
             password=password,
-            role=role
+            role=role,
+            is_password_strong=True,
         )
         
         auth_login(request, user)
@@ -534,6 +543,34 @@ def two_factor_login_resend(request):
     except Exception:
         messages.error(request, 'Unable to resend code right now.')
     return redirect('two_factor_login_verify')
+
+
+class StrongPasswordResetConfirmView(PasswordResetConfirmView):
+    form_class = StrongSetPasswordForm
+    template_name = 'registration/password_reset_confirm.html'
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+
+        reset_user = getattr(self, 'user', None)
+        if reset_user:
+            reset_user.is_password_strong = True
+            reset_user.save(update_fields=['is_password_strong'])
+
+            Notification.objects.filter(
+                user=reset_user,
+                title='Security Update Required',
+                is_read=False,
+            ).update(is_read=True)
+
+            _create_notification(
+                reset_user,
+                'Password updated',
+                'Your password has been updated through password reset.',
+                'system',
+            )
+
+        return response
 
 
 @login_required
@@ -739,12 +776,40 @@ def book_appointment(request, slot_id):
             'New appointment request',
             f'{request.user.username} requested an appointment on {slot.date}.',
             'appointment',
+            target_url=reverse('doctor_appointment'),
+            target_section_id='appointments-section',
         )
         _create_notification(
             request.user,
             'Appointment requested',
             'Your appointment request has been submitted.',
             'appointment',
+            target_url=reverse('appointment'),
+            target_section_id='appointments-section',
+        )
+
+        send_appointment_template_email(
+            request.user,
+            'request_confirmation',
+            {
+                'doctor_name': f"Dr. {slot.doctor.doctor_profile.full_name}" if hasattr(slot.doctor, 'doctor_profile') else slot.doctor.username,
+                'appointment_date': slot.date.strftime('%Y-%m-%d'),
+                'appointment_time': f"{slot.start_time.strftime('%H:%M')} - {slot.end_time.strftime('%H:%M')}",
+                'reason': reason,
+                'action_url': reverse('appointment'),
+                'action_label': 'View Appointment',
+            },
+        )
+
+        send_notification_template_email(
+            slot.doctor,
+            f"You have a new appointment request from {request.user.username} for {slot.date:%Y-%m-%d}.",
+            {
+                'notification_title': 'New Appointment Request',
+                'subject': 'New Appointment Request - FemiCare',
+                'action_url': reverse('doctor_appointment'),
+                'action_label': 'Review Requests',
+            },
         )
 
         # Email logic remains same...
@@ -890,7 +955,6 @@ def respond_appointment(request, appointment_id):
 
         if action == 'approve':
             appointment.status = 'approved'
-            msg = f"Your appointment with Dr. {request.user.doctor_profile.full_name} has been approved!"
         
         elif action == 'reject':
             appointment.status = 'rejected'
@@ -904,8 +968,6 @@ def respond_appointment(request, appointment_id):
             # But keeping it as 'rejected' is better for history.
             slot.save()
             
-            msg = f"Your appointment was declined. Reason: {reject_reason}"
-
         appointment.save()
 
         if action == 'approve':
@@ -913,25 +975,44 @@ def respond_appointment(request, appointment_id):
                 appointment.user,
                 'Appointment accepted',
                 f'Your appointment with Dr. {request.user.doctor_profile.full_name} was accepted.',
-                'appointment',
+                'appointment_accepted',
+                target_url=reverse('appointment'),
+                target_section_id='upcoming-appointments-section',
             )
         elif action == 'reject':
             _create_notification(
                 appointment.user,
                 'Appointment rejected',
                 f'Your appointment was rejected. Reason: {reject_reason or "Not provided"}.',
-                'appointment',
+                'appointment_rejected',
+                target_url=reverse('appointment'),
+                target_section_id='appointments-section',
             )
 
-        # Notification Logic...
-        try:
-            send_mail(
-                subject=f"Appointment Update: {appointment.status.upper()}",
-                message=msg,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[appointment.user.email],
+        if action == 'approve':
+            send_appointment_template_email(
+                appointment.user,
+                'accepted',
+                {
+                    'doctor_name': f"Dr. {request.user.doctor_profile.full_name}",
+                    'appointment_date': appointment.availability.date.strftime('%Y-%m-%d'),
+                    'appointment_time': f"{appointment.availability.start_time.strftime('%H:%M')} - {appointment.availability.end_time.strftime('%H:%M')}",
+                    'action_url': reverse('appointment'),
+                    'action_label': 'Open Appointments',
+                },
             )
-        except: pass
+        elif action == 'reject':
+            send_appointment_template_email(
+                appointment.user,
+                'rejected',
+                {
+                    'doctor_name': f"Dr. {request.user.doctor_profile.full_name}",
+                    'appointment_date': appointment.availability.date.strftime('%Y-%m-%d'),
+                    'reject_reason': reject_reason or 'No specific reason was provided.',
+                    'action_url': reverse('explore_doctors'),
+                    'action_label': 'Book Another Doctor',
+                },
+            )
 
         messages.success(request, f"Appointment {appointment.status} successfully.")
     
@@ -1005,7 +1086,14 @@ def _bootstrapize_password_form(form):
         field.widget.attrs['class'] = f"{existing} form-control".strip()
 
 
-def _create_notification(user, title, message, notification_type='system'):
+def _create_notification(
+    user,
+    title,
+    message,
+    notification_type='system',
+    target_url='',
+    target_section_id='',
+):
     if not user:
         return
 
@@ -1014,7 +1102,109 @@ def _create_notification(user, title, message, notification_type='system'):
         title=title,
         message=message,
         type=notification_type,
+        target_url=(target_url or ''),
+        target_section_id=(target_section_id or ''),
     )
+
+
+def _default_navigation_target(user, notification_type, title, message):
+    role = getattr(user, 'role', 'user')
+    haystack = f"{notification_type} {title} {message}".lower()
+
+    if role == 'doctor':
+        if any(token in haystack for token in ['emergency', 'urgent', 'alert']):
+            return reverse('doctor_appointment'), 'emergency-section'
+        if any(token in haystack for token in ['appointment', 'consultation', 'session', 'request']):
+            return reverse('doctor_appointment'), 'appointments-section'
+        if any(token in haystack for token in ['message', 'chat']):
+            return reverse('doctor_appointment'), 'appointments-section'
+        if any(token in haystack for token in ['profile']):
+            return reverse('doctor_profile'), 'profile-section'
+        if any(token in haystack for token in ['settings', 'password', 'email', 'security', 'account']):
+            return reverse('doctor_settings'), 'settings-section'
+        return reverse('doctor_dashboard'), ''
+
+    if any(token in haystack for token in ['appointment', 'doctor']):
+        return reverse('appointment'), 'appointments-section'
+    if any(token in haystack for token in ['symptom', 'pain', 'mood', 'cycle']):
+        return reverse('dashboard_home'), 'symptoms-section'
+    if any(token in haystack for token in ['report', 'analysis', 'trend']):
+        return reverse('dashboard_reports'), 'reports-section'
+    if any(token in haystack for token in ['message', 'chat', 'consultation']):
+        return reverse('dashboard_chat'), 'chat-section'
+    if any(token in haystack for token in ['document', 'file', 'record']):
+        return reverse('dashboard_profile'), 'documents-section'
+    if any(token in haystack for token in ['profile']):
+        return reverse('dashboard_profile'), 'profile-section'
+    if any(token in haystack for token in ['settings', 'password', 'email', 'security', 'account']):
+        return reverse('dashboard_settings'), 'settings-section'
+    if any(token in haystack for token in ['emergency', 'urgent', 'alert']):
+        return reverse('dashboard_home'), 'emergency-section'
+    return reverse('dashboard_home'), ''
+
+
+def _resolve_notification_target(notification):
+    target_url = (notification.target_url or '').strip()
+    target_section_id = (notification.target_section_id or '').strip()
+
+    if target_url or target_section_id:
+        return target_url, target_section_id
+
+    return _default_navigation_target(
+        notification.user,
+        notification.type,
+        notification.title,
+        notification.message,
+    )
+
+
+def _has_recent_notification(user, title, hours=24, notification_type=None):
+    if not user:
+        return False
+
+    safe_hours = max(int(hours or 1), 1)
+    cutoff = timezone.now() - timedelta(hours=safe_hours)
+
+    query = Notification.objects.filter(
+        user=user,
+        title=title,
+        created_at__gte=cutoff,
+    )
+    if notification_type:
+        query = query.filter(type=notification_type)
+    return query.exists()
+
+
+def _ensure_password_security_notice(user):
+    if not user or user.role != 'user' or user.is_password_strong:
+        return
+
+    title = 'Security Update Required'
+    message = (
+        'For improved security, please update your password to a stronger one. '
+        'This helps protect your personal health data.'
+    )
+
+    if not _has_recent_notification(user, title, hours=168, notification_type='system'):
+        _create_notification(user, title, message, 'system')
+
+    if user.email and not _has_recent_notification(user, title, hours=168, notification_type='email'):
+        send_notification_template_email(
+            user,
+            message,
+            {
+                'notification_title': title,
+                'subject': 'Important: Update Your Password',
+                'action_url': reverse('dashboard_settings'),
+                'action_label': 'Update Password',
+            },
+        )
+        _create_notification(
+            user,
+            title,
+            'An email reminder was sent to you about the password security update.',
+            'email',
+        )
 
 
 def check_consecutive_symptoms(user, symptom):
@@ -1034,24 +1224,15 @@ def send_email_alert(user, symptom):
     if not user or not user.email:
         return
 
-    resources_path = reverse('resources')
-    doctor_path = reverse('explore_doctors')
-    site_base_url = getattr(settings, 'SITE_BASE_URL', '').rstrip('/')
-
-    resources_url = f"{site_base_url}{resources_path}" if site_base_url else resources_path
-    doctor_url = f"{site_base_url}{doctor_path}" if site_base_url else doctor_path
-
-    send_mail(
-        subject='Health Alert from FemiCare',
-        message=(
-            f'We noticed that you have logged {symptom} for multiple consecutive days.\n\n'
-            'This may need attention. No need to panic.\n\n'
-            f'Resources: {resources_url}\n'
-            f'Book a doctor consultation: {doctor_url}\n'
-        ),
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[user.email],
-        fail_silently=False,
+    send_emergency_template_email(
+        user,
+        {
+            'type': 'symptom_risk',
+            'subject': 'Symptom Risk Alert - FemiCare',
+            'symptom': symptom,
+            'action_url': reverse('explore_doctors'),
+            'action_label': 'Book Doctor',
+        },
     )
 
 
@@ -1141,35 +1322,22 @@ def calculate_risk_score(user, target_date=None):
 def send_emergency_email(user, score=None, symptoms=None, subject='Health Alert from FemiCare', body_message=None):
     if not user or not user.email:
         return False
+    email_type = 'emergency_alert'
+    if 'Delayed Period' in subject:
+        email_type = 'delayed_period'
 
-    resources_path = reverse('resources')
-    doctor_path = reverse('explore_doctors')
-    site_base_url = getattr(settings, 'SITE_BASE_URL', '').rstrip('/')
-
-    resources_url = f"{site_base_url}{resources_path}" if site_base_url else resources_path
-    doctor_url = f"{site_base_url}{doctor_path}" if site_base_url else doctor_path
-
-    score_line = f'Risk score: {score}\n' if score is not None else ''
-    symptom_line = f"Today's symptoms: {', '.join(symptoms)}\n" if symptoms else ''
-    message = (
-        f"{body_message or EMERGENCY_ALERT_MESSAGE}\n\n"
-        f"{score_line}{symptom_line}\n"
-        f"Resources: {resources_url}\n"
-        f"Book a doctor consultation: {doctor_url}\n"
+    return send_emergency_template_email(
+        user,
+        {
+            'type': email_type,
+            'subject': subject,
+            'risk_score': score,
+            'symptoms': symptoms or [],
+            'alert_message': body_message or EMERGENCY_ALERT_MESSAGE,
+            'action_url': reverse('dashboard_home') if email_type == 'emergency_alert' else reverse('explore_doctors'),
+            'action_label': 'Open Dashboard' if email_type == 'emergency_alert' else 'Book Doctor',
+        },
     )
-
-    try:
-        send_mail(
-            subject=subject,
-            message=message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[user.email],
-            fail_silently=False,
-        )
-        return True
-    except Exception:
-        logger.exception('Failed to send emergency email for user_id=%s', user.id)
-        return False
 
 
 def trigger_emergency_alert(user):
@@ -1180,7 +1348,7 @@ def trigger_emergency_alert(user):
         assessment['triggered'] = False
         return assessment
 
-    today = timezone.localdate()
+    alert_cooldown_hours = getattr(settings, 'ALERT_NOTIFICATION_COOLDOWN_HOURS', 24)
 
     if level == 'medium':
         title = 'Health Warning'
@@ -1188,25 +1356,27 @@ def trigger_emergency_alert(user):
             'Your recent symptom pattern suggests moderate risk. '
             'Please continue monitoring and consult a doctor if symptoms persist.'
         )
-        exists_today = Notification.objects.filter(
-            user=user,
-            title=title,
-            created_at__date=today,
-        ).exists()
-        if not exists_today:
+        exists_recently = _has_recent_notification(
+            user,
+            title,
+            hours=alert_cooldown_hours,
+            notification_type='cycle',
+        )
+        if not exists_recently:
             _create_notification(user, title, message, 'cycle')
 
-        assessment['triggered'] = not exists_today
+        assessment['triggered'] = not exists_recently
         assessment['notification_title'] = title
         return assessment
 
-    exists_today = Notification.objects.filter(
-        user=user,
-        title=EMERGENCY_ALERT_TITLE,
-        created_at__date=today,
-    ).exists()
+    exists_recently = _has_recent_notification(
+        user,
+        EMERGENCY_ALERT_TITLE,
+        hours=alert_cooldown_hours,
+        notification_type='cycle',
+    )
 
-    if not exists_today:
+    if not exists_recently:
         _create_notification(user, EMERGENCY_ALERT_TITLE, EMERGENCY_ALERT_MESSAGE, 'cycle')
         send_emergency_email(
             user,
@@ -1216,7 +1386,7 @@ def trigger_emergency_alert(user):
             body_message=EMERGENCY_ALERT_MESSAGE,
         )
 
-    assessment['triggered'] = not exists_today
+    assessment['triggered'] = not exists_recently
     assessment['notification_title'] = EMERGENCY_ALERT_TITLE
     return assessment
 
@@ -1303,7 +1473,9 @@ def create_emergency_request(user, reason=''):
         user,
         'Emergency request submitted',
         'Your emergency consultation request has been submitted. We are finding the earliest available doctor.',
-        'appointment',
+        'emergency_alert',
+        target_url=reverse('dashboard_home'),
+        target_section_id='emergency-section',
     )
     return request_obj
 
@@ -1329,24 +1501,25 @@ def notify_available_doctors(request_obj):
             doctor,
             'Emergency consultation request',
             f'A patient requires urgent consultation. Request #{request_obj.id}.',
-            'appointment',
+            'emergency_alert',
+            target_url=reverse('doctor_appointment'),
+            target_section_id='emergency-section',
         )
 
         if doctor.email:
-            try:
-                send_mail(
-                    subject='Urgent Consultation Request - FemiCare',
-                    message=(
-                        'A patient requires urgent consultation.\n'
-                        f'Request ID: #{request_obj.id}\n\n'
-                        'Please review your dashboard and accept if available.'
-                    ),
-                    from_email=settings.DEFAULT_FROM_EMAIL,
-                    recipient_list=[doctor.email],
-                    fail_silently=True,
-                )
-            except Exception:
-                logger.exception('Failed to send emergency email to doctor_id=%s', doctor.id)
+            send_notification_template_email(
+                doctor,
+                (
+                    'A patient requires urgent consultation. '
+                    f'Request ID: #{request_obj.id}. Please review your dashboard and accept if available.'
+                ),
+                {
+                    'notification_title': 'Emergency Consultation Request',
+                    'subject': 'Urgent Consultation Request - FemiCare',
+                    'action_url': reverse('doctor_appointment'),
+                    'action_label': 'Review Emergency Requests',
+                },
+            )
 
         notified += 1
 
@@ -1356,24 +1529,17 @@ def notify_available_doctors(request_obj):
 def send_patient_email(user, slot):
     if not user or not user.email or not slot:
         return False
-
-    try:
-        send_mail(
-            subject='Emergency Consultation Assigned - FemiCare',
-            message=(
-                'Your emergency consultation request has been assigned.\n\n'
-                f'Date: {slot.date:%Y-%m-%d}\n'
-                f'Time: {slot.start_time.strftime("%H:%M")} - {slot.end_time.strftime("%H:%M")}\n\n'
-                'Please join your dashboard at the scheduled time.'
-            ),
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[user.email],
-            fail_silently=False,
-        )
-        return True
-    except Exception:
-        logger.exception('Failed to send emergency assignment email to user_id=%s', user.id)
-        return False
+    return send_emergency_template_email(
+        user,
+        {
+            'type': 'doctor_assigned',
+            'subject': 'Emergency Consultation Assigned - FemiCare',
+            'appointment_date': slot.date.strftime('%Y-%m-%d'),
+            'appointment_time': f"{slot.start_time.strftime('%H:%M')} - {slot.end_time.strftime('%H:%M')}",
+            'action_url': reverse('appointment'),
+            'action_label': 'Open Dashboard',
+        },
+    )
 
 
 def schedule_emergency_appointment(request_obj, doctor):
@@ -1874,29 +2040,82 @@ def export_reports_pdf(request):
     return response
 
 
-def _clear_email_verification_session(request):
-    request.session.pop('pending_email', None)
-    request.session.pop('email_otp_code', None)
-    request.session.pop('email_otp_created_at', None)
+def _clear_email_verification_session(
+    request,
+    pending_key='pending_email',
+    code_key='email_otp_code',
+    created_key='email_otp_created_at',
+):
+    request.session.pop(pending_key, None)
+    request.session.pop(code_key, None)
+    request.session.pop(created_key, None)
 
 
-def _send_email_verification_code(request, new_email):
+def _send_email_verification_code(
+    request,
+    new_email,
+    pending_key='pending_email',
+    code_key='email_otp_code',
+    created_key='email_otp_created_at',
+    action_url_name='dashboard_settings',
+):
     otp = str(random.SystemRandom().randint(100000, 999999))
 
-    request.session['pending_email'] = new_email
-    request.session['email_otp_code'] = otp
-    request.session['email_otp_created_at'] = int(time.time())
+    request.session[pending_key] = new_email
+    request.session[code_key] = otp
+    request.session[created_key] = int(time.time())
 
-    send_mail(
-        subject='FemiCare Email Verification Code',
-        message=(
-            f'Use this verification code to confirm your new email address: {otp}\n\n'
-            'This code expires in 10 minutes.'
-        ),
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[new_email],
-        fail_silently=False,
+    send_verification_email(
+        request.user,
+        'email_verification',
+        {
+            'recipient_email': new_email,
+            'code': otp,
+            'expires_minutes': 10,
+            'subject': 'FemiCare Email Verification Code',
+            'action_url': reverse(action_url_name),
+            'action_label': 'Review Settings',
+        },
     )
+
+
+def _delete_user_account_data(user):
+    from .models import Conversation, ChatMessage
+
+    doctor_rooms = list(Conversation.objects.filter(doctor=user).values_list('room_name', flat=True))
+    patient_rooms = list(Conversation.objects.filter(patient=user).values_list('room_name', flat=True))
+    room_names = list(set(doctor_rooms + patient_rooms))
+
+    for message in ChatMessage.objects.filter(room_name__in=room_names).exclude(file=''):
+        if message.file:
+            message.file.delete(save=False)
+
+    for document in UserDocument.objects.filter(user=user):
+        if document.file:
+            document.file.delete(save=False)
+
+    try:
+        profile = user.user_profile
+        if profile.profile_picture:
+            profile.profile_picture.delete(save=False)
+    except UserProfile.DoesNotExist:
+        pass
+
+    try:
+        doctor_profile = user.doctor_profile
+        if doctor_profile.photo:
+            doctor_profile.photo.delete(save=False)
+        if doctor_profile.certificate:
+            doctor_profile.certificate.delete(save=False)
+    except DoctorProfile.DoesNotExist:
+        pass
+
+
+def _ensure_doctor_access(request):
+    if request.user.role != 'doctor':
+        messages.error(request, 'Only doctor accounts can access this page.')
+        return False
+    return True
 
 
 @login_required
@@ -1933,6 +2152,10 @@ def profile_view(request):
                 'Profile updated',
                 'Your profile information has been updated.',
                 'profile',
+            )
+            send_profile_settings_change_email(
+                request.user,
+                {'change_summary': 'Your profile information was updated successfully.'},
             )
             messages.success(request, 'Profile updated successfully.')
             return redirect('dashboard_profile')
@@ -1997,7 +2220,7 @@ def settings_view(request):
 
     if request.method == 'POST':
         account_form = AccountSettingsForm(request.POST, instance=profile, user=request.user)
-        password_form = PasswordChangeForm(request.user)
+        password_form = StrongPasswordChangeForm(request.user)
         verification_form = EmailVerificationForm()
         _bootstrapize_password_form(password_form)
 
@@ -2028,12 +2251,16 @@ def settings_view(request):
                     'Your account settings were updated.',
                     'system',
                 )
+                send_profile_settings_change_email(
+                    request.user,
+                    {'change_summary': 'Your account settings were updated successfully.'},
+                )
                 messages.success(request, 'Account settings updated successfully.')
 
             return redirect('dashboard_settings')
     else:
         account_form = AccountSettingsForm(instance=profile, user=request.user)
-        password_form = PasswordChangeForm(request.user)
+        password_form = StrongPasswordChangeForm(request.user)
         verification_form = EmailVerificationForm()
         _bootstrapize_password_form(password_form)
 
@@ -2046,6 +2273,7 @@ def settings_view(request):
             'verification_form': verification_form,
             'pending_email': request.session.get('pending_email'),
             'two_factor_enabled': two_factor_enabled,
+            'requires_password_update': not request.user.is_password_strong,
         },
     )
 
@@ -2057,7 +2285,7 @@ def verify_email_code(request):
 
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
     account_form = AccountSettingsForm(instance=profile, user=request.user)
-    password_form = PasswordChangeForm(request.user)
+    password_form = StrongPasswordChangeForm(request.user)
     _bootstrapize_password_form(password_form)
 
     verification_form = EmailVerificationForm(request.POST)
@@ -2086,6 +2314,13 @@ def verify_email_code(request):
                 'Your email address has been verified and updated.',
                 'email',
             )
+            send_profile_settings_change_email(
+                request.user,
+                {
+                    'change_summary': 'Your email address was verified and updated.',
+                    'changed_email': pending_email,
+                },
+            )
             messages.success(request, 'Email verified and updated successfully.')
             return redirect('dashboard_settings')
 
@@ -2100,6 +2335,7 @@ def verify_email_code(request):
             'verification_form': verification_form,
             'pending_email': pending_email,
             'two_factor_enabled': request.user.is_two_factor_enabled,
+            'requires_password_update': not request.user.is_password_strong,
         },
     )
 
@@ -2109,18 +2345,22 @@ def get_notifications(request):
     notifications = Notification.objects.filter(user=request.user).order_by('-created_at')[:20]
     unread_count = Notification.objects.filter(user=request.user, is_read=False).count()
 
-    payload = [
-        {
-            'id': item.id,
-            'title': item.title,
-            'message': item.message,
-            'type': item.type,
-            'is_read': item.is_read,
-            'created_at': item.created_at.isoformat(),
-            'relative_time': _relative_time(item.created_at),
-        }
-        for item in notifications
-    ]
+    payload = []
+    for item in notifications:
+        resolved_url, resolved_section = _resolve_notification_target(item)
+        payload.append(
+            {
+                'id': item.id,
+                'title': item.title,
+                'message': item.message,
+                'type': item.type,
+                'is_read': item.is_read,
+                'target_url': resolved_url,
+                'target_section_id': resolved_section,
+                'created_at': item.created_at.isoformat(),
+                'relative_time': _relative_time(item.created_at),
+            }
+        )
 
     return JsonResponse({'notifications': payload, 'unread_count': unread_count})
 
@@ -2155,35 +2395,7 @@ def delete_account(request):
 
     user = request.user
 
-    from .models import Conversation, ChatMessage
-
-    doctor_rooms = list(Conversation.objects.filter(doctor=user).values_list('room_name', flat=True))
-    patient_rooms = list(Conversation.objects.filter(patient=user).values_list('room_name', flat=True))
-    room_names = list(set(doctor_rooms + patient_rooms))
-
-    for message in ChatMessage.objects.filter(room_name__in=room_names).exclude(file=''):
-        if message.file:
-            message.file.delete(save=False)
-
-    for document in UserDocument.objects.filter(user=user):
-        if document.file:
-            document.file.delete(save=False)
-
-    try:
-        profile = user.user_profile
-        if profile.profile_picture:
-            profile.profile_picture.delete(save=False)
-    except UserProfile.DoesNotExist:
-        pass
-
-    try:
-        doctor_profile = user.doctor_profile
-        if doctor_profile.photo:
-            doctor_profile.photo.delete(save=False)
-        if doctor_profile.certificate:
-            doctor_profile.certificate.delete(save=False)
-    except DoctorProfile.DoesNotExist:
-        pass
+    _delete_user_account_data(user)
 
     user.delete()
     auth_logout(request)
@@ -2192,17 +2404,282 @@ def delete_account(request):
 
 
 @login_required
+def doctor_settings_view(request):
+    if not _ensure_doctor_access(request):
+        return redirect('home')
+
+    password_form = StrongPasswordChangeForm(request.user)
+    email_form = DoctorEmailChangeRequestForm(user=request.user)
+    verification_form = EmailVerificationForm()
+    delete_form = DeleteAccountForm(user=request.user)
+    _bootstrapize_password_form(password_form)
+
+    return render(
+        request,
+        'doctor/settings.html',
+        {
+            'password_form': password_form,
+            'email_form': email_form,
+            'verification_form': verification_form,
+            'delete_form': delete_form,
+            'pending_email': request.session.get('doctor_pending_email'),
+            'requires_password_update': not request.user.is_password_strong,
+        },
+    )
+
+
+@login_required
+def doctor_change_password(request):
+    if not _ensure_doctor_access(request):
+        return redirect('home')
+
+    if request.method != 'POST':
+        return redirect('doctor_settings')
+
+    form = StrongPasswordChangeForm(request.user, request.POST)
+    _bootstrapize_password_form(form)
+
+    if form.is_valid():
+        user = form.save()
+        user.is_password_strong = True
+        user.save(update_fields=['is_password_strong'])
+        update_session_auth_hash(request, user)
+
+        _create_notification(
+            request.user,
+            'Password changed',
+            'Your doctor account password has been changed successfully.',
+            'system',
+        )
+        send_profile_settings_change_email(
+            request.user,
+            {
+                'subject': 'Doctor Account Password Changed - FemiCare',
+                'change_summary': 'Your doctor account password was changed successfully.',
+            },
+        )
+        messages.success(request, 'Password changed successfully.')
+        return redirect('doctor_settings')
+
+    messages.error(request, 'Please fix the password form errors and try again.')
+    return render(
+        request,
+        'doctor/settings.html',
+        {
+            'password_form': form,
+            'email_form': DoctorEmailChangeRequestForm(user=request.user),
+            'verification_form': EmailVerificationForm(),
+            'delete_form': DeleteAccountForm(user=request.user),
+            'pending_email': request.session.get('doctor_pending_email'),
+            'requires_password_update': not request.user.is_password_strong,
+        },
+    )
+
+
+@login_required
+def doctor_change_email(request):
+    if not _ensure_doctor_access(request):
+        return redirect('home')
+
+    if request.method != 'POST':
+        return redirect('doctor_settings')
+
+    form = DoctorEmailChangeRequestForm(request.POST, user=request.user)
+    _bootstrapize_password_form(StrongPasswordChangeForm(request.user))
+
+    if form.is_valid():
+        new_email = form.cleaned_data['email']
+        try:
+            _send_email_verification_code(
+                request,
+                new_email,
+                pending_key='doctor_pending_email',
+                code_key='doctor_email_otp_code',
+                created_key='doctor_email_otp_created_at',
+                action_url_name='doctor_settings',
+            )
+            _create_notification(
+                request.user,
+                'Email verification required',
+                f'A verification code was sent to {new_email}.',
+                'email',
+            )
+            messages.info(request, 'Verification code sent to your new email. Enter the code to confirm change.')
+            return redirect('doctor_settings')
+        except Exception:
+            _clear_email_verification_session(
+                request,
+                pending_key='doctor_pending_email',
+                code_key='doctor_email_otp_code',
+                created_key='doctor_email_otp_created_at',
+            )
+            messages.error(request, 'Unable to send verification code. Please try again.')
+            return redirect('doctor_settings')
+
+    messages.error(request, 'Please fix the email form errors and try again.')
+    password_form = StrongPasswordChangeForm(request.user)
+    _bootstrapize_password_form(password_form)
+    return render(
+        request,
+        'doctor/settings.html',
+        {
+            'password_form': password_form,
+            'email_form': form,
+            'verification_form': EmailVerificationForm(),
+            'delete_form': DeleteAccountForm(user=request.user),
+            'pending_email': request.session.get('doctor_pending_email'),
+            'requires_password_update': not request.user.is_password_strong,
+        },
+    )
+
+
+@login_required
+def doctor_verify_email_code(request):
+    if not _ensure_doctor_access(request):
+        return redirect('home')
+
+    if request.method != 'POST':
+        return redirect('doctor_settings')
+
+    verification_form = EmailVerificationForm(request.POST)
+    pending_email = request.session.get('doctor_pending_email')
+    session_code = request.session.get('doctor_email_otp_code')
+    created_at = request.session.get('doctor_email_otp_created_at')
+
+    if not pending_email or not session_code or not created_at:
+        messages.error(request, 'No pending email verification found. Please try updating email again.')
+        return redirect('doctor_settings')
+
+    if verification_form.is_valid():
+        if (int(time.time()) - int(created_at)) > 600:
+            _clear_email_verification_session(
+                request,
+                pending_key='doctor_pending_email',
+                code_key='doctor_email_otp_code',
+                created_key='doctor_email_otp_created_at',
+            )
+            messages.error(request, 'Verification code expired. Please request a new one.')
+            return redirect('doctor_settings')
+
+        input_code = verification_form.cleaned_data['code']
+        if input_code == session_code:
+            request.user.email = pending_email
+            request.user.save(update_fields=['email'])
+            _clear_email_verification_session(
+                request,
+                pending_key='doctor_pending_email',
+                code_key='doctor_email_otp_code',
+                created_key='doctor_email_otp_created_at',
+            )
+            _create_notification(
+                request.user,
+                'Email updated',
+                'Your doctor account email address has been verified and updated.',
+                'email',
+            )
+            send_profile_settings_change_email(
+                request.user,
+                {
+                    'subject': 'Doctor Account Email Updated - FemiCare',
+                    'change_summary': 'Your doctor account email was verified and updated.',
+                    'changed_email': pending_email,
+                },
+            )
+            messages.success(request, 'Email verified and updated successfully.')
+            return redirect('doctor_settings')
+
+        messages.error(request, 'Invalid verification code. Please try again.')
+
+    password_form = StrongPasswordChangeForm(request.user)
+    _bootstrapize_password_form(password_form)
+
+    return render(
+        request,
+        'doctor/settings.html',
+        {
+            'password_form': password_form,
+            'email_form': DoctorEmailChangeRequestForm(user=request.user),
+            'verification_form': verification_form,
+            'delete_form': DeleteAccountForm(user=request.user),
+            'pending_email': pending_email,
+            'requires_password_update': not request.user.is_password_strong,
+        },
+    )
+
+
+@login_required
+def doctor_delete_account(request):
+    if not _ensure_doctor_access(request):
+        return redirect('home')
+
+    if request.method != 'POST':
+        return redirect('doctor_settings')
+
+    form = DeleteAccountForm(request.POST, user=request.user)
+    if not form.is_valid():
+        messages.error(request, 'Please complete deletion confirmation correctly.')
+        password_form = StrongPasswordChangeForm(request.user)
+        _bootstrapize_password_form(password_form)
+        return render(
+            request,
+            'doctor/settings.html',
+            {
+                'password_form': password_form,
+                'email_form': DoctorEmailChangeRequestForm(user=request.user),
+                'verification_form': EmailVerificationForm(),
+                'delete_form': form,
+                'pending_email': request.session.get('doctor_pending_email'),
+                'requires_password_update': not request.user.is_password_strong,
+            },
+        )
+
+    account_email = request.user.email
+    _create_notification(
+        request.user,
+        'Account deletion requested',
+        'Your doctor account is being deleted as requested.',
+        'system',
+    )
+
+    if account_email:
+        send_notification_template_email(
+            request.user,
+            'Your doctor account deletion request has been processed. This action cannot be undone.',
+            {
+                'notification_title': 'Doctor Account Deleted',
+                'subject': 'Doctor Account Deletion Confirmation - FemiCare',
+            },
+        )
+
+    user = request.user
+    _delete_user_account_data(user)
+    user.delete()
+    auth_logout(request)
+    messages.success(request, 'Your doctor account has been deleted permanently.')
+    return redirect('login')
+
+
+@login_required
 def change_password(request):
     if request.method != 'POST':
         return redirect('dashboard_settings')
 
-    form = PasswordChangeForm(request.user, request.POST)
+    form = StrongPasswordChangeForm(request.user, request.POST)
     _bootstrapize_password_form(form)
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
     account_form = AccountSettingsForm(instance=profile, user=request.user)
 
     if form.is_valid():
         user = form.save()
+        user.is_password_strong = True
+        user.save(update_fields=['is_password_strong'])
+
+        Notification.objects.filter(
+            user=request.user,
+            title='Security Update Required',
+            is_read=False,
+        ).update(is_read=True)
+
         update_session_auth_hash(request, user)
         _create_notification(
             request.user,
@@ -2223,11 +2700,14 @@ def change_password(request):
             'verification_form': EmailVerificationForm(),
             'pending_email': request.session.get('pending_email'),
             'two_factor_enabled': request.user.is_two_factor_enabled,
+            'requires_password_update': not request.user.is_password_strong,
         },
     )
 
 @login_required
 def dashboard_home(request):
+    _ensure_password_security_notice(request.user)
+
     logs = CycleLog.objects.filter(user=request.user)
     latest_cycle = logs.first()
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
@@ -2281,12 +2761,11 @@ def dashboard_home(request):
     today_symptoms_qs = SymptomLog.objects.filter(user=request.user, date=today).order_by('created_at')
     selected_today_symptoms = list(today_symptoms_qs.values_list('symptom', flat=True))
 
-    recent_symptoms = []
-    for symptom in SymptomLog.objects.filter(user=request.user, source__in=['manual', 'first_login']).order_by('-date', '-created_at').values_list('symptom', flat=True):
-        if symptom not in recent_symptoms:
-            recent_symptoms.append(symptom)
-        if len(recent_symptoms) >= 8:
-            break
+    recent_symptoms = list(
+        SymptomLog.objects.filter(user=request.user, source__in=['manual', 'first_login'])
+        .order_by('-created_at')
+        .values_list('symptom', flat=True)[:5]
+    )
 
     appointments_count = Appointment.objects.filter(user=request.user).count()
 
@@ -2976,20 +3455,21 @@ def save_symptoms(request):
     today = timezone.localdate()
     active_cycle = _get_active_cycle_for_symptoms(request.user, today)
 
-    SymptomLog.objects.filter(user=request.user, date=today, source='manual').delete()
+    # Add-only behavior keeps historical frequency stable even if UI selections are toggled off later.
+    for symptom in dict.fromkeys(selected_symptoms):
+        symptom_log, created = SymptomLog.objects.get_or_create(
+            user=request.user,
+            symptom=symptom,
+            date=today,
+            defaults={
+                'cycle_log': active_cycle,
+                'source': 'manual',
+            },
+        )
 
-    SymptomLog.objects.bulk_create(
-        [
-            SymptomLog(
-                user=request.user,
-                cycle_log=active_cycle,
-                symptom=symptom,
-                source='manual',
-                date=today,
-            )
-            for symptom in selected_symptoms
-        ]
-    )
+        if not created and symptom_log.cycle_log_id is None and active_cycle:
+            symptom_log.cycle_log = active_cycle
+            symptom_log.save(update_fields=['cycle_log'])
 
     emergency_assessment = trigger_emergency_alert(request.user)
     check_period_delay(request.user)
@@ -2999,7 +3479,7 @@ def save_symptoms(request):
     elif emergency_assessment.get('level') == 'medium' and emergency_assessment.get('triggered'):
         messages.info(request, 'A health warning was added based on your latest symptom pattern.')
 
-    messages.success(request, 'Symptoms updated successfully.')
+    messages.success(request, 'Symptoms saved successfully.')
     return redirect('dashboard_home')
 
 @login_required
@@ -3673,6 +4153,16 @@ def send_message(request):
     conversation.last_message = content
     conversation.last_message_time = msg.timestamp
     conversation.save()
+
+    recipient = appointment.user if user.role == 'doctor' else appointment.doctor
+    _create_notification(
+        recipient,
+        'New message received',
+        f"{user.username} sent you a new message.",
+        'message_received',
+        target_url=reverse('dashboard_chat') if recipient.role == 'user' else reverse('doctor_appointment'),
+        target_section_id='chat-section' if recipient.role == 'user' else 'appointments-section',
+    )
     
     # Broadcast message via WebSocket
     from asgiref.sync import async_to_sync

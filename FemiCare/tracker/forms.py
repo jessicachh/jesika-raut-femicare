@@ -1,7 +1,10 @@
 from django import forms
 from django.utils import timezone
+from django.contrib.auth.forms import PasswordChangeForm, SetPasswordForm
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 
-from .models import CycleLog, DoctorProfile, UserProfile
+from .models import CycleLog, DoctorProfile, UserProfile, User
 
 
 class MultipleFileInput(forms.ClearableFileInput):
@@ -267,6 +270,125 @@ class AccountSettingsForm(forms.ModelForm):
             profile.save()
 
         return profile
+
+
+class DoctorEmailChangeRequestForm(forms.Form):
+    email = forms.EmailField(required=True)
+    current_password = forms.CharField(
+        required=True,
+        widget=forms.PasswordInput,
+        label='Current Password',
+    )
+
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop('user')
+        super().__init__(*args, **kwargs)
+
+        self.fields['email'].initial = self.user.email
+        for field in self.fields.values():
+            field.widget.attrs['class'] = 'form-control'
+
+    def clean_email(self):
+        email = (self.cleaned_data.get('email') or '').strip().lower()
+        if email == (self.user.email or '').strip().lower():
+            raise forms.ValidationError('Please enter a different email address.')
+
+        if User.objects.filter(email=email).exclude(pk=self.user.pk).exists():
+            raise forms.ValidationError('This email is already in use by another account.')
+        return email
+
+    def clean_current_password(self):
+        current_password = self.cleaned_data.get('current_password')
+        if not self.user.check_password(current_password):
+            raise forms.ValidationError('Current password is incorrect.')
+        return current_password
+
+
+class DeleteAccountForm(forms.Form):
+    confirm_text = forms.CharField(
+        required=True,
+        label='Type DELETE to confirm',
+    )
+    current_password = forms.CharField(
+        required=True,
+        widget=forms.PasswordInput,
+        label='Current Password',
+    )
+
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop('user')
+        super().__init__(*args, **kwargs)
+
+        self.fields['confirm_text'].widget.attrs['class'] = 'form-control'
+        self.fields['current_password'].widget.attrs['class'] = 'form-control'
+
+    def clean_confirm_text(self):
+        value = (self.cleaned_data.get('confirm_text') or '').strip()
+        if value != 'DELETE':
+            raise forms.ValidationError('Please type DELETE exactly to confirm account deletion.')
+        return value
+
+    def clean_current_password(self):
+        current_password = self.cleaned_data.get('current_password')
+        if not self.user.check_password(current_password):
+            raise forms.ValidationError('Current password is incorrect.')
+        return current_password
+
+
+class RegistrationForm(forms.Form):
+    username = forms.CharField(max_length=150)
+    email = forms.EmailField()
+    password = forms.CharField(widget=forms.PasswordInput)
+    confirm_password = forms.CharField(widget=forms.PasswordInput)
+    role = forms.ChoiceField(choices=User.ROLE_CHOICES, initial='user')
+
+    def clean_email(self):
+        email = (self.cleaned_data.get('email') or '').strip().lower()
+        if User.objects.filter(email=email).exists():
+            raise forms.ValidationError('Email already exists.')
+        return email
+
+    def clean_username(self):
+        username = (self.cleaned_data.get('username') or '').strip()
+        if User.objects.filter(username=username).exists():
+            raise forms.ValidationError('Username already exists.')
+        return username
+
+    def clean_password(self):
+        password = self.cleaned_data.get('password')
+        try:
+            validate_password(password)
+        except ValidationError as exc:
+            raise forms.ValidationError(list(exc.messages))
+        return password
+
+    def clean(self):
+        cleaned = super().clean()
+        password = cleaned.get('password')
+        confirm_password = cleaned.get('confirm_password')
+        if password and confirm_password and password != confirm_password:
+            self.add_error('confirm_password', 'Passwords do not match.')
+        return cleaned
+
+
+class StrongPasswordChangeForm(PasswordChangeForm):
+    def clean_new_password2(self):
+        new_password2 = super().clean_new_password2()
+        try:
+            validate_password(new_password2, self.user)
+        except ValidationError as exc:
+            raise forms.ValidationError(list(exc.messages))
+        return new_password2
+
+
+class StrongSetPasswordForm(SetPasswordForm):
+    def clean_new_password2(self):
+        new_password2 = super().clean_new_password2()
+        try:
+            validate_password(new_password2, self.user)
+        except ValidationError as exc:
+            raise forms.ValidationError(list(exc.messages))
+        return new_password2
 
 
 class EmailVerificationForm(forms.Form):

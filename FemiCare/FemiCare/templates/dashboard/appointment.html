@@ -1,9 +1,9 @@
 {% extends 'dashboard/main.html' %}
 {% block dashboard_content %}
-<div class="container py-4">
+<div class="container py-4" id="appointments-section">
     
     {% if next_session %}
-    <div class="mb-5">
+    <div class="mb-5" id="upcoming-appointments-section">
         <h4 class="mb-3 text-muted small fw-bold text-uppercase">Up Next</h4>
         <div class="card border-0 shadow-sm text-white" style="background-color: #b32525;">
             <div class="card-body p-4">

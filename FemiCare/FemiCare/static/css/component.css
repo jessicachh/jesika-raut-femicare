@@ -472,6 +472,88 @@ a.google-login-btn {
   color: #b92222;
 }
 
+.auth-toast-container {
+  position: fixed;
+  top: 22px;
+  right: 22px;
+  width: min(92vw, 420px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 11000;
+}
+
+.auth-toast {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #1f2937;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.15);
+  animation: authToastIn 0.25s ease;
+}
+
+.auth-toast.hide {
+  opacity: 0;
+  transform: translateX(8px);
+  transition: all 0.25s ease;
+}
+
+.auth-toast.error {
+  border-color: #f5c2c7;
+  background: #fff5f5;
+  color: #7f1d1d;
+}
+
+.auth-toast.success {
+  border-color: #badbcc;
+  background: #f0fff4;
+  color: #14532d;
+}
+
+.auth-toast.warning {
+  border-color: #ffecb5;
+  background: #fffdf2;
+  color: #854d0e;
+}
+
+.auth-toast.info {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1e3a8a;
+}
+
+.auth-toast-content {
+  font-size: 0.94rem;
+  line-height: 1.4;
+}
+
+.auth-toast-close {
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0;
+  margin-top: -1px;
+}
+
+@keyframes authToastIn {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 /* RIGHT IMAGE SECTION */
 .login-right {
   flex: 1;
@@ -555,6 +637,12 @@ a.google-login-btn {
 
 /* Responsive */
 @media (max-width: 768px) {
+  .auth-toast-container {
+    top: 12px;
+    right: 12px;
+    width: calc(100vw - 24px);
+  }
+
   .remember-me-row {
     font-size: 0.85rem;
   }

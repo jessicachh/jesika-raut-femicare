@@ -1,0 +1,17 @@
+FemiCare - Emergency Health Alert
+
+Hello {{ greeting_name|default:"there" }},
+
+We detected symptom patterns that may require immediate attention.
+
+{% if risk_score %}Risk Score: {{ risk_score }}
+{% endif %}{% if symptoms %}Reported Symptoms: {{ symptoms|join:", " }}
+{% endif %}
+Please monitor your health, seek care if symptoms worsen, and do not panic.
+
+{% if resources_url %}Resources: {{ resources_url }}
+{% endif %}{% if action_url %}Action: {{ action_url }}
+{% endif %}
+
+Disclaimer: This message is not a replacement for professional medical advice.
+Support: {{ support_email|default:"support@femicare.local" }}

@@ -60,6 +60,11 @@ urlpatterns = [
     path('doctor/appointment/', views.doctor_appointment, name='doctor_appointment'),
     path('doctor/details/', views.doctor_details, name='doctor_details'),
     path('doctor/profile/', views.doctor_profile, name='doctor_profile'),
+    path('doctor/settings/', views.doctor_settings_view, name='doctor_settings'),
+    path('doctor/settings/change-password/', views.doctor_change_password, name='doctor_change_password'),
+    path('doctor/settings/change-email/', views.doctor_change_email, name='doctor_change_email'),
+    path('doctor/settings/verify-email-code/', views.doctor_verify_email_code, name='doctor_verify_email_code'),
+    path('doctor/settings/delete-account/', views.doctor_delete_account, name='doctor_delete_account'),
     path("doctor/availability/add/", add_availability, name="add_availability"),
     path("doctor/availability/toggle/<int:pk>/", toggle_availability, name="toggle_availability"),
     path("doctor/availability/delete/<int:pk>/", delete_availability, name="delete_availability"),
@@ -113,9 +118,7 @@ urlpatterns = [
     ),
     path(
         'reset/<uidb64>/<token>/',
-        auth_views.PasswordResetConfirmView.as_view(
-            template_name='registration/password_reset_confirm.html'
-        ),
+        views.StrongPasswordResetConfirmView.as_view(),
         name='password_reset_confirm'
     ),
     path(

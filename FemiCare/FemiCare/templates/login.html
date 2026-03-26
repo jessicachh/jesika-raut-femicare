@@ -50,15 +50,6 @@
           <button class="login-btn" type="submit">Log In</button>
         </form>
 
-        <!-- Messages -->
-        {% if messages %}
-          <div class="messages">
-            {% for message in messages %}
-              <p class="message" style="color: red;">{{ message }}</p>
-            {% endfor %}
-          </div>
-        {% endif %}
-
         <p class="signup-redirect">
           Don't have an account? <a href="{% url 'signup' %}">Sign Up</a>
         </p>
@@ -87,3 +78,40 @@
 
   </div>
 </section>
+
+{% if messages %}
+  <div class="auth-toast-container" aria-live="polite" aria-atomic="true">
+    {% for message in messages %}
+      <div class="auth-toast {{ message.tags|default:'info' }}" data-auth-toast>
+        <div class="auth-toast-content">{{ message }}</div>
+        <button type="button" class="auth-toast-close" aria-label="Close notification" data-auth-toast-close>&times;</button>
+      </div>
+    {% endfor %}
+  </div>
+
+  <script>
+    (function () {
+      var toasts = document.querySelectorAll('[data-auth-toast]');
+      toasts.forEach(function (toast) {
+        setTimeout(function () {
+          toast.classList.add('hide');
+          setTimeout(function () {
+            toast.remove();
+          }, 250);
+        }, 4200);
+      });
+
+      var closeButtons = document.querySelectorAll('[data-auth-toast-close]');
+      closeButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var toast = btn.closest('[data-auth-toast]');
+          if (!toast) return;
+          toast.classList.add('hide');
+          setTimeout(function () {
+            toast.remove();
+          }, 250);
+        });
+      });
+    })();
+  </script>
+{% endif %}

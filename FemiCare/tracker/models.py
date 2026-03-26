@@ -4,6 +4,8 @@ from django.utils import timezone
 from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db.models import Avg
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 
 class User(AbstractUser):
     ROLE_CHOICES = (
@@ -17,9 +19,23 @@ class User(AbstractUser):
     has_accepted_terms = models.BooleanField(default=False)
     is_two_factor_enabled = models.BooleanField(default=False)
     two_factor_enabled_at = models.DateTimeField(null=True, blank=True)
+    is_password_strong = models.BooleanField(default=False)
     
     def __str__(self):
         return self.username
+
+    def set_password(self, raw_password):
+        super().set_password(raw_password)
+
+        if not raw_password:
+            self.is_password_strong = False
+            return
+
+        try:
+            validate_password(raw_password, self)
+            self.is_password_strong = True
+        except ValidationError:
+            self.is_password_strong = False
 
 class UserProfile(models.Model):
     user = models.OneToOneField(
@@ -496,7 +512,12 @@ class PeriodCheckIn(models.Model):
 class Notification(models.Model):
     TYPE_CHOICES = (
         ('appointment', 'Appointment'),
+        ('appointment_accepted', 'Appointment Accepted'),
+        ('appointment_rejected', 'Appointment Rejected'),
+        ('message_received', 'Message Received'),
+        ('emergency_alert', 'Emergency Alert'),
         ('profile', 'Profile'),
+        ('settings_update', 'Settings Update'),
         ('system', 'System'),
         ('cycle', 'Cycle'),
         ('email', 'Email'),
@@ -510,6 +531,8 @@ class Notification(models.Model):
     title = models.CharField(max_length=150)
     message = models.TextField()
     type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='system')
+    target_url = models.CharField(max_length=255, blank=True, default='')
+    target_section_id = models.CharField(max_length=100, blank=True, default='')
     is_read = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 

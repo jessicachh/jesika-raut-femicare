@@ -109,6 +109,55 @@ body {
   background: var(--color-white);
 }
 
+.search-suggestions {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    right: 0;
+    background: var(--color-white);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    box-shadow: var(--shadow-card);
+    overflow: hidden;
+    z-index: 140;
+    max-height: 280px;
+    overflow-y: auto;
+}
+
+.search-suggestion-item {
+    width: 100%;
+    border: 0;
+    background: var(--color-white);
+    text-align: left;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--color-border);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.search-suggestion-item:last-child {
+    border-bottom: 0;
+}
+
+.search-suggestion-item:hover,
+.search-suggestion-item.active {
+    background: #fff5f5;
+}
+
+.search-suggestion-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.search-suggestion-meta {
+    font-size: 12px;
+    color: var(--color-text-light);
+}
+
 .icon-btn {
   width: 40px;
   height: 40px;
@@ -191,6 +240,10 @@ body {
     background: var(--color-bg);
 }
 
+.notification-item.clickable {
+    cursor: pointer;
+}
+
 .notification-item.unread {
     background: rgba(185, 34, 34, 0.08);
 }
@@ -220,6 +273,25 @@ body {
     text-align: center;
     color: var(--color-text-light);
     font-size: 14px;
+}
+
+.nav-target-highlight {
+    animation: navHighlightPulse 2.6s ease;
+}
+
+@keyframes navHighlightPulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(185, 34, 34, 0.35);
+        background-color: rgba(185, 34, 34, 0.12);
+    }
+    70% {
+        box-shadow: 0 0 0 14px rgba(185, 34, 34, 0);
+        background-color: rgba(185, 34, 34, 0.06);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(185, 34, 34, 0);
+        background-color: transparent;
+    }
 }
 
 .user-profile {
@@ -1077,34 +1149,66 @@ body {
     border: 1px solid var(--color-border);
 }
 
+.symptom-header-row {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 2px;
+    width: 100%;
+    text-align: left;
+}
+
+.symptom-header-row h6 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--color-text);
+    line-height: 1.2;
+}
+
+.symptom-header-note {
+    font-size: 0.9rem;
+    color: var(--color-text-light);
+    line-height: 1.25;
+}
+
 .symptom-header {
     width: 100%;
     border: none;
     background: transparent;
-    padding: 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    font-weight: 700;
-    color: var(--color-text);
+    gap: 10px;
+    padding: 2px 0;
     cursor: pointer;
 }
 
 .symptom-toggle-icon {
-    font-size: 18px;
-    line-height: 1;
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    border: 1px solid var(--color-border);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     color: var(--color-primary);
+    font-weight: 700;
+    line-height: 1;
+    flex-shrink: 0;
 }
 
 .symptom-content {
     max-height: 0;
     overflow: hidden;
-    transition: max-height 0.28s ease;
+    opacity: 0;
+    transition: max-height 0.26s ease, opacity 0.18s ease;
 }
 
 .symptom-content.is-open {
-    max-height: 460px;
-    margin-top: 14px;
+    max-height: 420px;
+    opacity: 1;
+    margin-top: 12px;
 }
 
 .symptom-recent h6 {
@@ -1123,8 +1227,8 @@ body {
     border: 1px solid var(--color-border);
     background: var(--color-white);
     color: var(--color-text);
-    border-radius: 999px;
-    padding: 6px 10px;
+    border-radius: 12px;
+    padding: 8px 10px;
     font-size: 12px;
     line-height: 1.1;
     cursor: pointer;
@@ -1143,8 +1247,47 @@ body {
     font-weight: 600;
 }
 
-.symptom-recent-chip {
-    padding-right: 9px;
+.symptom-toggle-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-width: 150px;
+    text-align: left;
+}
+
+.symptom-chip-label {
+    white-space: nowrap;
+}
+
+.symptom-chip-icon {
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    border: 1px solid currentColor;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.recent-symptom-stack {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.symptom-recent-tag {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    padding: 5px 10px;
+    font-size: 12px;
+    color: var(--color-text);
+    background: #fafafa;
 }
 
 .symptom-scroll {
@@ -2584,6 +2727,17 @@ body {
     border-radius: 12px;
     padding: 16px;
     background: var(--color-bg);
+}
+
+.security-update-banner {
+    border: 1px solid rgba(185, 34, 34, 0.25);
+    border-left: 4px solid var(--color-primary);
+    background: rgba(185, 34, 34, 0.08);
+    color: var(--color-text);
+}
+
+.security-update-banner p {
+    color: var(--color-text);
 }
 
 .delete-account-card {

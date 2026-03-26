@@ -1,8 +1,5 @@
 from django.contrib import admin
 from .models import User, DoctorProfile, UserProfile, TwoFactorCode
-from django.core.mail import send_mail
-from django.contrib.sites.shortcuts import get_current_site
-from django.urls import reverse
 from django.utils.html import format_html
 
 @admin.register(DoctorProfile)

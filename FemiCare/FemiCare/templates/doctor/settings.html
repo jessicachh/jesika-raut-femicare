@@ -1,0 +1,174 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Doctor Settings</title>
+
+  <link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+
+<body>
+  {% include 'components/header.html' %}
+
+  <div class="dashboard-container">
+    {% include 'doctor/sidebar_doctor.html' %}
+
+    <main class="dashboard-main">
+      <div class="container-fluid" id="settings-section">
+        {% if requires_password_update %}
+        <div class="alert alert-warning security-update-banner" role="alert">
+          <strong>Security Update Required</strong>
+          <p class="mb-0">For improved security, please update your password to a stronger one. This helps protect your personal health data.</p>
+        </div>
+        {% endif %}
+
+        <div class="row g-4">
+          <div class="col-12 col-xl-7">
+            <div class="card settings-card border-0 shadow-sm">
+              <div class="card-body p-4 p-md-5">
+                <h4 class="mb-4">Change Password</h4>
+
+                <form method="post" action="{% url 'doctor_change_password' %}">
+                  {% csrf_token %}
+
+                  {% if password_form.non_field_errors %}
+                    <div class="alert alert-danger" role="alert">
+                      {{ password_form.non_field_errors }}
+                    </div>
+                  {% endif %}
+
+                  <div class="mb-3">
+                    <label class="form-label" for="{{ password_form.old_password.id_for_label }}">Current Password</label>
+                    {{ password_form.old_password }}
+                    {% if password_form.old_password.errors %}
+                      <div class="invalid-feedback d-block">{{ password_form.old_password.errors|join:', ' }}</div>
+                    {% endif %}
+                  </div>
+
+                  <div class="mb-3">
+                    <label class="form-label" for="{{ password_form.new_password1.id_for_label }}">New Password</label>
+                    {{ password_form.new_password1 }}
+                    {% if password_form.new_password1.errors %}
+                      <div class="invalid-feedback d-block">{{ password_form.new_password1.errors|join:', ' }}</div>
+                    {% endif %}
+                  </div>
+
+                  <div class="mb-3">
+                    <label class="form-label" for="{{ password_form.new_password2.id_for_label }}">Confirm New Password</label>
+                    {{ password_form.new_password2 }}
+                    {% if password_form.new_password2.errors %}
+                      <div class="invalid-feedback d-block">{{ password_form.new_password2.errors|join:', ' }}</div>
+                    {% endif %}
+                  </div>
+
+                  <button type="submit" class="btn btn-danger px-4">Change Password</button>
+                </form>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-12 col-xl-5">
+            <div class="card settings-card border-0 shadow-sm">
+              <div class="card-body p-4 p-md-5">
+                <h4 class="mb-4">Change Email</h4>
+
+                <form method="post" action="{% url 'doctor_change_email' %}">
+                  {% csrf_token %}
+
+                  {% if email_form.non_field_errors %}
+                    <div class="alert alert-danger" role="alert">
+                      {{ email_form.non_field_errors }}
+                    </div>
+                  {% endif %}
+
+                  <div class="mb-3">
+                    <label class="form-label" for="{{ email_form.email.id_for_label }}">New Email</label>
+                    {{ email_form.email }}
+                    {% if email_form.email.errors %}
+                      <div class="invalid-feedback d-block">{{ email_form.email.errors|join:', ' }}</div>
+                    {% endif %}
+                  </div>
+
+                  <div class="mb-3">
+                    <label class="form-label" for="{{ email_form.current_password.id_for_label }}">Current Password</label>
+                    {{ email_form.current_password }}
+                    {% if email_form.current_password.errors %}
+                      <div class="invalid-feedback d-block">{{ email_form.current_password.errors|join:', ' }}</div>
+                    {% endif %}
+                  </div>
+
+                  <button type="submit" class="btn btn-danger px-4">Send Verification Code</button>
+                </form>
+
+                {% if pending_email %}
+                  <hr class="my-4">
+                  <div class="email-verification-box">
+                    <h6 class="mb-2">Verify New Email</h6>
+                    <p class="text-muted small mb-3">
+                      We sent a 6-digit verification code to <strong>{{ pending_email }}</strong>.
+                    </p>
+
+                    <form method="post" action="{% url 'doctor_verify_email_code' %}">
+                      {% csrf_token %}
+
+                      <div class="mb-3">
+                        <label class="form-label" for="{{ verification_form.code.id_for_label }}">Enter Code</label>
+                        {{ verification_form.code }}
+                        {% if verification_form.code.errors %}
+                          <div class="invalid-feedback d-block">{{ verification_form.code.errors|join:', ' }}</div>
+                        {% endif %}
+                      </div>
+
+                      <button type="submit" class="btn btn-danger px-4">Verify Email</button>
+                    </form>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="card settings-card delete-account-card border-0 shadow-sm mt-4">
+              <div class="card-body p-4 p-md-5">
+                <h4 class="mb-3">Delete Account</h4>
+                <p class="text-muted mb-4">This action cannot be undone.</p>
+
+                <form method="post" action="{% url 'doctor_delete_account' %}">
+                  {% csrf_token %}
+
+                  {% if delete_form.non_field_errors %}
+                    <div class="alert alert-danger" role="alert">
+                      {{ delete_form.non_field_errors }}
+                    </div>
+                  {% endif %}
+
+                  <div class="mb-3">
+                    <label class="form-label" for="{{ delete_form.confirm_text.id_for_label }}">Type DELETE to confirm</label>
+                    {{ delete_form.confirm_text }}
+                    {% if delete_form.confirm_text.errors %}
+                      <div class="invalid-feedback d-block">{{ delete_form.confirm_text.errors|join:', ' }}</div>
+                    {% endif %}
+                  </div>
+
+                  <div class="mb-3">
+                    <label class="form-label" for="{{ delete_form.current_password.id_for_label }}">Current Password</label>
+                    {{ delete_form.current_password }}
+                    {% if delete_form.current_password.errors %}
+                      <div class="invalid-feedback d-block">{{ delete_form.current_password.errors|join:', ' }}</div>
+                    {% endif %}
+                  </div>
+
+                  <button type="submit" class="btn btn-outline-danger px-4">Delete Account Permanently</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="{% static 'js/dashboard.js' %}"></script>
+</body>
+</html>

@@ -1,7 +1,14 @@
 {% extends 'dashboard/main.html' %}
 
 {% block dashboard_content %}
-<div class="container-fluid">
+<div class="container-fluid" id="settings-section">
+  {% if requires_password_update %}
+  <div class="alert alert-warning security-update-banner" role="alert">
+    <strong>Security Update Required</strong>
+    <p class="mb-0">For improved security, please update your password to a stronger one. This helps protect your personal health data.</p>
+  </div>
+  {% endif %}
+
   <div class="row g-4">
     <div class="col-12 col-xl-7">
       <div class="card settings-card border-0 shadow-sm">

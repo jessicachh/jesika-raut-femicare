@@ -1,5 +1,5 @@
 {% load static user_extras %}
-<header class="dashboard-header">
+<header class="dashboard-header" data-user-role="{{ request.user.role|default:'user' }}" data-current-path="{{ request.path }}">
   <div class="header-left">
     {% if request.user.is_authenticated and request.user.role == 'doctor' %}
       <a href="{% url 'doctor_dashboard' %}"><img src="{% static 'images/logo1.png' %}" alt="FemiCare Logo" class="nav-logo"></a>
@@ -14,7 +14,13 @@
         <circle cx="11" cy="11" r="8"/>
         <path d="m21 21-4.35-4.35"/>
       </svg>
-      <input type="text" placeholder="Search Keyword">
+      <input
+        type="text"
+        id="dashboardSearchInput"
+        placeholder="Search sections, pages, keywords"
+        autocomplete="off"
+      >
+      <div class="search-suggestions d-none" id="searchSuggestions" role="listbox" aria-label="Search suggestions"></div>
     </div>
 
     <div class="dropdown notification-dropdown-wrap">
@@ -84,8 +90,13 @@
         </div>
 
         <div class="user-dropdown-links">
-          <a class="dropdown-item" href="{% url 'dashboard_profile' %}">Profile</a>
-          <a class="dropdown-item" href="{% url 'dashboard_settings' %}">Settings</a>
+          {% if request.user.is_authenticated and request.user.role == 'doctor' %}
+            <a class="dropdown-item" href="{% url 'doctor_profile' %}">Profile</a>
+            <a class="dropdown-item" href="{% url 'doctor_settings' %}">Settings</a>
+          {% else %}
+            <a class="dropdown-item" href="{% url 'dashboard_profile' %}">Profile</a>
+            <a class="dropdown-item" href="{% url 'dashboard_settings' %}">Settings</a>
+          {% endif %}
         </div>
 
         <div class="user-dropdown-footer">

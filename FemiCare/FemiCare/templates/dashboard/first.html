@@ -282,31 +282,48 @@
         </div>
       </section>
 
-      <section class="dashboard-card symptom-section mb-4">
+      <section class="dashboard-card symptom-section mb-4" id="symptoms-section">
         <button type="button" class="symptom-header" id="symptomToggleBtn" aria-expanded="false">
-          <span>Add Symptoms</span>
+          <span class="symptom-header-row">
+            <h6 class="mb-0">Add Symptoms</h6>
+            <small class="symptom-header-note">Tap to toggle for today</small>
+          </span>
           <span class="symptom-toggle-icon" id="symptomToggleIcon">+</span>
         </button>
 
         <div class="symptom-content" id="symptomContent">
-          <div class="symptom-recent mb-3">
-            <h6 class="mb-2">Recent Symptoms</h6>
-            <div class="symptom-list" id="recentSymptomsList"></div>
-          </div>
-
           <form method="POST" action="{% url 'save_symptoms' %}" id="symptomForm">
             {% csrf_token %}
             <div class="symptom-scroll mb-3">
               <div class="symptom-list" id="allSymptomsList">
                 {% for symptom in symptom_options %}
-                  <button type="button" class="symptom-chip" data-symptom-chip="{{ symptom }}">{{ symptom }}</button>
+                  <button
+                    type="button"
+                    class="symptom-chip symptom-toggle-chip"
+                    data-symptom-chip="{{ symptom }}"
+                    aria-pressed="false"
+                  >
+                    <span class="symptom-chip-label">{{ symptom }}</span>
+                    <span class="symptom-chip-icon" aria-hidden="true">+</span>
+                  </button>
                 {% endfor %}
               </div>
             </div>
 
             <div id="symptomHiddenInputs"></div>
-            <button type="submit" class="btn btn-danger symptom-save-btn">Save Symptoms</button>
+            <button type="submit" class="btn btn-danger symptom-save-btn">Save Today Symptoms</button>
           </form>
+        </div>
+
+        <div class="symptom-recent mt-3">
+          <h6 class="mb-2">Recent Symptoms</h6>
+          <div class="recent-symptom-stack" id="recentSymptomsStack" aria-live="polite">
+            {% for symptom in recent_symptoms %}
+              <span class="symptom-recent-tag">{{ symptom }}</span>
+            {% empty %}
+              <span class="text-muted small">No recent symptoms yet.</span>
+            {% endfor %}
+          </div>
         </div>
       </section>
 
@@ -644,7 +661,8 @@
   </div>
 </div>
 
-<div class="floating-emergency-wrap" id="floatingEmergencyWrap">
+<div id="emergency-section">
+<div class="floating-emergency-wrap" id="floatingEmergencyWrap" aria-label="Emergency actions" data-nav-section="emergency" >
   <button type="button" class="floating-emergency-btn" id="floatingEmergencyBtn" aria-expanded="false" aria-controls="floatingEmergencyMenu" title="Emergency options">
     <i class="bi bi-exclamation-triangle-fill"></i>
   </button>
@@ -664,6 +682,7 @@
     {% endif %}
   </div>
 </div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 {{ mood_chart_labels|json_script:"mood-chart-labels" }}
@@ -671,7 +690,6 @@
 {{ phase_labels|json_script:"phase-chart-labels" }}
 {{ phase_values|json_script:"phase-chart-values" }}
 {{ selected_today_symptoms|json_script:"selected-today-symptoms" }}
-{{ recent_symptoms|json_script:"recent-symptoms" }}
 {{ calendar_actual_ranges|json_script:"calendar-actual-ranges" }}
 {{ calendar_predicted_ranges|json_script:"calendar-predicted-ranges" }}
 {{ calendar_current_period_range|json_script:"calendar-current-period-range" }}
@@ -945,17 +963,24 @@ document.addEventListener('DOMContentLoaded', function () {
   validateCycleFormInputs();
 
   var symptomToggleBtn = document.getElementById('symptomToggleBtn');
-  var symptomContent = document.getElementById('symptomContent');
   var symptomToggleIcon = document.getElementById('symptomToggleIcon');
+  var symptomContent = document.getElementById('symptomContent');
   var symptomChips = document.querySelectorAll('[data-symptom-chip]');
-  var recentSymptomsList = document.getElementById('recentSymptomsList');
   var symptomHiddenInputs = document.getElementById('symptomHiddenInputs');
   var symptomForm = document.getElementById('symptomForm');
   var selectedSymptoms = new Set(JSON.parse(document.getElementById('selected-today-symptoms').textContent || '[]'));
-  var initialRecentSymptoms = JSON.parse(document.getElementById('recent-symptoms').textContent || '[]');
   var floatingEmergencyWrap = document.getElementById('floatingEmergencyWrap');
   var floatingEmergencyBtn = document.getElementById('floatingEmergencyBtn');
   var floatingEmergencyMenu = document.getElementById('floatingEmergencyMenu');
+
+  if (symptomToggleBtn && symptomToggleIcon && symptomContent) {
+    symptomToggleBtn.addEventListener('click', function () {
+      var isExpanded = symptomToggleBtn.getAttribute('aria-expanded') === 'true';
+      symptomToggleBtn.setAttribute('aria-expanded', isExpanded ? 'false' : 'true');
+      symptomContent.classList.toggle('is-open');
+      symptomToggleIcon.textContent = isExpanded ? '+' : '-';
+    });
+  }
 
   if (floatingEmergencyWrap && floatingEmergencyBtn && floatingEmergencyMenu) {
     floatingEmergencyBtn.addEventListener('click', function () {
@@ -981,51 +1006,20 @@ document.addEventListener('DOMContentLoaded', function () {
   function syncChipStates() {
     symptomChips.forEach(function (chip) {
       var symptom = chip.getAttribute('data-symptom-chip');
+      var icon = chip.querySelector('.symptom-chip-icon');
       if (selectedSymptoms.has(symptom)) {
         chip.classList.add('active');
+        chip.setAttribute('aria-pressed', 'true');
+        if (icon) {
+          icon.textContent = '✓';
+        }
       } else {
         chip.classList.remove('active');
+        chip.setAttribute('aria-pressed', 'false');
+        if (icon) {
+          icon.textContent = '+';
+        }
       }
-    });
-  }
-
-  function renderRecentSymptoms() {
-    if (!recentSymptomsList) {
-      return;
-    }
-
-    var ordered = Array.from(selectedSymptoms);
-    initialRecentSymptoms.forEach(function (symptom) {
-      if (ordered.indexOf(symptom) === -1) {
-        ordered.push(symptom);
-      }
-    });
-
-    recentSymptomsList.innerHTML = '';
-    if (!ordered.length) {
-      var empty = document.createElement('span');
-      empty.className = 'text-muted small';
-      empty.textContent = 'No recent symptoms selected yet.';
-      recentSymptomsList.appendChild(empty);
-      return;
-    }
-
-    ordered.slice(0, 8).forEach(function (symptom) {
-      var chip = document.createElement('button');
-      chip.type = 'button';
-      chip.className = 'symptom-chip active symptom-recent-chip';
-      chip.setAttribute('data-symptom-remove', symptom);
-      chip.textContent = symptom + ' x';
-      recentSymptomsList.appendChild(chip);
-    });
-  }
-
-  if (symptomToggleBtn && symptomContent && symptomToggleIcon) {
-    symptomToggleBtn.addEventListener('click', function () {
-      var expanded = symptomToggleBtn.getAttribute('aria-expanded') === 'true';
-      symptomToggleBtn.setAttribute('aria-expanded', expanded ? 'false' : 'true');
-      symptomContent.classList.toggle('is-open');
-      symptomToggleIcon.textContent = expanded ? '+' : '-';
     });
   }
 
@@ -1038,22 +1032,8 @@ document.addEventListener('DOMContentLoaded', function () {
         selectedSymptoms.add(symptom);
       }
       syncChipStates();
-      renderRecentSymptoms();
     });
   });
-
-  if (recentSymptomsList) {
-    recentSymptomsList.addEventListener('click', function (event) {
-      var removeTarget = event.target.closest('[data-symptom-remove]');
-      if (!removeTarget) {
-        return;
-      }
-      var symptom = removeTarget.getAttribute('data-symptom-remove');
-      selectedSymptoms.delete(symptom);
-      syncChipStates();
-      renderRecentSymptoms();
-    });
-  }
 
   if (symptomForm && symptomHiddenInputs) {
     symptomForm.addEventListener('submit', function () {
@@ -1069,7 +1049,6 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   syncChipStates();
-  renderRecentSymptoms();
 
   {% if show_period_checkin_prompt and active_cycle_id %}
   var periodCheckinModalEl = document.getElementById('periodCheckinModal');
