@@ -19,8 +19,8 @@
 </head>
 
 <body>
-    
   {% include 'components/header.html' %}
+  {% include 'components/toast_notifications.html' %}
 
 <div class="dashboard-container">
     {% include 'doctor/sidebar_doctor.html' %}
@@ -73,6 +73,9 @@
         </div>
 
         <h6 class="section-title">Public Profile Details</h6>
+        <div class="alert alert-warning py-2 small">
+          Keep all fields below filled. Empty fields make your profile hidden from user browsing.
+        </div>
         
         <div class="mb-4 text-center">
           <label class="form-label d-block text-start">Profile Photo</label>
@@ -88,18 +91,18 @@
 
         <div class="mb-3">
           <label class="form-label">Short Bio</label>
-          <textarea class="form-control" name="bio" rows="3" placeholder="Tell patients about your expertise...">{{ profile.bio }}</textarea>
+          <textarea class="form-control" name="bio" rows="3" placeholder="Tell patients about your expertise..." required>{{ profile.bio }}</textarea>
         </div>
 
         <div class="mb-3">
           <label class="form-label">Qualifications / Degrees</label>
-          <textarea class="form-control" name="qualifications" rows="2" placeholder="e.g. MBBS, MD in Gynecology">{{ profile.qualifications }}</textarea>
+          <textarea class="form-control" name="qualifications" rows="2" placeholder="e.g. MBBS, MD in Gynecology" required>{{ profile.qualifications }}</textarea>
         </div>
 
         <div class="mb-4">
           <label class="form-label">Languages Spoken</label>
           <input type="text" class="form-control" name="languages_spoken" 
-                 placeholder="e.g. English, Nepali, Hindi" value="{{ profile.languages_spoken }}">
+                 placeholder="e.g. English, Nepali, Hindi" value="{{ profile.languages_spoken }}" required>
         </div>
 
         <div class="d-grid gap-2">

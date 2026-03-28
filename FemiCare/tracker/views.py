@@ -29,6 +29,12 @@ from .forms import (
     PeriodLogForm,
     EndPeriodForm,
     UserProfileForm,
+    MIN_HEIGHT_CM,
+    MAX_HEIGHT_CM,
+    MIN_WEIGHT_KG,
+    MAX_WEIGHT_KG,
+    is_height_valid,
+    is_weight_valid,
     AccountSettingsForm,
     EmailVerificationForm,
     UserDocumentUploadForm,
@@ -356,6 +362,7 @@ def signup_view(request):
             is_password_strong=True,
         )
         
+        user.backend = 'django.contrib.auth.backends.ModelBackend'
         auth_login(request, user)
 
         request.session['prompt_2fa_after_signup'] = True
@@ -647,18 +654,28 @@ def two_factor_settings_verify(request):
 @login_required
 def user_profile(request):
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    today = timezone.localdate()
 
     # If profile already filled, redirect to dashboard
     profile_complete = (
         profile.date_of_birth and
-        profile.height_cm not in (None, 0) and
-        profile.weight_kg not in (None, 0)
+        profile.date_of_birth <= today and
+        is_height_valid(profile.height_cm) and
+        is_weight_valid(profile.weight_kg)
     )
     if profile_complete and request.method != 'POST':
         return _redirect_user_after_login(request, request.user)
 
     if request.method == 'POST':
-        profile.date_of_birth = request.POST.get('dob')
+        dob_raw = request.POST.get('dob')
+        dob_value = parse_date(dob_raw) if dob_raw else None
+        if dob_value is None:
+            messages.error(request, 'Please provide a valid date of birth.')
+            return render(request, 'user_profile.html', {'profile': profile})
+
+        if dob_value > today:
+            messages.error(request, 'Date of birth cannot be in the future.')
+            return render(request, 'user_profile.html', {'profile': profile})
 
         height_raw = request.POST.get('height_cm')
         weight_raw = request.POST.get('weight_kg')
@@ -666,12 +683,18 @@ def user_profile(request):
         try:
             height_val = float(height_raw)
             weight_val = float(weight_raw)
-            if height_val <= 0 or weight_val <= 0:
+            if (
+                height_val < MIN_HEIGHT_CM or
+                height_val > MAX_HEIGHT_CM or
+                weight_val < MIN_WEIGHT_KG or
+                weight_val > MAX_WEIGHT_KG
+            ):
                 raise ValueError
         except (TypeError, ValueError):
-            messages.error(request, 'Please enter valid height and weight values greater than 0.')
+            messages.error(request, 'Please enter a valid height and weight.')
             return render(request, 'user_profile.html', {'profile': profile})
 
+        profile.date_of_birth = dob_value
         profile.height_cm = height_val
         profile.weight_kg = weight_val
         profile.save()
@@ -1023,12 +1046,33 @@ def doctor_profile(request):
     profile = get_object_or_404(DoctorProfile, user=request.user)
 
     if request.method == "POST":
-        if request.FILES.get("photo"):
-            profile.photo = request.FILES["photo"]
+        uploaded_photo = request.FILES.get("photo")
+        bio = request.POST.get("bio", "").strip()
+        qualifications = request.POST.get("qualifications", "").strip()
+        languages_spoken = request.POST.get("languages_spoken", "").strip()
 
-        profile.bio = request.POST.get("bio", "").strip()
-        profile.qualifications = request.POST.get("qualifications", "").strip()
-        profile.languages_spoken = request.POST.get("languages_spoken", "").strip()
+        # Prevent making a previously browsable profile incomplete.
+        has_photo_after_update = bool(uploaded_photo or (profile.photo and profile.photo.name))
+        has_empty_required_field = not all([
+            has_photo_after_update,
+            bool(bio),
+            bool(qualifications),
+            bool(languages_spoken),
+        ])
+
+        if has_empty_required_field:
+            messages.warning(
+                request,
+                "Please fill all profile fields. If any field is empty, users will not be able to browse your profile."
+            )
+            return render(request, "doctor/doctor_profile.html", {"profile": profile})
+
+        if uploaded_photo:
+            profile.photo = uploaded_photo
+
+        profile.bio = bio
+        profile.qualifications = qualifications
+        profile.languages_spoken = languages_spoken
 
         profile.save() 
 
@@ -3549,12 +3593,6 @@ def add_availability(request):
         duration = int(request.POST.get("duration"))
         selected_days = [int(day) for day in request.POST.getlist("days")]
 
-                # 👇 ADD PRINTS RIGHT HERE
-        print("Start:", start_time_str)
-        print("End:", end_time_str)
-        print("Duration:", duration)
-        print("Selected days:", selected_days)
-        
         if not selected_days:
             messages.error(request, "Please select at least one day.")
             return redirect("doctor_dashboard")
@@ -3565,6 +3603,23 @@ def add_availability(request):
         
         start_time = datetime.strptime(start_time_str, "%H:%M").time()
         end_time = datetime.strptime(end_time_str, "%H:%M").time()
+
+        # Validate time difference
+        start_dt = datetime.combine(today, start_time)
+        end_dt = datetime.combine(today, end_time)
+        
+        if end_dt <= start_dt:
+            messages.error(request, "End time must be after start time.")
+            return redirect("doctor_dashboard")
+        
+        time_diff_minutes = (end_dt - start_dt).total_seconds() / 60
+        
+        if time_diff_minutes < duration:
+            messages.error(
+                request, 
+                f"Time difference must be at least {duration} minutes. You have {int(time_diff_minutes)} minutes between start and end time."
+            )
+            return redirect("doctor_dashboard")
 
         slots_created = 0
         current_date = today

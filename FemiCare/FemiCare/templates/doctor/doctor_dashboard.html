@@ -121,7 +121,7 @@
         <h5 class="mb-0" >Set Your Weekly Availability</h5>
     </div>
     <div class="card-body">
-        <form method="POST" action="{% url 'add_availability' %}">
+        <form method="POST" action="{% url 'add_availability' %}" id="availability-form">
             {% csrf_token %}
             
             <div class="mb-4">
@@ -137,15 +137,15 @@
             <div class="row g-3 mb-4">
                 <div class="col-md-4">
                     <label class="form-label fw-bold">From (Start Time)</label>
-                    <input type="time" name="start_time" class="form-control" required>
+                    <input type="time" name="start_time" id="availability-start" class="form-control" required>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label fw-bold">Until (End Time)</label>
-                    <input type="time" name="end_time" class="form-control" required>
+                    <input type="time" name="end_time" id="availability-end" class="form-control" required>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label fw-bold">Appointment Length</label>
-                    <select name="duration" class="form-select">
+                    <select name="duration" id="availability-duration" class="form-select">
                         <option value="15">15 Minutes</option>
                         <option value="30" selected>30 Minutes</option>
                         <option value="45">45 Minutes</option>
@@ -153,6 +153,8 @@
                     </select>
                 </div>
             </div>
+
+            <div id="availability-error" class="alert alert-danger mb-4" style="display: none;"></div>
 
             <button type="submit" class="btn btn-success w-100 py-2">
                 Save & Generate Monthly Schedule
@@ -168,14 +170,7 @@
 </div>
 {% endif %}
 
-
-{% if messages %}
-  {% for message in messages %}
-    <div class="alert alert-{{ message.tags }}">
-      {{ message }}
-    </div>
-  {% endfor %}
-{% endif %}
+{% include 'components/toast_notifications.html' %}
     </main>
 
 
@@ -211,6 +206,57 @@ document.addEventListener("DOMContentLoaded", function() {
     const firstButton = document.querySelector(".date-item");
     if (firstButton) {
         firstButton.click();
+    }
+
+    // ✅ AVAILABILITY FORM VALIDATION
+    const availabilityForm = document.getElementById('availability-form');
+    if (availabilityForm) {
+        availabilityForm.addEventListener('submit', function(event) {
+            const startTime = document.getElementById('availability-start').value;
+            const endTime = document.getElementById('availability-end').value;
+            const duration = parseInt(document.getElementById('availability-duration').value);
+            const errorDiv = document.getElementById('availability-error');
+
+            if (!startTime || !endTime) {
+                event.preventDefault();
+                errorDiv.textContent = 'Please enter both start and end times.';
+                errorDiv.style.display = 'block';
+                return false;
+            }
+
+            // Convert time strings to minutes for comparison
+            const [startHour, startMin] = startTime.split(':').map(Number);
+            const [endHour, endMin] = endTime.split(':').map(Number);
+            
+            const startTotalMin = startHour * 60 + startMin;
+            const endTotalMin = endHour * 60 + endMin;
+            const timeDifference = endTotalMin - startTotalMin;
+
+            if (timeDifference <= 0) {
+                event.preventDefault();
+                errorDiv.textContent = 'End time must be after start time.';
+                errorDiv.style.display = 'block';
+                return false;
+            }
+
+            if (timeDifference < duration) {
+                event.preventDefault();
+                errorDiv.textContent = `Time difference must be at least ${duration} minutes. You have ${timeDifference} minutes between start and end time.`;
+                errorDiv.style.display = 'block';
+                return false;
+            }
+
+            // Clear error if validation passes
+            errorDiv.style.display = 'none';
+        });
+
+        // Clear error when user modifies time inputs
+        document.getElementById('availability-start').addEventListener('change', function() {
+            document.getElementById('availability-error').style.display = 'none';
+        });
+        document.getElementById('availability-end').addEventListener('change', function() {
+            document.getElementById('availability-error').style.display = 'none';
+        });
     }
 });
 </script>

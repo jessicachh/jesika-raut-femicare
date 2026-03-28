@@ -771,7 +771,8 @@
         // Send end call signal
         if (isCallActive) {
             chatSocket.send(JSON.stringify({
-                type: 'call_end'
+                type: 'call_end',
+                isVideo: isVideoCall
             }));
         }
 

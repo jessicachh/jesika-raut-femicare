@@ -43,14 +43,41 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         # Handle WebRTC signaling messages
         if message_type == 'call_offer':
+            is_video = data.get('isVideo', True)
+            username = self.scope["user"].username
+
+            log_message = 'Video call started.' if is_video else 'Audio call started.'
+            await self.save_message(username, self.room_name, log_message, False)
+
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    'type': 'chat_message',
+                    'message': log_message,
+                    'username': username,
+                    'is_note': False
+                }
+            )
+
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
                     'type': 'webrtc_signal',
                     'signal_type': 'call_offer',
                     'offer': data['offer'],
-                    'isVideo': data.get('isVideo', True),
-                    'sender': self.scope["user"].username
+                    'isVideo': is_video,
+                    'sender': username
+                }
+            )
+
+            await self.channel_layer.group_send(
+                'broadcast',
+                {
+                    'type': 'broadcast_message',
+                    'message_type': 'message',
+                    'room_name': self.room_name,
+                    'username': username,
+                    'is_note': False
                 }
             )
         elif message_type == 'call_answer':
@@ -74,12 +101,40 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 }
             )
         elif message_type == 'call_end':
+            is_video = data.get('isVideo', True)
+            username = self.scope["user"].username
+
+            log_message = 'Video call ended.' if is_video else 'Audio call ended.'
+            await self.save_message(username, self.room_name, log_message, False)
+
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    'type': 'chat_message',
+                    'message': log_message,
+                    'username': username,
+                    'is_note': False
+                }
+            )
+
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
                     'type': 'webrtc_signal',
                     'signal_type': 'call_end',
-                    'sender': self.scope["user"].username
+                    'isVideo': is_video,
+                    'sender': username
+                }
+            )
+
+            await self.channel_layer.group_send(
+                'broadcast',
+                {
+                    'type': 'broadcast_message',
+                    'message_type': 'message',
+                    'room_name': self.room_name,
+                    'username': username,
+                    'is_note': False
                 }
             )
         elif message_type == 'call_rejected':

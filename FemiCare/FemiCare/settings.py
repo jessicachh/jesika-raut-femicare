@@ -188,7 +188,7 @@ EMAIL_HOST_USER = 'jsscraut@gmail.com'
 EMAIL_HOST_PASSWORD = 'qtow ufan vbzs zjea'
 DEFAULT_FROM_EMAIL = 'FemiCare <jsscraut@gmail.com>'
 
-SITE_ID = int(os.getenv('SITE_ID', '2'))
+SITE_ID = int(os.getenv('SITE_ID', '3'))
 
 ACCOUNT_LOGIN_METHODS = {'email', 'username'}
 ACCOUNT_SIGNUP_FIELDS = ['email*', 'username*', 'password1*', 'password2*']

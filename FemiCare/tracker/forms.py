@@ -7,6 +7,32 @@ from django.core.exceptions import ValidationError
 from .models import CycleLog, DoctorProfile, UserProfile, User
 
 
+MIN_HEIGHT_CM = 50
+MAX_HEIGHT_CM = 250
+MIN_WEIGHT_KG = 2
+MAX_WEIGHT_KG = 300
+
+
+def is_height_valid(value):
+    if value is None:
+        return False
+    try:
+        numeric_value = float(value)
+    except (TypeError, ValueError):
+        return False
+    return MIN_HEIGHT_CM <= numeric_value <= MAX_HEIGHT_CM
+
+
+def is_weight_valid(value):
+    if value is None:
+        return False
+    try:
+        numeric_value = float(value)
+    except (TypeError, ValueError):
+        return False
+    return MIN_WEIGHT_KG <= numeric_value <= MAX_WEIGHT_KG
+
+
 class MultipleFileInput(forms.ClearableFileInput):
     allow_multiple_selected = True
 
@@ -222,9 +248,46 @@ class UserProfileForm(forms.ModelForm):
 
         self.fields['profile_picture'].widget.attrs['class'] = 'form-control'
 
+        self.fields['date_of_birth'].required = True
+        self.fields['height_cm'].required = True
+        self.fields['weight_kg'].required = True
+
+        self.fields['date_of_birth'].widget.attrs['max'] = timezone.localdate().isoformat()
+        self.fields['height_cm'].widget.attrs.update({
+            'type': 'number',
+            'min': str(MIN_HEIGHT_CM),
+            'max': str(MAX_HEIGHT_CM),
+            'step': '0.1',
+        })
+        self.fields['weight_kg'].widget.attrs.update({
+            'type': 'number',
+            'min': str(MIN_WEIGHT_KG),
+            'max': str(MAX_WEIGHT_KG),
+            'step': '0.1',
+        })
+
         if last_log:
             self.fields['height_cm'].initial = last_log.height_cm
             self.fields['weight_kg'].initial = last_log.weight_kg
+
+    def clean_date_of_birth(self):
+        dob = self.cleaned_data.get('date_of_birth')
+        if dob and dob > timezone.localdate():
+            raise forms.ValidationError('Date of birth cannot be in the future.')
+        return dob
+
+    def clean(self):
+        cleaned_data = super().clean()
+        height_cm = cleaned_data.get('height_cm')
+        weight_kg = cleaned_data.get('weight_kg')
+
+        if height_cm is None or weight_kg is None:
+            return cleaned_data
+
+        if not is_height_valid(height_cm) or not is_weight_valid(weight_kg):
+            raise forms.ValidationError('Please enter a valid height and weight.')
+
+        return cleaned_data
 
     def save(self, commit=True):
         profile = super().save(commit=False)
