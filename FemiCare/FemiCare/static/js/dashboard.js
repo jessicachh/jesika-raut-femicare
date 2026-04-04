@@ -106,13 +106,30 @@ function updateNotificationBadge(count) {
   }
 }
 
+function triggerClickGlow(element) {
+  if (!element) {
+    return;
+  }
+
+  element.classList.remove('click-glow-active');
+  void element.offsetWidth;
+  element.classList.add('click-glow-active');
+}
+
 function initializeSearchNavigation() {
   const header = document.querySelector('.dashboard-header');
+  const searchBox = document.querySelector('.search-box');
   const input = document.getElementById('dashboardSearchInput');
   const suggestionsBox = document.getElementById('searchSuggestions');
 
   if (!header || !input || !suggestionsBox) {
     return;
+  }
+
+  if (searchBox) {
+    searchBox.addEventListener('click', function () {
+      triggerClickGlow(searchBox);
+    });
   }
 
   const role = (header.getAttribute('data-user-role') || 'user').toLowerCase();
@@ -436,6 +453,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   if (bell) {
     bell.addEventListener('click', function () {
+      triggerClickGlow(bell);
       loadNotifications();
     });
   }

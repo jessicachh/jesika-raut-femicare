@@ -1,15 +1,287 @@
 {% extends 'dashboard/main.html' %}
 {% load static %}
 
+{% block sidebar %}
+    {% if role == 'doctor' %}
+        {% include 'doctor/sidebar_doctor.html' %}
+    {% else %}
+        {{ block.super }}
+    {% endif %}
+{% endblock %}
+
 {% block dashboard_content %}
 <div class="chat-interface-page" id="chat-section">
     <div class="chat-interface-sidebar-wrap">
         {% include 'components/conversation_sidebar.html' %}
     </div>
-    <div class="chat-interface-empty">
+    <div class="chat-interface-empty" id="chat-interface-empty-state">
         <i class="bi bi-chat-dots"></i>
         <h5>Select a conversation</h5>
         <p>Choose a conversation from the list to open chat history.</p>
     </div>
+
+    <section class="chat-main-container d-none" id="dashboard-chat-panel" aria-live="polite">
+        <div class="chat-header bg-white p-3 border-bottom d-flex justify-content-between align-items-center">
+            <div>
+                <h5 class="mb-0" id="dashboard-chat-title">Consultation</h5>
+                <small class="fw-bold" id="dashboard-chat-status">Messages update automatically</small>
+            </div>
+        </div>
+
+        <div id="dashboard-chat-log" class="chat-messages-area"></div>
+
+        <div class="chat-input-area p-3 bg-white border-top" id="dashboard-chat-input-wrap">
+            <div class="input-group" id="dashboard-chat-input-group">
+                <input id="dashboard-chat-message-input" type="text" class="form-control" placeholder="Type a message..." maxlength="1000">
+                <button id="dashboard-chat-submit" class="btn btn-primary" type="button">
+                    <i class="bi bi-send"></i>
+                </button>
+            </div>
+            <div class="alert text-center mb-0 d-none" id="dashboard-chat-lock-banner"></div>
+        </div>
+    </section>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    (function () {
+        const chatPanel = document.getElementById('dashboard-chat-panel');
+        const emptyState = document.getElementById('chat-interface-empty-state');
+        const title = document.getElementById('dashboard-chat-title');
+        const status = document.getElementById('dashboard-chat-status');
+        const messagesWrap = document.getElementById('dashboard-chat-log');
+        const submitBtn = document.getElementById('dashboard-chat-submit');
+        const input = document.getElementById('dashboard-chat-message-input');
+        const lockBanner = document.getElementById('dashboard-chat-lock-banner');
+        const inputGroup = document.getElementById('dashboard-chat-input-group');
+
+        let activeAppointmentId = null;
+        let activeRoomName = '';
+        let canChat = false;
+        let pollTimer = null;
+
+        function scrollToBottom() {
+            messagesWrap.scrollTop = messagesWrap.scrollHeight;
+        }
+
+        function renderMessage(message, currentUserId) {
+            const own = Number(message.sender_id) === Number(currentUserId);
+            const when = new Date(message.timestamp);
+            const timeLabel = when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const wrapperClass = own ? 'message sent' : 'message received';
+
+            if (message.message_type === 'image' && message.file_url) {
+                return `
+                    <div class="${wrapperClass}">
+                        <div class="bubble">
+                            <div class="file-message-container">
+                                <img src="${message.file_url}" alt="Shared image" class="file-image-preview" style="max-width: 220px; border-radius: 10px;">
+                            </div>
+                            <small class="message-time">${timeLabel}</small>
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (message.message_type === 'document' && message.file_url) {
+                const name = message.file_name || 'Document';
+                return `
+                    <div class="${wrapperClass}">
+                        <div class="bubble">
+                            <div class="file-document-card" onclick="window.open('${message.file_url}', '_blank')">
+                                <div class="file-icon"><i class="bi bi-file-earmark-pdf"></i></div>
+                                <div class="file-info"><div class="file-name">${name}</div><div class="file-size">Document</div></div>
+                                <div class="file-download-btn"><i class="bi bi-download"></i></div>
+                            </div>
+                            <small class="message-time">${timeLabel}</small>
+                        </div>
+                    </div>
+                `;
+            }
+
+            const safeText = (message.content || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            return `
+                <div class="${wrapperClass}">
+                    <div class="bubble">
+                        <div class="message-text">${safeText}</div>
+                        <small class="message-time">${timeLabel}</small>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderChatAvailability(consultation) {
+            canChat = Boolean(consultation && consultation.can_chat);
+
+            if (canChat) {
+                inputGroup.classList.remove('d-none');
+                lockBanner.classList.add('d-none');
+                lockBanner.className = 'alert text-center mb-0 d-none';
+                return;
+            }
+
+            inputGroup.classList.add('d-none');
+            lockBanner.classList.remove('d-none');
+
+            if (consultation && consultation.is_locked && !consultation.is_future) {
+                lockBanner.className = 'alert alert-secondary text-center mb-0';
+                lockBanner.innerHTML = '<i class="bi bi-lock-fill"></i> This consultation has ended. You are viewing the chat history.';
+                return;
+            }
+
+            lockBanner.className = 'alert alert-info text-center mb-0';
+            const startAt = consultation && consultation.start_time_label ? consultation.start_time_label : 'the scheduled time';
+            lockBanner.innerHTML = `<i class="bi bi-clock-history"></i> This consultation has not started yet. Please return on <strong>${startAt}</strong>.`;
+        }
+
+        async function loadMessages() {
+            if (!activeAppointmentId) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/conversation/${activeAppointmentId}/messages/`, {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                if (!response.ok) {
+                    throw new Error('Failed to load messages');
+                }
+
+                const data = await response.json();
+                const messages = data.messages || [];
+                const currentUserId = Number('{{ request.user.id }}');
+
+                const consultation = data.consultation || null;
+                renderChatAvailability(consultation);
+
+                if (consultation && consultation.is_active) {
+                    status.className = 'text-success fw-bold';
+                    status.textContent = '● Active Now';
+                } else if (consultation && consultation.is_future) {
+                    status.className = 'text-info fw-bold';
+                    status.textContent = `Scheduled for ${consultation.start_time_label || ''}`;
+                } else {
+                    status.className = 'text-danger fw-bold';
+                    status.textContent = '🔒 Session Finished';
+                }
+
+                if (!messages.length) {
+                    messagesWrap.innerHTML = '<div class="empty-state"><p>No messages yet. Start the conversation.</p></div>';
+                } else {
+                    messagesWrap.innerHTML = messages.map((message) => renderMessage(message, currentUserId)).join('');
+                    scrollToBottom();
+                }
+
+                await fetch(`/api/conversation/${activeAppointmentId}/mark-read/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': (window.getCookie && window.getCookie('csrftoken')) || '',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+            } catch (error) {
+                messagesWrap.innerHTML = '<div class="empty-state"><p>Unable to load messages right now.</p></div>';
+            }
+        }
+
+        async function sendMessage(event) {
+            event.preventDefault();
+            if (!activeAppointmentId || !activeRoomName || !canChat) {
+                return;
+            }
+
+            const content = (input.value || '').trim();
+            if (!content) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/message/send/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': (window.getCookie && window.getCookie('csrftoken')) || '',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({
+                        appointment_id: activeAppointmentId,
+                        room_name: activeRoomName,
+                        content,
+                    }),
+                });
+
+                if (!response.ok) {
+                    throw new Error('Unable to send message');
+                }
+
+                input.value = '';
+                await loadMessages();
+            } catch (error) {
+                status.textContent = 'Unable to send message. Please try again.';
+            }
+        }
+
+        function startPolling() {
+            if (pollTimer) {
+                clearInterval(pollTimer);
+            }
+            pollTimer = setInterval(loadMessages, 5000);
+        }
+
+        window.femicareChatUI = {
+            openConversation({ appointmentId, roomName, displayName }) {
+                activeAppointmentId = appointmentId;
+                activeRoomName = roomName;
+
+                title.textContent = displayName || 'Conversation';
+                status.className = 'text-muted fw-bold';
+                status.textContent = 'Messages update automatically';
+
+                chatPanel.classList.remove('d-none');
+                emptyState.classList.add('d-none');
+
+                loadMessages();
+                startPolling();
+            },
+        };
+
+        submitBtn.addEventListener('click', sendMessage);
+        input.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter') {
+                sendMessage(event);
+            }
+        });
+
+        const initialAppointmentId = {% if initial_appointment_id %}{{ initial_appointment_id }}{% else %}null{% endif %};
+        if (initialAppointmentId) {
+            window.setTimeout(async function () {
+                try {
+                    const response = await fetch('/api/conversations/', {
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    });
+                    if (!response.ok) {
+                        return;
+                    }
+                    const data = await response.json();
+                    const conversations = data.conversations || [];
+                    const selected = conversations.find((item) => Number(item.appointment_id) === Number(initialAppointmentId));
+                    if (!selected) {
+                        return;
+                    }
+
+                    if (window.femicareChatUI && typeof window.femicareChatUI.openConversation === 'function') {
+                        window.femicareChatUI.openConversation({
+                            appointmentId: selected.appointment_id,
+                            roomName: selected.room_name,
+                            displayName: selected.other_user.name,
+                        });
+                    }
+                } catch (error) {
+                    console.error('Failed to auto-open selected conversation', error);
+                }
+            }, 120);
+        }
+    })();
+</script>
 {% endblock %}

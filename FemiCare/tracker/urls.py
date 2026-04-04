@@ -2,7 +2,7 @@ from django.urls import path
 from . import views
 from django.contrib import admin
 from django.contrib.auth import views as auth_views
-from .views import (add_availability,toggle_availability,delete_availability,)
+from .views import (add_availability, toggle_availability,delete_availability,)
 
 urlpatterns = [
     # Public pages
@@ -16,6 +16,8 @@ urlpatterns = [
 
     # Authentication
     path('signup/', views.signup_view, name='signup'),  
+    path('auth/verify-signup-email/', views.verify_signup_email, name='verify_signup_email'),
+    path('auth/verify-signup-email/resend/', views.resend_signup_email_code, name='resend_signup_email_code'),
     path('login/', views.login_view, name='login'),    
     path('logout/', views.logout_view, name='logout'),
     path('auth/post-login/', views.post_auth_redirect, name='post_auth_redirect'),
@@ -58,6 +60,7 @@ urlpatterns = [
     # doctor dashboard
     path('doctor/dashboard/', views.doctor_dashboard, name='doctor_dashboard'),
     path('doctor/appointment/', views.doctor_appointment, name='doctor_appointment'),
+    path('doctor/chat/', views.doctor_chat_hub, name='doctor_chat_hub'),
     path('doctor/details/', views.doctor_details, name='doctor_details'),
     path('doctor/profile/', views.doctor_profile, name='doctor_profile'),
     path('doctor/settings/', views.doctor_settings_view, name='doctor_settings'),

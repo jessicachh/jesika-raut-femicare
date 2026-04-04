@@ -1,5 +1,6 @@
 {% extends 'dashboard/main.html' %}
 {% load static %}
+{% load user_extras %}
 
 {% block dashboard_content %}
 <div class="container-fluid">
@@ -26,16 +27,6 @@
                   <div class="invalid-feedback d-block">{{ form.full_name.errors|join:', ' }}</div>
                 {% endif %}
               </div>
-
-            
-              <div class="col-md-6">
-                <label class="form-label" for="{{ form.phone_number.id_for_label }}">Phone Number</label>
-                {{ form.phone_number }}
-                {% if form.phone_number.errors %}
-                  <div class="invalid-feedback d-block">{{ form.phone_number.errors|join:', ' }}</div>
-                {% endif %}
-              </div>
-
               <div class="col-md-6">
                 <label class="form-label" for="{{ form.date_of_birth.id_for_label }}">Date of Birth</label>
                 {{ form.date_of_birth }}
@@ -76,13 +67,15 @@
                 {% endif %}
               </div>
 
-              {% if request.user.user_profile.profile_picture %}
-                <div class="col-12">
-                  <div class="profile-picture-preview-wrap">
+              <div class="col-12">
+                <div class="profile-picture-preview-wrap">
+                  {% if request.user.user_profile.profile_picture %}
                     <img src="{{ request.user.user_profile.profile_picture.url }}" alt="Current profile picture" class="profile-picture-preview">
-                  </div>
+                  {% else %}
+                    {% render_user_avatar request.user 'profile-picture-preview' 'Current profile picture' %}
+                  {% endif %}
                 </div>
-              {% endif %}
+              </div>
             </div>
 
             <div class="mt-4">
@@ -97,7 +90,7 @@
       <div class="card profile-card documents-card border-0 shadow-sm" id="documents-section">
         <div class="card-body p-4 p-md-5">
           <h4 class="mb-3">Medical Documents</h4>
-          <p class="text-muted small mb-4">Upload reports and records for future appointment access.</p>
+          <p class="text-muted small mb-4">These documents will be available for your doctor to view later.</p>
 
           <form method="post" action="{% url 'upload_user_documents' %}" enctype="multipart/form-data" class="profile-form mb-4">
             {% csrf_token %}

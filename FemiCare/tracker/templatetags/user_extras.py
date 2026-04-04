@@ -1,4 +1,6 @@
 from django import template
+import hashlib
+from django.utils.html import format_html
 
 register = template.Library()
 
@@ -39,3 +41,65 @@ def file_type_badge(file_name):
     if lowered.endswith(doc_ext):
         return "DOC"
     return "FILE"
+
+
+def _avatar_seed(value):
+    return hashlib.md5((value or 'u').encode('utf-8')).hexdigest()
+
+
+def _avatar_color(value):
+    seed_int = int(_avatar_seed(value)[:8], 16)
+    hue = seed_int % 360
+    saturation = 62 + (seed_int % 10)
+    lightness = 72 + (seed_int % 8)
+    return f"hsl({hue} {saturation}% {lightness}%)"
+
+
+def _user_initial(user):
+    username = getattr(user, 'username', '') or 'U'
+    return username[:1].upper()
+
+
+def _profile_photo_url(user):
+    if not getattr(user, 'is_authenticated', False):
+        return ''
+
+    try:
+        if getattr(user, 'role', '') == 'doctor' and user.doctor_profile.photo:
+            return user.doctor_profile.photo.url
+    except Exception:
+        pass
+
+    try:
+        if getattr(user, 'role', '') == 'user' and user.user_profile.profile_picture:
+            return user.user_profile.profile_picture.url
+    except Exception:
+        pass
+
+    return ''
+
+
+@register.simple_tag
+def render_user_avatar(user, wrapper_class='user-avatar', alt='Avatar'):
+    photo_url = _profile_photo_url(user)
+    if photo_url:
+        return format_html(
+            '<span class="{}"><img src="{}" alt="{}"></span>',
+            wrapper_class,
+            photo_url,
+            alt,
+        )
+
+    initial = _user_initial(user)
+    bg_color = _avatar_color(getattr(user, 'username', ''))
+    return format_html(
+        '<span class="{}" aria-label="{}">'
+        '<span class="avatar-fallback" style="--avatar-bg: {};">'
+        '<span class="avatar-fallback-letter">{}</span>'
+        '</span>'
+        '</span>',
+        wrapper_class,
+        alt,
+        bg_color,
+        initial,
+    )

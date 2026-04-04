@@ -43,6 +43,7 @@ from .forms import (
     StrongSetPasswordForm,
     DoctorEmailChangeRequestForm,
     DeleteAccountForm,
+    SignupEmailVerificationForm,
 )
 from .models import CycleLog
 from tracker.ml.predict import predict_cycle
@@ -176,6 +177,28 @@ def _validate_two_factor_code(user, purpose, submitted_code):
     return True
 
 
+def _issue_signup_email_code(user):
+    return _issue_two_factor_code(user, 'signup_email')
+
+
+def _send_signup_email_code(user, code_obj):
+    send_verification_email(
+        user,
+        'email_verification',
+        {
+            'code': code_obj.code,
+            'expires_minutes': 10,
+            'subject': 'FemiCare Signup Verification Code',
+            'action_url': reverse('verify_signup_email'),
+            'action_label': 'Verify Email',
+        },
+    )
+
+
+def _validate_signup_email_code(user, submitted_code):
+    return _validate_two_factor_code(user, 'signup_email', submitted_code)
+
+
 def _to_positive_int(value, fallback=None):
     try:
         parsed = int(round(float(value)))
@@ -240,6 +263,9 @@ def _generate_rolling_prediction_starts(last_period_start, cycle_length_days, re
 
 
 def _redirect_user_after_login(request, user):
+    if user.is_staff or user.is_superuser:
+        return redirect('admin:index')
+
     if user.role == 'doctor':
         try:
             profile = user.doctor_profile
@@ -271,6 +297,24 @@ def _redirect_user_after_login(request, user):
     _ensure_password_security_notice(user)
 
     return redirect('dashboard_home')
+
+
+def _ensure_user_access(request):
+    if request.user.is_staff or request.user.is_superuser:
+        return redirect('admin:index')
+    if request.user.role != 'user':
+        return redirect('doctor_dashboard' if request.user.role == 'doctor' else 'home')
+    return None
+
+
+def _ensure_chat_access(request):
+    if request.user.is_staff or request.user.is_superuser:
+        messages.error(request, 'Admin accounts can only access the admin area.')
+        return redirect('admin:index')
+    if request.user.role not in {'user', 'doctor'}:
+        messages.error(request, 'Your account role cannot access chat.')
+        return redirect('home')
+    return None
 
 
 def _is_google_oauth_ready():
@@ -339,7 +383,7 @@ def explore_doctors(request):
 # -----------------------------
 # Authentication
 # -----------------------------
-
+from django.http import JsonResponse
 def signup_view(request):
     if request.method == 'POST':
         form = RegistrationForm(request.POST)
@@ -360,14 +404,30 @@ def signup_view(request):
             password=password,
             role=role,
             is_password_strong=True,
+            is_active=False,
         )
-        
-        user.backend = 'django.contrib.auth.backends.ModelBackend'
-        auth_login(request, user)
 
-        request.session['prompt_2fa_after_signup'] = True
-        request.session['post_signup_next'] = 'doctor_details' if role == 'doctor' else 'user_profile'
-        return redirect('two_factor_setup_prompt')
+        try:
+            signup_code = _issue_signup_email_code(user)
+            _send_signup_email_code(user, signup_code)
+        except Exception:
+            user.delete()
+            messages.error(request, 'Unable to send verification code. Please try signing up again.')
+            return redirect('signup')
+
+        request.session['pending_signup_user_id'] = user.id
+
+        # API Testing
+        if request.headers.get('Accept') == 'application/json':
+            return JsonResponse({
+                "message": "Account created. Verify your email before login.",
+                "username": username,
+                "role": role
+            }, status=201)
+
+        messages.info(request, f'A 6-digit verification code was sent to {email}.')
+        return redirect('verify_signup_email')
+    
 
     google_oauth_ready = _is_google_oauth_ready()
     return render(request, 'signup.html', {'google_oauth_ready': google_oauth_ready})
@@ -383,6 +443,11 @@ def login_view(request):
         user = authenticate(request, username=username, password=password)
 
         if user is None:
+            pending_user = User.objects.filter(username=username).first()
+            if pending_user and pending_user.check_password(password) and not pending_user.is_active:
+                request.session['pending_signup_user_id'] = pending_user.id
+                messages.error(request, 'Please verify your email before logging in.')
+                return redirect('verify_signup_email')
             messages.error(request, "Invalid username or password")
             return redirect('login')
 
@@ -410,10 +475,98 @@ def login_view(request):
 
         auth_login(request, user)
         _set_login_session_expiry(request, remember_me)
+        # API Testing: Success Response
+        if request.headers.get('Accept') == 'application/json':
+            return JsonResponse({
+                "message": "Login successful!",
+                "username": user.username
+            }, status=200)
         return _redirect_user_after_login(request, user)
 
     google_oauth_ready = _is_google_oauth_ready()
     return render(request, 'login.html', {'google_oauth_ready': google_oauth_ready})
+
+
+def verify_signup_email(request):
+    pending_user_id = request.session.get('pending_signup_user_id')
+    pending_user = User.objects.filter(id=pending_user_id).first() if pending_user_id else None
+
+    if request.user.is_authenticated and not request.user.is_active:
+        pending_user = request.user
+        request.session['pending_signup_user_id'] = request.user.id
+
+    if not pending_user:
+        messages.error(request, 'Your signup verification session expired. Please sign up again or login to continue.')
+        return redirect('signup')
+
+    if pending_user.is_active:
+        request.session.pop('pending_signup_user_id', None)
+        if request.user.is_authenticated and request.user.id == pending_user.id:
+            return redirect('post_auth_redirect')
+        messages.info(request, 'Your email is already verified. You can log in now.')
+        return redirect('login')
+
+    form = SignupEmailVerificationForm(request.POST or None)
+
+    if request.method == 'POST' and form.is_valid():
+        code = form.cleaned_data['code']
+
+        if not _validate_signup_email_code(pending_user, code):
+            messages.error(request, 'Invalid or expired verification code.')
+            return redirect('verify_signup_email')
+
+        pending_user.is_active = True
+        pending_user.save(update_fields=['is_active'])
+
+        request.session.pop('pending_signup_user_id', None)
+        request.session['prompt_2fa_after_signup'] = True
+        request.session['post_signup_next'] = 'post_auth_redirect'
+
+        auth_login(request, pending_user, backend=settings.AUTHENTICATION_BACKENDS[0])
+        messages.success(request, 'Email verified successfully.')
+        return redirect('two_factor_setup_prompt')
+
+    masked_email = pending_user.email
+    if masked_email and '@' in masked_email:
+        local_part, domain_part = masked_email.split('@', 1)
+        masked_local = (local_part[:2] + '***') if len(local_part) > 2 else (local_part[:1] + '***')
+        masked_email = f'{masked_local}@{domain_part}'
+
+    return render(
+        request,
+        'two_factor_verify.html',
+        {
+            'title': 'Verify Your Email',
+            'subtitle': f'Enter the 6-digit code sent to {masked_email}.',
+            'verify_url_name': 'verify_signup_email',
+            'resend_url_name': 'resend_signup_email_code',
+        },
+    )
+
+
+def resend_signup_email_code(request):
+    if request.method != 'POST':
+        return redirect('verify_signup_email')
+
+    pending_user_id = request.session.get('pending_signup_user_id')
+    if not pending_user_id:
+        messages.error(request, 'Your signup verification session expired. Please sign up again.')
+        return redirect('signup')
+
+    pending_user = User.objects.filter(id=pending_user_id).first()
+    if not pending_user or pending_user.is_active:
+        request.session.pop('pending_signup_user_id', None)
+        messages.info(request, 'This account is already verified. You can log in now.')
+        return redirect('login')
+
+    code_obj = _issue_signup_email_code(pending_user)
+    try:
+        _send_signup_email_code(pending_user, code_obj)
+        messages.info(request, 'A new verification code was sent to your email.')
+    except Exception:
+        messages.error(request, 'Unable to resend verification code right now. Please try again.')
+
+    return redirect('verify_signup_email')
 
 
 @login_required
@@ -653,6 +806,10 @@ def two_factor_settings_verify(request):
 
 @login_required
 def user_profile(request):
+    role_redirect = _ensure_user_access(request)
+    if role_redirect:
+        return role_redirect
+
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
     today = timezone.localdate()
 
@@ -2049,6 +2206,10 @@ def generate_report(user):
 
 @login_required
 def dashboard_reports(request):
+    role_redirect = _ensure_user_access(request)
+    if role_redirect:
+        return role_redirect
+
     report_data = generate_report(request.user)
     context = {
         'active_page': 'reports',
@@ -2059,6 +2220,10 @@ def dashboard_reports(request):
 
 @login_required
 def export_reports_pdf(request):
+    role_redirect = _ensure_user_access(request)
+    if role_redirect:
+        return role_redirect
+
     report_data = generate_report(request.user)
     context = {
         'report_data': report_data,
@@ -2080,6 +2245,15 @@ def export_reports_pdf(request):
     if pdf.err:
         messages.error(request, 'Unable to generate PDF report at the moment.')
         return redirect('dashboard_reports')
+
+    _create_notification(
+        request.user,
+        'Report export completed',
+        'Your report was exported successfully.',
+        'system',
+        target_url=reverse('dashboard_reports'),
+        target_section_id='reports-section',
+    )
 
     return response
 
@@ -2156,6 +2330,9 @@ def _delete_user_account_data(user):
 
 
 def _ensure_doctor_access(request):
+    if request.user.is_staff or request.user.is_superuser:
+        messages.error(request, 'Admin accounts can only access the admin area.')
+        return False
     if request.user.role != 'doctor':
         messages.error(request, 'Only doctor accounts can access this page.')
         return False
@@ -2164,6 +2341,10 @@ def _ensure_doctor_access(request):
 
 @login_required
 def profile_view(request):
+    role_redirect = _ensure_user_access(request)
+    if role_redirect:
+        return role_redirect
+
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
     last_log = HealthLog.objects.filter(user=request.user).order_by('-created_at').first()
     documents = UserDocument.objects.filter(user=request.user)
@@ -2219,6 +2400,10 @@ def profile_view(request):
 
 @login_required
 def upload_user_documents(request):
+    role_redirect = _ensure_user_access(request)
+    if role_redirect:
+        return role_redirect
+
     if request.method != 'POST':
         return redirect('dashboard_profile')
 
@@ -2259,6 +2444,10 @@ def upload_user_documents(request):
 
 @login_required
 def settings_view(request):
+    role_redirect = _ensure_user_access(request)
+    if role_redirect:
+        return role_redirect
+
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
     two_factor_enabled = request.user.is_two_factor_enabled
 
@@ -2324,6 +2513,10 @@ def settings_view(request):
 
 @login_required
 def verify_email_code(request):
+    role_redirect = _ensure_user_access(request)
+    if role_redirect:
+        return role_redirect
+
     if request.method != 'POST':
         return redirect('dashboard_settings')
 
@@ -2434,6 +2627,10 @@ def mark_all_as_read(request):
 
 @login_required
 def delete_account(request):
+    role_redirect = _ensure_user_access(request)
+    if role_redirect:
+        return role_redirect
+
     if request.method != 'POST':
         return redirect('dashboard_settings')
 
@@ -2705,6 +2902,10 @@ def doctor_delete_account(request):
 
 @login_required
 def change_password(request):
+    role_redirect = _ensure_user_access(request)
+    if role_redirect:
+        return role_redirect
+
     if request.method != 'POST':
         return redirect('dashboard_settings')
 
@@ -2750,6 +2951,10 @@ def change_password(request):
 
 @login_required
 def dashboard_home(request):
+    role_redirect = _ensure_user_access(request)
+    if role_redirect:
+        return role_redirect
+
     _ensure_password_security_notice(request.user)
 
     logs = CycleLog.objects.filter(user=request.user)
@@ -3253,6 +3458,10 @@ def dashboard_home(request):
 
 @login_required
 def submit_mood_checkin(request):
+    role_redirect = _ensure_user_access(request)
+    if role_redirect:
+        return role_redirect
+
     if request.method != 'POST':
         return redirect('dashboard_home')
 
@@ -3275,6 +3484,10 @@ def submit_mood_checkin(request):
 
 @login_required
 def submit_prediction_feedback(request):
+    role_redirect = _ensure_user_access(request)
+    if role_redirect:
+        return role_redirect
+
     if request.method != 'POST':
         return redirect('dashboard_home')
 
@@ -3359,6 +3572,10 @@ def submit_prediction_feedback(request):
 
 @login_required
 def log_period_start_view(request):
+    role_redirect = _ensure_user_access(request)
+    if role_redirect:
+        return role_redirect
+
     if request.method != 'POST':
         return redirect('dashboard_home')
 
@@ -3395,6 +3612,10 @@ def log_period_start_view(request):
 
 @login_required
 def end_period_view(request):
+    role_redirect = _ensure_user_access(request)
+    if role_redirect:
+        return role_redirect
+
     if request.method != 'POST':
         return redirect('dashboard_home')
 
@@ -3429,6 +3650,10 @@ def end_period_view(request):
 
 @login_required
 def submit_period_checkin(request):
+    role_redirect = _ensure_user_access(request)
+    if role_redirect:
+        return role_redirect
+
     if request.method != 'POST':
         return redirect('dashboard_home')
 
@@ -3489,6 +3714,10 @@ def submit_period_checkin(request):
 
 @login_required
 def save_symptoms(request):
+    role_redirect = _ensure_user_access(request)
+    if role_redirect:
+        return role_redirect
+
     if request.method != 'POST':
         return redirect('dashboard_home')
 
@@ -3528,6 +3757,10 @@ def save_symptoms(request):
 
 @login_required
 def appointment(request):
+    role_redirect = _ensure_user_access(request)
+    if role_redirect:
+        return role_redirect
+
     today = timezone.now().date()
     
     # Sort by date and time so the earliest is always first
@@ -3565,13 +3798,32 @@ def appointment(request):
 
 @login_required
 def doctor_dashboard(request):
-    if request.user.role != 'doctor':
+    if not _ensure_doctor_access(request):
         return redirect('home')
 
     profile = get_object_or_404(DoctorProfile, user=request.user)
     now = timezone.localtime(timezone.now())
     today = now.date()
     end_date = today + timedelta(days=14)
+
+    if now.hour < 12:
+        greeting_prefix = 'Good morning'
+    elif now.hour < 18:
+        greeting_prefix = 'Good afternoon'
+    else:
+        greeting_prefix = 'Good evening'
+
+    greeting_text = f"{greeting_prefix}, Doctor!"
+
+    doctor_appointments = Appointment.objects.filter(doctor=request.user)
+    total_appointments = doctor_appointments.count()
+    pending_appointments = doctor_appointments.filter(status='pending').count()
+    total_patients = doctor_appointments.values('user_id').distinct().count()
+    completed_appointments = doctor_appointments.filter(
+        Q(status='completed') |
+        Q(status='approved', availability__date__lt=today) |
+        Q(status='approved', availability__date=today, availability__end_time__lt=now.time())
+    ).count()
 
     availabilities = DoctorAvailability.objects.filter(
         doctor=request.user,
@@ -3582,6 +3834,12 @@ def doctor_dashboard(request):
         'availabilities': availabilities,
         'profile': profile,
         'days_of_week': DoctorAvailability.DAYS_OF_WEEK,
+        'greeting_text': greeting_text,
+        'total_appointments': total_appointments,
+        'pending_appointments': pending_appointments,
+        'total_patients': total_patients,
+        'completed_appointments': completed_appointments,
+        'show_profile_warning': profile.is_verified and not profile.is_profile_complete,
     })
 
 
@@ -3838,59 +4096,34 @@ def add_cycle_log(request):
 
 from .models import Appointment, ChatMessage
 # Chat Consultation
-@login_required
-def chat_room(request, appointment_id):
-    appointment = get_object_or_404(Appointment, id=appointment_id)
-
-    # Only the patient and assigned doctor can access this room.
-    if request.user.id not in (appointment.user_id, appointment.doctor_id):
-        messages.error(request, "You do not have access to this consultation room.")
-        return redirect('dashboard_chat')
-    
-    # Logic: Only Approved appointments can chat
-    if appointment.status != 'approved':
-        return render(request, 'chat/locked.html', {"reason": "Appointment not approved."})
-
-    # Time Logic
+def _get_consultation_chat_state(appointment):
     now = timezone.now()
-    start_dt = timezone.make_aware(timezone.datetime.combine(appointment.availability.date, appointment.availability.start_time))
-    end_dt = timezone.make_aware(timezone.datetime.combine(appointment.availability.date, appointment.availability.end_time))
-
-    is_active = start_dt <= now <= end_dt
-    is_locked = now > end_dt
-
-    # Room name is unique to the pair: "chat_patientID_doctorID"
-    room_name = f"chat_{appointment.user.id}_{appointment.doctor.id}"
-    
-    # Get or create conversation
-    from .models import Conversation
-    conversation, created = Conversation.objects.get_or_create(
-        doctor=appointment.doctor,
-        patient=appointment.user,
-        defaults={'room_name': room_name}
+    start_dt = timezone.make_aware(
+        timezone.datetime.combine(appointment.availability.date, appointment.availability.start_time)
     )
-    
-    # Mark as read for current user
-    conversation.mark_as_read(request.user)
-    
-    # Get previous history
-    history = ChatMessage.objects.filter(room_name=room_name)
+    end_dt = timezone.make_aware(
+        timezone.datetime.combine(appointment.availability.date, appointment.availability.end_time)
+    )
 
-    patient = appointment.user
-    patient_documents = UserDocument.objects.filter(user=patient).order_by('-uploaded_at')
+    is_status_open = appointment.status == 'approved'
+    is_active = is_status_open and (start_dt <= now <= end_dt)
+    is_future = now < start_dt
+    is_locked = now > end_dt or not is_status_open
 
-    context = {
-        'appointment': appointment,
-        'patient': patient,
-        'patient_documents': patient_documents,
-        'room_name': room_name,
-        'history': history,
+    return {
         'is_active': is_active,
         'is_locked': is_locked,
-        'role': request.user.role,
-        'conversation': conversation
+        'is_future': is_future,
+        'can_chat': is_active,
+        'start_dt': start_dt,
+        'end_dt': end_dt,
     }
-    return render(request, 'dashboard/room.html', context)
+
+
+@login_required
+def chat_room(request, appointment_id):
+    """Compatibility endpoint: keep old links working via split-screen chat page."""
+    return redirect('dashboard_chat_redirect', appointment_id=appointment_id)
 
 
 @login_required
@@ -3932,16 +4165,75 @@ def consultation_chat_file(request, appointment_id, message_id):
 
 @login_required
 def dashboard_chat(request):
+    role_redirect = _ensure_chat_access(request)
+    if role_redirect:
+        return role_redirect
+
     """Chat interface page containing only the conversations sidebar/list."""
     return render(request, 'dashboard/chat.html', {
         'role': request.user.role,
+        'initial_appointment_id': None,
     })
 
 
 @login_required
 def dashboard_chat_redirect(request, appointment_id):
-    """Compatibility route: redirect dashboard chat item to existing room view."""
-    return redirect('chat_room', appointment_id=appointment_id)
+    role_redirect = _ensure_chat_access(request)
+    if role_redirect:
+        return role_redirect
+
+    appointment = get_object_or_404(Appointment, id=appointment_id)
+    if request.user.id not in (appointment.user_id, appointment.doctor_id):
+        messages.error(request, 'You do not have access to this consultation room.')
+        return redirect('dashboard_chat' if request.user.role == 'user' else 'doctor_chat_hub')
+
+    return render(
+        request,
+        'dashboard/chat.html',
+        {
+            'role': request.user.role,
+            'initial_appointment_id': appointment.id,
+        },
+    )
+
+
+@login_required
+def doctor_chat_hub(request):
+    """Open a doctor's most relevant consultation chat from sidebar Chat entry."""
+    if not _ensure_doctor_access(request):
+        return redirect('home')
+
+    now = timezone.now()
+    approved_appts = list(
+        Appointment.objects.filter(doctor=request.user, status='approved')
+        .select_related('availability')
+        .order_by('availability__date', 'availability__start_time')
+    )
+
+    if not approved_appts:
+        messages.info(request, 'No approved consultations available for chat yet.')
+        return redirect('doctor_appointment')
+
+    active = []
+    upcoming = []
+    past = []
+
+    for appt in approved_appts:
+        start_dt = timezone.make_aware(datetime.combine(appt.availability.date, appt.availability.start_time))
+        end_dt = timezone.make_aware(datetime.combine(appt.availability.date, appt.availability.end_time))
+
+        if start_dt <= now <= end_dt:
+            active.append(appt)
+        elif start_dt > now:
+            upcoming.append(appt)
+        else:
+            past.append(appt)
+
+    if active:
+        return redirect('dashboard_chat_redirect', appointment_id=active[0].id)
+    if upcoming:
+        return redirect('dashboard_chat_redirect', appointment_id=upcoming[0].id)
+    return redirect('dashboard_chat_redirect', appointment_id=past[-1].id)
 
 
 from django.views.decorators.csrf import csrf_exempt
@@ -4055,6 +4347,9 @@ from .models import Conversation
 
 @login_required
 def get_conversations(request):
+    if request.user.is_staff or request.user.is_superuser or request.user.role not in {'user', 'doctor'}:
+        return JsonResponse({'error': 'Forbidden'}, status=403)
+
     """API endpoint to fetch all conversations for the logged-in user"""
     user = request.user
     
@@ -4067,19 +4362,17 @@ def get_conversations(request):
     for conv in conversations:
         other_user = conv.get_other_user(user)
         
-        # Get appointment for this conversation
+        # Get the latest consultation between participants.
         if user.role == 'doctor':
             appointment = Appointment.objects.filter(
                 doctor=user,
                 user=conv.patient,
-                status='approved'
-            ).first()
+            ).select_related('availability').order_by('-availability__date', '-availability__start_time').first()
         else:
             appointment = Appointment.objects.filter(
                 user=user,
                 doctor=conv.doctor,
-                status='approved'
-            ).first()
+            ).select_related('availability').order_by('-availability__date', '-availability__start_time').first()
         
         # Format the other user's name correctly
         if user.role == 'user':
@@ -4109,6 +4402,9 @@ def get_conversations(request):
 
 @login_required
 def get_message_history(request, appointment_id):
+    if request.user.is_staff or request.user.is_superuser or request.user.role not in {'user', 'doctor'}:
+        return JsonResponse({'error': 'Forbidden'}, status=403)
+
     """API endpoint to fetch message history for a conversation"""
     appointment = get_object_or_404(Appointment, id=appointment_id)
     user = request.user
@@ -4125,6 +4421,8 @@ def get_message_history(request, appointment_id):
         room_name = f"chat_{appointment.user_id}_{appointment.doctor_id}"
         other_user = appointment.doctor
     
+    chat_state = _get_consultation_chat_state(appointment)
+
     # Get all messages for this room
     messages_qs = ChatMessage.objects.filter(room_name=room_name, is_note=False).select_related('sender')
     
@@ -4157,11 +4455,31 @@ def get_message_history(request, appointment_id):
             'is_read': msg.is_read
         })
     
-    return JsonResponse({'messages': messages_data})
+    return JsonResponse(
+        {
+            'messages': messages_data,
+            'consultation': {
+                'is_active': chat_state['is_active'],
+                'is_locked': chat_state['is_locked'],
+                'is_future': chat_state['is_future'],
+                'can_chat': chat_state['can_chat'],
+                'status': appointment.status,
+                'start_time_label': timezone.localtime(chat_state['start_dt']).strftime('%d %b %Y, %H:%M'),
+                'end_time_label': timezone.localtime(chat_state['end_dt']).strftime('%d %b %Y, %H:%M'),
+                'other_user_name': (
+                    (other_user.doctor_profile.full_name if user.role == 'user' and hasattr(other_user, 'doctor_profile') else other_user.username)
+                    or other_user.username
+                ),
+            },
+        }
+    )
 
 
 @login_required
 def send_message(request):
+    if request.user.is_staff or request.user.is_superuser or request.user.role not in {'user', 'doctor'}:
+        return JsonResponse({'error': 'Forbidden'}, status=403)
+
     """API endpoint to send a chat message"""
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'Invalid request method'})
@@ -4186,9 +4504,13 @@ def send_message(request):
     if appointment.user != user and appointment.doctor != user:
         return JsonResponse({'error': 'Unauthorized'}, status=403)
     
-    # Check if appointment is locked (finished)
-    if appointment.status == 'completed':
-        return JsonResponse({'success': False, 'error': 'Appointment has ended'})
+    expected_room_name = f"chat_{appointment.user_id}_{appointment.doctor_id}"
+    if room_name != expected_room_name:
+        return JsonResponse({'success': False, 'error': 'Invalid room selected'})
+
+    chat_state = _get_consultation_chat_state(appointment)
+    if not chat_state['can_chat']:
+        return JsonResponse({'success': False, 'error': 'Consultation chat is locked right now'})
     
     # Create the message
     msg = ChatMessage.objects.create(
@@ -4263,6 +4585,9 @@ def send_message(request):
 
 @login_required
 def upload_message_file(request):
+    if request.user.is_staff or request.user.is_superuser or request.user.role not in {'user', 'doctor'}:
+        return JsonResponse({'error': 'Forbidden'}, status=403)
+
     """API endpoint to upload file for chat message"""
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'Invalid request method'})
@@ -4281,6 +4606,14 @@ def upload_message_file(request):
     if appointment.user != user and appointment.doctor != user:
         return JsonResponse({'error': 'Unauthorized'}, status=403)
     
+    expected_room_name = f"chat_{appointment.user_id}_{appointment.doctor_id}"
+    if room_name != expected_room_name:
+        return JsonResponse({'success': False, 'error': 'Invalid room selected'})
+
+    chat_state = _get_consultation_chat_state(appointment)
+    if not chat_state['can_chat']:
+        return JsonResponse({'success': False, 'error': 'Consultation chat is locked right now'})
+
     # Validate file
     import os
     allowed_extensions = ['.jpg', '.jpeg', '.png', '.pdf', '.doc', '.docx']
@@ -4361,6 +4694,9 @@ def upload_message_file(request):
 
 @login_required
 def mark_conversation_as_read(request, appointment_id):
+    if request.user.is_staff or request.user.is_superuser or request.user.role not in {'user', 'doctor'}:
+        return JsonResponse({'error': 'Forbidden'}, status=403)
+
     """Mark conversation as read for the current user"""
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'Invalid request method'})

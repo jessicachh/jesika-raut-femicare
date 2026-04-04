@@ -223,7 +223,6 @@ class UserProfileForm(forms.ModelForm):
         model = UserProfile
         fields = [
             'full_name',
-            'phone_number',
             'date_of_birth',
             'profile_picture',
             'height_cm',
@@ -464,6 +463,21 @@ class EmailVerificationForm(forms.Form):
                 'class': 'form-control',
                 'placeholder': 'Enter 6-digit code',
                 'inputmode': 'numeric',
+            }
+        )
+
+
+class SignupEmailVerificationForm(forms.Form):
+    code = forms.CharField(max_length=6, min_length=6)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['code'].widget.attrs.update(
+            {
+                'class': 'form-control',
+                'placeholder': 'Enter 6-digit code',
+                'inputmode': 'numeric',
+                'autocomplete': 'one-time-code',
             }
         )
 

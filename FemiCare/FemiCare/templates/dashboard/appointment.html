@@ -22,7 +22,7 @@
                 <div class="d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-geo-alt me-1"></i> {{ next_session.doctor.doctorprofile.hospital_name }}</span>
                     {% if next_session.status == 'approved' %}
-                        <a href="{% url 'chat_room' next_session.id %}" class="btn btn-light fw-bold px-4 text-danger">Join Consultation</a>
+                        <a href="{% url 'dashboard_chat_redirect' next_session.id %}" class="btn btn-light fw-bold px-4 text-danger">Join Consultation</a>
                     {% else %}
                         <span class="badge bg-warning text-dark">Pending Approval</span>
                     {% endif %}
@@ -75,7 +75,7 @@
                             <small class="fw-bold">Dr. {{ appt.doctor.doctor_profile.full_name }}</small>
                             <small class="text-muted">{{ appt.availability.date|date:"d M y" }}</small>
                         </div>
-                        <a href="{% url 'chat_room' appt.id %}" class="small text-decoration-none" style="color: #b32525;">View Chat History →</a>
+                        <a href="{% url 'dashboard_chat_redirect' appt.id %}" class="small text-decoration-none" style="color: #b32525;">View Chat History →</a>
                     </div>
                     {% endfor %}
                 </div>

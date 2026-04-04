@@ -28,6 +28,7 @@
         const searchInput = document.getElementById('conversation-sidebar-search');
         let allConversations = [];
         let wsConnection = null;
+        let activeAppointmentId = null;
 
         // Load conversations on page load
         loadConversations();
@@ -78,13 +79,16 @@
                     `<span class="unread-badge-small">${conv.unread_count}</span>` : '';
                 const unreadClass = conv.unread_count > 0 ? 'unread' : '';
                 const avatarLetter = conv.other_user.name.charAt(0).toUpperCase();
+                const activeClass = activeAppointmentId && Number(activeAppointmentId) === Number(conv.appointment_id) ? 'active' : '';
+                const avatarBg = getPastelColor(conv.other_user.name);
 
                 return `
-                    <div class="conversation-sidebar-item ${unreadClass}" 
+                    <div class="conversation-sidebar-item ${unreadClass} ${activeClass}" 
                          data-appointment-id="${conv.appointment_id}" 
                          data-room-name="${conv.room_name}"
+                         data-display-name="${conv.other_user.name}"
                          title="${conv.other_user.name}">
-                        <div class="conv-avatar">${avatarLetter}</div>
+                        <div class="conv-avatar" style="--avatar-bg: ${avatarBg};">${avatarLetter}</div>
                         <div class="conv-content">
                             <div class="conv-name">${conv.other_user.name}</div>
                             <div class="conv-preview">${truncateMessage(conv.last_message, 30)}</div>
@@ -101,14 +105,26 @@
             document.querySelectorAll('.conversation-sidebar-item').forEach(item => {
                 item.onclick = function() {
                     const appointmentId = this.dataset.appointmentId;
+                    const roomName = this.dataset.roomName;
+                    const displayName = this.dataset.displayName;
+
+                    if (!appointmentId || appointmentId === 'null') {
+                        alert('No active consultation for this conversation');
+                        return;
+                    }
+
+                    activeAppointmentId = appointmentId;
                     document.querySelectorAll('.conversation-sidebar-item').forEach(el => el.classList.remove('active'));
                     this.classList.add('active');
-                    
-                    if (appointmentId && appointmentId !== 'null') {
-                        // Open existing room view
-                        loadChatInMainArea(appointmentId);
+
+                    if (window.femicareChatUI && typeof window.femicareChatUI.openConversation === 'function') {
+                        window.femicareChatUI.openConversation({
+                            appointmentId,
+                            roomName,
+                            displayName,
+                        });
                     } else {
-                        alert('No active consultation for this conversation');
+                        window.location.href = `/dashboard/chat/${appointmentId}/`;
                     }
                 };
             });
@@ -160,6 +176,16 @@
             return msg.length > length ? msg.substring(0, length) + '...' : msg;
         }
 
+        function getPastelColor(name) {
+            const source = (name || 'User').trim();
+            let hash = 0;
+            for (let i = 0; i < source.length; i += 1) {
+                hash = source.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            const hue = Math.abs(hash) % 360;
+            return `hsl(${hue} 70% 76%)`;
+        }
+
         // WebSocket for real-time updates
         function connectWebSocket() {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -195,10 +221,5 @@
             }
         }
 
-        // Load chat in main dashboard area
-        window.loadChatInMainArea = function(appointmentId) {
-            // Navigate to existing room.html view
-            window.location.href = `/chat/${appointmentId}/`;
-        };
     });
 </script>

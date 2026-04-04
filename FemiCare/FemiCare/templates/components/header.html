@@ -51,36 +51,12 @@
           <span class="user-name">{{ request.user.get_full_name|default:request.user.username }}</span>
         </div>
 
-        <div class="user-avatar">
-          {% if request.user.is_authenticated %}
-            {% if request.user.role == 'doctor' and request.user.doctor_profile.photo %}
-              <img src="{{ request.user.doctor_profile.photo.url }}" alt="Doctor Avatar">
-            {% elif request.user.role == 'user' and request.user.user_profile.profile_picture %}
-              <img src="{{ request.user.user_profile.profile_picture.url }}" alt="Patient Avatar">
-            {% else %}
-              <img src="{% static 'img/default-user.png' %}" alt="Avatar">
-            {% endif %}
-          {% else %}
-            <img src="{% static 'img/default-user.png' %}" alt="Avatar">
-          {% endif %}
-        </div>
+        {% render_user_avatar request.user 'user-avatar' 'Avatar' %}
       </button>
 
       <div class="dropdown-menu dropdown-menu-end user-dropdown-menu p-0">
         <div class="user-dropdown-header">
-          <div class="user-avatar user-dropdown-avatar">
-            {% if request.user.is_authenticated %}
-              {% if request.user.role == 'doctor' and request.user.doctor_profile.photo %}
-                <img src="{{ request.user.doctor_profile.photo.url }}" alt="Doctor Avatar">
-              {% elif request.user.role == 'user' and request.user.user_profile.profile_picture %}
-                <img src="{{ request.user.user_profile.profile_picture.url }}" alt="Patient Avatar">
-              {% else %}
-                <img src="{% static 'img/default-user.png' %}" alt="Avatar">
-              {% endif %}
-            {% else %}
-              <img src="{% static 'img/default-user.png' %}" alt="Avatar">
-            {% endif %}
-          </div>
+          {% render_user_avatar request.user 'user-avatar user-dropdown-avatar' 'Avatar' %}
 
           <div class="user-dropdown-meta">
             <h6>{{ request.user.get_full_name|default:request.user.username }}</h6>
