@@ -187,6 +187,7 @@ EMAIL_PORT = 587
 EMAIL_HOST_USER = 'jsscraut@gmail.com'
 EMAIL_HOST_PASSWORD = 'qtow ufan vbzs zjea'
 DEFAULT_FROM_EMAIL = 'FemiCare <jsscraut@gmail.com>'
+ADMIN_EMAIL = EMAIL_HOST_USER
 
 SITE_ID = int(os.getenv('SITE_ID', '3'))
 

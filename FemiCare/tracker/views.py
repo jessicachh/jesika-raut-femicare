@@ -1,3 +1,8 @@
+from collections import Counter
+from io import BytesIO
+from pathlib import Path
+from xml.sax.saxutils import escape
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login as auth_login, logout as auth_logout, logout
 from django.contrib.auth import update_session_auth_hash
@@ -43,6 +48,7 @@ from .forms import (
     StrongSetPasswordForm,
     DoctorEmailChangeRequestForm,
     DeleteAccountForm,
+    DoctorProfileForm,
     SignupEmailVerificationForm,
 )
 from .models import CycleLog
@@ -52,14 +58,21 @@ from django.utils import timezone
 from django.core.paginator import Paginator
 from django.conf import settings
 from django.db.models import Avg, Count, Q
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils.dateparse import parse_date
 from django.urls import reverse
-from django.template.loader import render_to_string
 import logging
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import inch
+from reportlab.lib.utils import ImageReader
+from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 from tracker.emails.utils import (
     send_appointment_email as send_appointment_template_email,
     send_emergency_email as send_emergency_template_email,
+    send_doctor_verification_submission_email,
     send_notification_email as send_notification_template_email,
     send_profile_settings_change_email,
     send_verification_email,
@@ -868,24 +881,30 @@ def doctor_details(request):
     profile, created = DoctorProfile.objects.get_or_create(user=request.user)
 
     if request.method == 'POST':
-        profile.full_name = request.POST.get("full_name")
-        profile.specialization = request.POST.get('specialization')
-        profile.license_number = request.POST.get('license')
-        exp = request.POST.get('experience_years')
-        profile.experience_years = int(exp) if exp else None
-        profile.hospital_name = request.POST.get("hospital_name")
-        profile.location = request.POST.get("location")
-        
-        if request.FILES.get('certificate'):
-            profile.certificate = request.FILES['certificate']
-        
-        profile.save()
-    
+        form = DoctorProfileForm(request.POST, request.FILES, instance=profile)
+        if form.is_valid():
+            try:
+                with transaction.atomic():
+                    profile = form.save(commit=False)
+                    profile.user = request.user
+                    profile.save()
+            except IntegrityError:
+                form.add_error('license_number', 'A doctor with this license number already exists.')
+                return render(request, 'doctor_details.html', {'profile': profile, 'form': form})
 
-        # IMPORTANT: Redirect to pending page
-        return render(request, 'doctor_pending.html', {'profile': profile})
+            # Notify the admin inbox as soon as a doctor submits the verification packet.
+            if not send_doctor_verification_submission_email(profile, submitted_at=timezone.localtime(timezone.now())):
+                logger.warning(
+                    'Doctor verification submission email could not be sent for user_id=%s',
+                    request.user.id,
+                )
 
-    return render(request, 'doctor_details.html', {'profile': profile})
+            # IMPORTANT: Redirect to pending page
+            return render(request, 'doctor_pending.html', {'profile': profile})
+
+        return render(request, 'doctor_details.html', {'profile': profile, 'form': form})
+
+    return render(request, 'doctor_details.html', {'profile': profile, 'form': DoctorProfileForm(instance=profile)})
 
 @login_required
 def public_doctor_profile(request, pk):
@@ -1231,7 +1250,12 @@ def doctor_profile(request):
         profile.qualifications = qualifications
         profile.languages_spoken = languages_spoken
 
-        profile.save() 
+        try:
+            with transaction.atomic():
+                profile.save()
+        except IntegrityError:
+            messages.error(request, 'A doctor with this license number already exists.')
+            return render(request, "doctor/doctor_profile.html", {"profile": profile})
 
         messages.success(request, "Profile updated successfully!")
         return redirect("doctor_profile")
@@ -2204,16 +2228,540 @@ def generate_report(user):
     }
 
 
+def _format_pdf_date(value):
+    if not value:
+        return 'N/A'
+    if hasattr(value, 'strftime'):
+        return value.strftime('%d %b %Y')
+    return str(value)
+
+
+def _format_pdf_datetime(value):
+    if not value:
+        return 'N/A'
+    if hasattr(value, 'strftime'):
+        return timezone.localtime(value).strftime('%d %b %Y, %I:%M %p')
+    return str(value)
+
+
+def _safe_pdf_text(value, default='N/A'):
+    if value in (None, ''):
+        return default
+    return escape(str(value))
+
+
+def _build_image_flowable(path, max_width, max_height):
+    if not path:
+        return Spacer(max_width, max_height)
+
+    image_path = Path(path)
+    if not image_path.exists():
+        return Spacer(max_width, max_height)
+
+    try:
+        image = Image(str(image_path))
+        width, height = ImageReader(str(image_path)).getSize()
+        scale = min(max_width / width, max_height / height)
+        image.drawWidth = width * scale
+        image.drawHeight = height * scale
+        return image
+    except Exception:
+        return Spacer(max_width, max_height)
+
+
+def _build_pdf_report_data(user):
+    report_data = generate_report(user)
+    profile = getattr(user, 'user_profile', None)
+    today = timezone.localdate()
+
+    cycle_logs = list(
+        CycleLog.objects.filter(user=user)
+        .exclude(last_period_start__isnull=True)
+        .order_by('-last_period_start', '-created_at')
+    )
+    cycle_log_ids = [item.id for item in cycle_logs]
+
+    checkins = {
+        item.cycle_log_id: item
+        for item in PeriodCheckIn.objects.filter(user=user, cycle_log_id__in=cycle_log_ids)
+    }
+
+    mood_entries = list(MoodEntry.objects.filter(user=user).values('mood', 'date'))
+    symptom_entries = list(SymptomLog.objects.filter(user=user).values('symptom', 'date'))
+    feedback_entries = list(PredictionFeedback.objects.filter(user=user).values('is_correct'))
+
+    cycle_rows = []
+    for log in cycle_logs:
+        checkin = checkins.get(log.id)
+        reference_date = log.last_period_start or log.predicted_start_date or today
+        window_start = reference_date - timedelta(days=1)
+        window_end = reference_date + timedelta(days=2)
+
+        cycle_moods = Counter(
+            item['mood']
+            for item in mood_entries
+            if window_start <= item['date'] <= window_end
+        )
+
+        cycle_symptoms = Counter(
+            item['symptom']
+            for item in symptom_entries
+            if item['date'] == reference_date or (
+                log.id and item['date'] >= reference_date and item['date'] <= reference_date + timedelta(days=6)
+            )
+        )
+
+        cycle_rows.append(
+            {
+                'date': _format_pdf_date(log.last_period_start),
+                'cycle_length': log.length_of_cycle or 'N/A',
+                'flow': _safe_pdf_text(checkin.get_blood_flow_display() if checkin else None),
+                'pain': _safe_pdf_text(checkin.get_pain_level_display() if checkin else None),
+                'moods': ', '.join(
+                    f"{mood.title()} ({count})" for mood, count in cycle_moods.most_common(2)
+                ) or 'No mood entries',
+                'symptoms': ', '.join(
+                    f"{symptom} ({count})" for symptom, count in cycle_symptoms.most_common(3)
+                ) or 'No symptom entries',
+            }
+        )
+
+    cycle_lengths = [item.length_of_cycle for item in cycle_logs if item.length_of_cycle]
+    if cycle_lengths:
+        min_cycle = min(cycle_lengths)
+        max_cycle = max(cycle_lengths)
+        spread = max_cycle - min_cycle
+        if spread == 0:
+            cycle_regularity = f"Stable at {min_cycle} days"
+        elif spread <= 2:
+            cycle_regularity = f"Consistent range: {min_cycle}-{max_cycle} days"
+        else:
+            cycle_regularity = f"Variable range: {min_cycle}-{max_cycle} days"
+    else:
+        cycle_regularity = 'Not enough logged cycles yet'
+
+    avg_cycle_length = report_data['cycle_summary']['average_cycle_length']
+    recent_period_dates = [item.last_period_start for item in cycle_logs[:6]]
+    predicted_next_period = report_data['cycle_summary']['predicted_next_period']
+    latest_cycle = cycle_logs[0] if cycle_logs else None
+
+    top_symptoms = report_data['symptom_report']['most_frequent_symptoms']
+    mood_trends = report_data['symptom_report']['mood_trends']
+
+    if feedback_entries:
+        correct_predictions = sum(1 for item in feedback_entries if item['is_correct'])
+        prediction_accuracy = f"{correct_predictions} of {len(feedback_entries)} logged predictions matched the tracked date"
+    else:
+        prediction_accuracy = 'No prediction feedback has been logged yet'
+
+    if latest_cycle and latest_cycle.estimated_ovulation_day:
+        fertile_window = ''
+        if latest_cycle.fertile_window_start and latest_cycle.fertile_window_end:
+            fertile_window = (
+                f" with a fertile window from {_format_pdf_date(latest_cycle.fertile_window_start)} "
+                f"to {_format_pdf_date(latest_cycle.fertile_window_end)}"
+            )
+        ovulation_summary = f"Latest estimated ovulation: {_format_pdf_date(latest_cycle.estimated_ovulation_day)}{fertile_window}"
+    else:
+        ovulation_summary = 'No ovulation estimate available yet'
+
+    recent_cutoff = today - timedelta(days=14)
+    prior_cutoff = today - timedelta(days=28)
+    recent_symptoms = Counter(
+        item['symptom']
+        for item in symptom_entries
+        if item['date'] >= recent_cutoff
+    )
+    prior_symptoms = Counter(
+        item['symptom']
+        for item in symptom_entries
+        if prior_cutoff <= item['date'] < recent_cutoff
+    )
+
+    notable_changes = []
+    for symptom, count in recent_symptoms.most_common(5):
+        previous_count = prior_symptoms.get(symptom, 0)
+        if count > previous_count:
+            notable_changes.append(
+                f"{symptom} increased from {previous_count} to {count} logged entries in the last 14 days"
+            )
+    if not notable_changes:
+        notable_changes.append('No strong change in symptom frequency was detected from the available logs')
+
+    high_frequency_patterns = []
+    for alert in report_data['symptom_report']['repeated_symptom_alerts']:
+        high_frequency_patterns.append(
+            f"{alert['symptom']} appeared on at least three consecutive days, most recently detected on {_format_pdf_date(alert['detected_on'])}"
+        )
+    if not high_frequency_patterns:
+        high_frequency_patterns.append('No three-day symptom streaks were detected in the available log history')
+
+    high_risk_symptoms = sorted(
+        {item['symptom'] for item in report_data['symptom_report']['most_frequent_symptoms'] if item['symptom'] in HIGH_RISK_SYMPTOMS}
+    )
+    if high_risk_symptoms:
+        high_risk_summary = [
+            f"{symptom} was logged and falls within the high-risk symptom set"
+            for symptom in high_risk_symptoms[:5]
+        ]
+    else:
+        high_risk_summary = ['No high-risk symptoms were logged in the current report window']
+
+    if profile and getattr(profile, 'date_of_birth', None):
+        today = timezone.localdate()
+        age = today.year - profile.date_of_birth.year - ((today.month, today.day) < (profile.date_of_birth.month, profile.date_of_birth.day))
+        age_text = f'{age} years'
+    else:
+        age_text = 'Not provided'
+
+    if profile and getattr(profile, 'photo', None):
+        avatar_path = profile.photo.path if profile.photo else None
+    else:
+        avatar_path = None
+
+    static_root = Path(settings.BASE_DIR) / 'FemiCare' / 'static' / 'images'
+    logo_path = static_root / 'femicare_logo.png'
+
+    return {
+        'generated_at': report_data['generated_at'],
+        'profile': profile,
+        'age_text': age_text,
+        'cycle_regularity': cycle_regularity,
+        'recent_period_dates': recent_period_dates,
+        'predicted_next_period': predicted_next_period,
+        'avg_cycle_length': avg_cycle_length,
+        'top_symptoms': top_symptoms,
+        'mood_trends': mood_trends,
+        'prediction_accuracy': prediction_accuracy,
+        'ovulation_summary': ovulation_summary,
+        'cycle_rows': cycle_rows,
+        'notable_changes': notable_changes,
+        'high_frequency_patterns': high_frequency_patterns,
+        'high_risk_summary': high_risk_summary,
+        'avatar_path': avatar_path,
+        'logo_path': str(logo_path),
+    }
+
+
+def _build_report_styles():
+    styles = getSampleStyleSheet()
+    styles.add(
+        ParagraphStyle(
+            name='ReportTitle',
+            parent=styles['Title'],
+            fontName='Helvetica-Bold',
+            fontSize=22,
+            leading=26,
+            textColor=colors.HexColor('#243447'),
+            alignment=TA_LEFT,
+            spaceAfter=4,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name='ReportSubtitle',
+            parent=styles['BodyText'],
+            fontName='Helvetica',
+            fontSize=9.5,
+            leading=12,
+            textColor=colors.HexColor('#6b7280'),
+            alignment=TA_LEFT,
+            spaceAfter=0,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name='SectionHeading',
+            parent=styles['Heading2'],
+            fontName='Helvetica-Bold',
+            fontSize=13,
+            leading=16,
+            textColor=colors.HexColor('#1f2937'),
+            spaceBefore=8,
+            spaceAfter=6,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name='SubHeading',
+            parent=styles['BodyText'],
+            fontName='Helvetica-Bold',
+            fontSize=10,
+            leading=12,
+            textColor=colors.HexColor('#374151'),
+            spaceBefore=4,
+            spaceAfter=3,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name='ReportBody',
+            parent=styles['BodyText'],
+            fontName='Helvetica',
+            fontSize=9,
+            leading=12,
+            textColor=colors.HexColor('#374151'),
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name='ReportBullet',
+            parent=styles['BodyText'],
+            fontName='Helvetica',
+            fontSize=9,
+            leading=12,
+            leftIndent=12,
+            firstLineIndent=0,
+            textColor=colors.HexColor('#374151'),
+            spaceAfter=2,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name='TableCell',
+            parent=styles['BodyText'],
+            fontName='Helvetica',
+            fontSize=8.5,
+            leading=10.5,
+            textColor=colors.HexColor('#374151'),
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name='TableHeader',
+            parent=styles['BodyText'],
+            fontName='Helvetica-Bold',
+            fontSize=8.5,
+            leading=10.5,
+            alignment=TA_CENTER,
+            textColor=colors.white,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name='MiniLabel',
+            parent=styles['BodyText'],
+            fontName='Helvetica-Bold',
+            fontSize=8,
+            leading=10,
+            textColor=colors.HexColor('#6b7280'),
+            alignment=TA_CENTER,
+        )
+    )
+    return styles
+
+
+def build_header_section(user, data=None):
+    report_data = data or _build_pdf_report_data(user)
+    styles = _build_report_styles()
+
+    display_name = (user.get_full_name() or user.username).strip()
+    email_address = user.email or 'Not provided'
+    summary = [
+        [Paragraph('<b>Full name</b>', styles['MiniLabel']), Paragraph(_safe_pdf_text(display_name), styles['TableCell']), Paragraph('<b>Email</b>', styles['MiniLabel']), Paragraph(_safe_pdf_text(email_address), styles['TableCell'])],
+        [Paragraph('<b>Age</b>', styles['MiniLabel']), Paragraph(_safe_pdf_text(report_data['age_text']), styles['TableCell']), Paragraph('<b>Cycle regularity</b>', styles['MiniLabel']), Paragraph(_safe_pdf_text(report_data['cycle_regularity']), styles['TableCell'])],
+        [Paragraph('<b>Last period</b>', styles['MiniLabel']), Paragraph(_safe_pdf_text(', '.join(_format_pdf_date(item) for item in report_data['recent_period_dates'][:3]) or 'N/A'), styles['TableCell']), Paragraph('<b>Next predicted period</b>', styles['MiniLabel']), Paragraph(_safe_pdf_text(_format_pdf_date(report_data['predicted_next_period'])), styles['TableCell'])],
+    ]
+
+    avatar = _build_image_flowable(report_data['avatar_path'], 0.72 * inch, 0.72 * inch)
+    logo = _build_image_flowable(report_data['logo_path'], 0.78 * inch, 0.78 * inch)
+
+    header_block = Table(
+        [[avatar, [
+            Paragraph('FemiCare Health Report', styles['ReportTitle']),
+            Paragraph(
+                f"Generated {_safe_pdf_text(_format_pdf_datetime(report_data['generated_at']))}",
+                styles['ReportSubtitle'],
+            ),
+        ], logo]],
+        colWidths=[0.9 * inch, 5.6 * inch, 0.9 * inch],
+    )
+    header_block.setStyle(
+        TableStyle(
+            [
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+                ('ALIGN', (2, 0), (2, 0), 'RIGHT'),
+                ('LEFTPADDING', (0, 0), (-1, -1), 0),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+                ('TOPPADDING', (0, 0), (-1, -1), 0),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+            ]
+        )
+    )
+
+    details_table = Table(summary, colWidths=[1.05 * inch, 2.15 * inch, 1.25 * inch, 2.15 * inch])
+    details_table.setStyle(
+        TableStyle(
+            [
+                ('BACKGROUND', (0, 0), (-1, -1), colors.whitesmoke),
+                ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#374151')),
+                ('BOX', (0, 0), (-1, -1), 0.6, colors.HexColor('#d1d5db')),
+                ('INNERGRID', (0, 0), (-1, -1), 0.4, colors.HexColor('#e5e7eb')),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('LEFTPADDING', (0, 0), (-1, -1), 5),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 5),
+                ('TOPPADDING', (0, 0), (-1, -1), 4),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ]
+        )
+    )
+
+    return [header_block, Spacer(1, 0.14 * inch), details_table, Spacer(1, 0.18 * inch)]
+
+
+def build_insight_section(data):
+    styles = _build_report_styles()
+    insight_rows = [
+        ('Average cycle length', _safe_pdf_text(f"{data['avg_cycle_length']} days" if data['avg_cycle_length'] else 'No cycle lengths logged yet')),
+        ('Cycle variation range', _safe_pdf_text(data['cycle_regularity'])),
+        ('Most frequent symptoms', _safe_pdf_text(', '.join(
+            f"{item['symptom']} ({item['count']})" for item in data['top_symptoms'][:3]
+        ) or 'No symptom data logged yet')),
+        ('Mood trends', _safe_pdf_text(', '.join(
+            f"{item['mood'].title()} ({item['count']})" for item in data['mood_trends'][:3]
+        ) or 'No mood data logged yet')),
+        ('Prediction accuracy overview', _safe_pdf_text(data['prediction_accuracy'])),
+        ('Ovulation prediction summary', _safe_pdf_text(data['ovulation_summary'])),
+    ]
+
+    table_rows = [[Paragraph('<b>Insight</b>', styles['TableHeader']), Paragraph('<b>Summary</b>', styles['TableHeader'])]]
+    for label, value in insight_rows:
+        table_rows.append([Paragraph(_safe_pdf_text(label), styles['TableCell']), Paragraph(value, styles['TableCell'])])
+
+    insight_table = Table(table_rows, colWidths=[1.95 * inch, 5.15 * inch], repeatRows=1)
+    insight_table.setStyle(
+        TableStyle(
+            [
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3f4b59')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
+                ('BOX', (0, 0), (-1, -1), 0.6, colors.HexColor('#cbd5e1')),
+                ('INNERGRID', (0, 0), (-1, -1), 0.4, colors.HexColor('#e5e7eb')),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('LEFTPADDING', (0, 0), (-1, -1), 6),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+                ('TOPPADDING', (0, 0), (-1, -1), 5),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+            ]
+        )
+    )
+
+    return [
+        Paragraph('Key Insights', styles['SectionHeading']),
+        insight_table,
+        Spacer(1, 0.16 * inch),
+    ]
+
+
+def build_cycle_table(logs):
+    styles = _build_report_styles()
+    rows = [[
+        Paragraph('<b>Date</b>', styles['TableHeader']),
+        Paragraph('<b>Cycle length</b>', styles['TableHeader']),
+        Paragraph('<b>Flow</b>', styles['TableHeader']),
+        Paragraph('<b>Pain</b>', styles['TableHeader']),
+        Paragraph('<b>Mood and symptoms</b>', styles['TableHeader']),
+    ]]
+
+    for item in logs:
+        mood_and_symptoms = f"<b>Moods:</b> {item['moods']}<br/><b>Symptoms:</b> {item['symptoms']}"
+        rows.append([
+            Paragraph(_safe_pdf_text(item['date']), styles['TableCell']),
+            Paragraph(_safe_pdf_text(item['cycle_length']), styles['TableCell']),
+            Paragraph(_safe_pdf_text(item['flow']), styles['TableCell']),
+            Paragraph(_safe_pdf_text(item['pain']), styles['TableCell']),
+            Paragraph(mood_and_symptoms, styles['TableCell']),
+        ])
+
+    cycle_table = Table(rows, colWidths=[1.0 * inch, 0.9 * inch, 0.85 * inch, 0.8 * inch, 3.85 * inch], repeatRows=1)
+    cycle_table.setStyle(
+        TableStyle(
+            [
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3f4b59')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
+                ('BOX', (0, 0), (-1, -1), 0.6, colors.HexColor('#cbd5e1')),
+                ('INNERGRID', (0, 0), (-1, -1), 0.4, colors.HexColor('#e5e7eb')),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('LEFTPADDING', (0, 0), (-1, -1), 5),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 5),
+                ('TOPPADDING', (0, 0), (-1, -1), 4),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ]
+        )
+    )
+
+    return [
+        Paragraph('Cycle Log Table', styles['SectionHeading']),
+        cycle_table,
+        Spacer(1, 0.16 * inch),
+    ]
+
+
+def build_symptom_summary(data):
+    styles = _build_report_styles()
+    summary_flowables = [Paragraph('Symptom Summary', styles['SectionHeading'])]
+
+    sections = [
+        ('Frequently occurring symptoms', [
+            f"{item['symptom']} was logged {item['count']} time(s)" for item in data['top_symptoms'][:5]
+        ]),
+        ('Notable changes', data['notable_changes']),
+        ('High frequency patterns', data['high_frequency_patterns']),
+        ('High-risk symptoms', data['high_risk_summary']),
+    ]
+
+    for heading, items in sections:
+        summary_flowables.append(Paragraph(_safe_pdf_text(heading), styles['SubHeading']))
+        for item in items:
+            summary_flowables.append(Paragraph(_safe_pdf_text(item), styles['ReportBullet'], bulletText='-'))
+
+    summary_flowables.append(Spacer(1, 0.12 * inch))
+    return summary_flowables
+
+
+def build_recommendations():
+    styles = _build_report_styles()
+    recommendations = [
+        'Keep logging periods, symptoms, and mood entries consistently so the cycle summary stays accurate.',
+        'Review the report after each new cycle to notice changing patterns early.',
+        'Update prediction feedback when available because it improves the accuracy of future estimates.',
+        'Share any concerning or recurring high-risk symptoms with a clinician for review.',
+    ]
+
+    flowables = [Paragraph('Recommendations', styles['SectionHeading'])]
+    for recommendation in recommendations:
+        flowables.append(Paragraph(_safe_pdf_text(recommendation), styles['ReportBullet'], bulletText='-'))
+    flowables.append(
+        Paragraph(
+            'This report summarizes tracked information and is for reference only. It is not a medical diagnosis.',
+            styles['ReportBody'],
+        )
+    )
+    return flowables
+
+
+def _draw_report_page(canvas, doc):
+    canvas.saveState()
+    canvas.setStrokeColor(colors.HexColor('#d1d5db'))
+    canvas.setLineWidth(0.6)
+    canvas.line(doc.leftMargin, doc.height + doc.topMargin - 10, doc.width + doc.leftMargin, doc.height + doc.topMargin - 10)
+    canvas.setFont('Helvetica', 8)
+    canvas.setFillColor(colors.HexColor('#6b7280'))
+    canvas.drawString(doc.leftMargin, 18, 'FemiCare Health Report')
+    canvas.drawRightString(doc.width + doc.leftMargin, 18, f'Page {canvas.getPageNumber()}')
+    canvas.restoreState()
+
+
 @login_required
 def dashboard_reports(request):
     role_redirect = _ensure_user_access(request)
     if role_redirect:
         return role_redirect
 
-    report_data = generate_report(request.user)
     context = {
         'active_page': 'reports',
-        'report_data': report_data,
     }
     return render(request, 'dashboard/reports.html', context)
 
@@ -2224,27 +2772,38 @@ def export_reports_pdf(request):
     if role_redirect:
         return role_redirect
 
-    report_data = generate_report(request.user)
-    context = {
-        'report_data': report_data,
-        'user': request.user,
-    }
+    report_data = _build_pdf_report_data(request.user)
+    buffer = BytesIO()
 
-    html = render_to_string('dashboard/reports_pdf.html', context)
+    document = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        leftMargin=0.55 * inch,
+        rightMargin=0.55 * inch,
+        topMargin=0.7 * inch,
+        bottomMargin=0.7 * inch,
+        title='FemiCare Health Report',
+        author='FemiCare',
+        subject='User health report export',
+    )
+
+    story = []
+    story.extend(build_header_section(request.user, report_data))
+    story.extend(build_insight_section(report_data))
+    story.extend(build_cycle_table(report_data['cycle_rows']))
+    story.extend(build_symptom_summary(report_data))
+    story.extend(build_recommendations())
 
     try:
-        from xhtml2pdf import pisa
+        document.build(story, onFirstPage=_draw_report_page, onLaterPages=_draw_report_page)
     except Exception:
-        messages.error(request, 'PDF export requires xhtml2pdf. Please install it in your environment.')
+        logger.exception('Unable to generate ReportLab PDF report for user %s', request.user.pk)
+        messages.error(request, 'Unable to generate PDF report at the moment.')
         return redirect('dashboard_reports')
 
     response = HttpResponse(content_type='application/pdf')
     response['Content-Disposition'] = 'attachment; filename="femicare_health_report.pdf"'
-
-    pdf = pisa.CreatePDF(src=html, dest=response)
-    if pdf.err:
-        messages.error(request, 'Unable to generate PDF report at the moment.')
-        return redirect('dashboard_reports')
+    response.write(buffer.getvalue())
 
     _create_notification(
         request.user,

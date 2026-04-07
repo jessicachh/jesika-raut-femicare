@@ -128,7 +128,7 @@ class DoctorProfile(models.Model):
     
     # Verification Fields
     full_name = models.CharField(max_length=255, blank=True)
-    license_number = models.CharField(max_length=100)
+    license_number = models.CharField(max_length=100, unique=True)
     specialization = models.CharField(max_length=100, default="Gynecologist")
     experience_years = models.PositiveIntegerField(null=True, blank=True)
     hospital_name = models.CharField(max_length=255, blank=True)
@@ -154,6 +154,8 @@ class DoctorProfile(models.Model):
         ])
 
     def save(self, *args, **kwargs):
+        if self.license_number:
+            self.license_number = self.license_number.strip().upper()
         self.is_profile_complete = self.check_profile_complete()
         super().save(*args, **kwargs)
 

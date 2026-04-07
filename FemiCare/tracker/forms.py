@@ -52,7 +52,52 @@ class MultipleFileField(forms.FileField):
 class DoctorProfileForm(forms.ModelForm):
     class Meta:
         model = DoctorProfile
-        fields = ['photo', 'bio']
+        fields = [
+            'full_name',
+            'specialization',
+            'license_number',
+            'experience_years',
+            'hospital_name',
+            'location',
+            'certificate',
+        ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        for field in self.fields.values():
+            field.widget.attrs['class'] = 'form-control'
+
+        for field_name in ['full_name', 'specialization', 'license_number', 'experience_years', 'location', 'certificate']:
+            self.fields[field_name].required = True
+
+        self.fields['experience_years'].widget.attrs.update({'min': '0', 'step': '1'})
+
+    def clean_full_name(self):
+        return (self.cleaned_data.get('full_name') or '').strip()
+
+    def clean_specialization(self):
+        return (self.cleaned_data.get('specialization') or '').strip()
+
+    def clean_hospital_name(self):
+        return (self.cleaned_data.get('hospital_name') or '').strip()
+
+    def clean_location(self):
+        return (self.cleaned_data.get('location') or '').strip()
+
+    def clean_license_number(self):
+        license_number = (self.cleaned_data.get('license_number') or '').strip().upper()
+        if not license_number:
+            return license_number
+
+        existing = DoctorProfile.objects.filter(license_number__iexact=license_number)
+        if self.instance and self.instance.pk:
+            existing = existing.exclude(pk=self.instance.pk)
+
+        if existing.exists():
+            raise forms.ValidationError('A doctor with this license number already exists.')
+
+        return license_number
 
 
 class CycleLogForm(forms.ModelForm):

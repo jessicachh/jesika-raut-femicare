@@ -1,45 +1,163 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Verification Pending</title>
-          <!-- Google Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;600;700&family=Open+Sans:wght@300;400;600&display=swap" rel="stylesheet" />
-
-  <!-- Phosphor Icons -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/regular/style.css" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/fill/style.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;600;700&family=Open+Sans:wght@300;400;600&display=swap" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
 
     <style>
         body {
-            background-color: #f8f0f0;
+            font-family: 'Open Sans', sans-serif;
+            background:
+                radial-gradient(circle at top left, rgba(185, 34, 34, 0.12), transparent 28%),
+                radial-gradient(circle at bottom right, rgba(185, 34, 34, 0.07), transparent 30%),
+                #f7f6f3;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        .pending-shell {
+            min-height: 100vh;
             display: flex;
-            justify-content: center;
             align-items: center;
-            height: 100vh;
-            text-align: center;
+            padding: 32px 16px;
         }
-        .container {
-            background: white;
-            padding: 40px;
-            border-radius: 12px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-            max-width: 500px;
+
+        .pending-card {
+            max-width: 720px;
+            margin: 0 auto;
+            border-radius: 28px;
+            overflow: hidden;
+            background: rgba(255, 255, 255, 0.96);
+            box-shadow: 0 28px 70px rgba(15, 23, 42, 0.14);
+            border: 1px solid rgba(185, 34, 34, 0.08);
         }
-        h1 { color: #b92222; font-family: "Raleway"; }
-        p { color: #555; margin-top: 20px; font-family: "Open Sans"; }
-        .info { margin-top: 30px; font-size: 0.9rem; color: #888; }
+
+        .pending-hero {
+            background: linear-gradient(135deg, #8f1f1f 0%, #b92222 60%, #e15b5b 100%);
+            color: #fff;
+            padding: 36px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .pending-hero::after {
+            content: '';
+            position: absolute;
+            inset: auto -30px -40px auto;
+            width: 160px;
+            height: 160px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        .pending-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.18);
+            backdrop-filter: blur(8px);
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+
+        .pending-content {
+            padding: 36px;
+        }
+
+        .pending-content h1,
+        .pending-hero h2 {
+            font-family: 'Raleway', sans-serif;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+        }
+
+        .pending-list {
+            display: grid;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        .pending-item {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            padding: 14px 16px;
+            border: 1px solid rgba(185, 34, 34, 0.10);
+            border-radius: 16px;
+            background: #fff;
+        }
+
+        .pending-item strong {
+            display: block;
+            margin-bottom: 2px;
+        }
+
+        @media (max-width: 767px) {
+            .pending-shell {
+                padding: 16px;
+            }
+
+            .pending-hero,
+            .pending-content {
+                padding: 24px;
+            }
+
+            .pending-card {
+                border-radius: 22px;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Thank You for Signing Up!</h1>
-        <p>Your doctor profile has been submitted and is currently under verification.</p>
-        <p>Please sit tight and check your email or login later to see updates.</p>
-        <div class="info">
-            If you need help, contact support at <a href="mailto:support@example.com">support@example.com</a>.
+    <div class="pending-shell">
+        <div class="pending-card row g-0">
+            <div class="col-12 col-lg-5 pending-hero d-flex flex-column justify-content-between">
+                <div>
+                    <div class="pending-badge">Verification in progress</div>
+                    <h2 class="h3 mb-3">Your submission is under review</h2>
+                    <p class="mb-0">The admin team has received your doctor verification packet and will review it as soon as possible.</p>
+                </div>
+                <p class="small text-white-50 mb-0">You can safely close this page and return later to check your status.</p>
+            </div>
+
+            <div class="col-12 col-lg-7 pending-content">
+                <h1 class="h3 mb-3">Thank you for submitting your details</h1>
+                <p class="text-muted mb-4">Your doctor profile has been submitted and is currently under verification. Please check your email for any follow-up updates.</p>
+
+                <div class="pending-list">
+                    <div class="pending-item">
+                        <span class="badge text-bg-success rounded-pill">1</span>
+                        <div>
+                            <strong>Review in progress</strong>
+                            <span class="text-muted">Your certificate and profile details are being checked.</span>
+                        </div>
+                    </div>
+                    <div class="pending-item">
+                        <span class="badge text-bg-success rounded-pill">2</span>
+                        <div>
+                            <strong>Email notification</strong>
+                            <span class="text-muted">You will be notified once the status changes.</span>
+                        </div>
+                    </div>
+                    <div class="pending-item">
+                        <span class="badge text-bg-success rounded-pill">3</span>
+                        <div>
+                            <strong>Support</strong>
+                            <span class="text-muted">If you need help, contact support at <a href="mailto:support@example.com">support@example.com</a>.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </body>

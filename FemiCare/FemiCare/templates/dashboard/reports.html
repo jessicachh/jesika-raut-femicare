@@ -1,125 +1,25 @@
 {% extends 'dashboard/main.html' %}
+{% load static %}
 
 {% block dashboard_content %}
-<section class="reports-page" id="reports-section">
-  <div class="reports-header dashboard-card">
-    <div>
-      <h3 class="reports-title mb-1">Reports</h3>
-      <p class="reports-subtitle mb-0">Generated on {{ report_data.generated_at|date:"M d, Y H:i" }}</p>
-    </div>
-    <div class="reports-actions">
-      <a href="{% url 'dashboard_reports' %}" class="btn btn-outline-danger">Generate Report</a>
-      <a href="{% url 'export_reports_pdf' %}" class="btn btn-danger">Export PDF</a>
-    </div>
-  </div>
-
-  <div class="reports-grid">
-    <article class="dashboard-card report-card">
-      <h5>Cycle Summary</h5>
-      <p><strong>Average cycle length:</strong> {% if report_data.cycle_summary.average_cycle_length %}{{ report_data.cycle_summary.average_cycle_length }} days{% else %}No data{% endif %}</p>
-      <p><strong>Predicted next period:</strong> {% if report_data.cycle_summary.predicted_next_period %}{{ report_data.cycle_summary.predicted_next_period|date:"M d, Y" }}{% else %}No prediction yet{% endif %}</p>
-      <p class="mb-2"><strong>Recent period dates:</strong></p>
-      {% if report_data.cycle_summary.last_period_dates %}
-      <ul class="report-list">
-        {% for item in report_data.cycle_summary.last_period_dates %}
-        <li>{{ item|date:"M d, Y" }}</li>
-        {% endfor %}
-      </ul>
-      {% else %}
-      <p class="text-muted">No period logs yet.</p>
-      {% endif %}
-    </article>
-
-    <article class="dashboard-card report-card">
-      <h5>Symptom Report</h5>
-      <p class="mb-2"><strong>Most frequent symptoms:</strong></p>
-      {% if report_data.symptom_report.most_frequent_symptoms %}
-      <ul class="report-list">
-        {% for row in report_data.symptom_report.most_frequent_symptoms %}
-        <li>{{ row.symptom }} ({{ row.count }}x)</li>
-        {% endfor %}
-      </ul>
-      {% else %}
-      <p class="text-muted">No symptom logs available.</p>
-      {% endif %}
-
-      <p class="mb-2 mt-3"><strong>Mood trends (last 30 days):</strong></p>
-      {% if report_data.symptom_report.mood_trends %}
-      <ul class="report-list">
-        {% for mood in report_data.symptom_report.mood_trends %}
-        <li>{{ mood.mood|title }}: {{ mood.count }}</li>
-        {% endfor %}
-      </ul>
-      {% else %}
-      <p class="text-muted">No mood entries available.</p>
-      {% endif %}
-    </article>
-
-    <article class="dashboard-card report-card">
-      <h5>Health Alerts</h5>
-      <p class="mb-2"><strong>Symptoms repeated 3+ days:</strong></p>
-      {% if report_data.health_alerts.symptoms_repeated_3_days %}
-      <ul class="report-list">
-        {% for alert in report_data.health_alerts.symptoms_repeated_3_days %}
-        <li>{{ alert.symptom }} (detected {{ alert.detected_on|date:"M d, Y" }})</li>
-        {% endfor %}
-      </ul>
-      {% else %}
-      <p class="text-muted">No repeated symptom alerts detected.</p>
-      {% endif %}
-
-      <p class="mb-2 mt-3"><strong>Triggered alerts:</strong></p>
-      {% if report_data.health_alerts.triggered_alerts %}
-      <ul class="report-list">
-        {% for item in report_data.health_alerts.triggered_alerts %}
-        <li>{{ item.title }} - {{ item.created_at|date:"M d, Y H:i" }}</li>
-        {% endfor %}
-      </ul>
-      {% else %}
-      <p class="text-muted">No triggered alert notifications found.</p>
-      {% endif %}
-    </article>
-
-    <article class="dashboard-card report-card">
-      <h5>Medical Documents</h5>
-      {% if report_data.medical_documents %}
-      <ul class="report-list">
-        {% for doc in report_data.medical_documents %}
-        <li>{{ doc.original_name|default:doc.file.name }} - {{ doc.uploaded_at|date:"M d, Y H:i" }}</li>
-        {% endfor %}
-      </ul>
-      {% else %}
-      <p class="text-muted">No medical documents uploaded.</p>
-      {% endif %}
-    </article>
-
-    <article class="dashboard-card report-card report-card-wide">
-      <h5>Consultation History</h5>
-      {% if report_data.consultation_history %}
-      <div class="report-table-wrap">
-        <table class="report-table">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Doctor</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for row in report_data.consultation_history %}
-            <tr>
-              <td>{% if row.appointment_date %}{{ row.appointment_date|date:"M d, Y" }}{% else %}N/A{% endif %}</td>
-              <td>{{ row.doctor_name }}</td>
-              <td>{{ row.status|title }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+<div class="container-fluid py-4">
+  <div class="row justify-content-center">
+    <div class="col-12 col-xl-9">
+      <div class="card border-0 shadow-sm" style="border-radius: 20px;">
+        <div class="card-body p-4 p-md-5">
+          <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+            <div>
+              <p class="text-uppercase text-muted fw-semibold mb-2" style="letter-spacing: 0.12em; font-size: 0.78rem;">Reports</p>
+              <h1 class="h3 mb-2">Export your health report</h1>
+              <p class="text-muted mb-0" style="max-width: 44rem;">Generate a polished PDF summary of your tracked cycle insights, symptoms, and recommendations.</p>
+            </div>
+            <a href="{% url 'export_reports_pdf' %}" class="btn btn-danger btn-lg px-4 py-3">
+              <i class="bi bi-file-earmark-pdf me-2"></i>Export PDF
+            </a>
+          </div>
+        </div>
       </div>
-      {% else %}
-      <p class="text-muted">No consultations yet.</p>
-      {% endif %}
-    </article>
+    </div>
   </div>
-</section>
+</div>
 {% endblock %}

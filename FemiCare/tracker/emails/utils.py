@@ -5,6 +5,7 @@ from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.urls import reverse
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +63,14 @@ VERIFICATION_EMAIL_CONFIG = {
     },
 }
 
+DOCTOR_VERIFICATION_EMAIL_CONFIG = {
+    "submission_notification": {
+        "subject": "New Doctor Verification Submission - FemiCare",
+        "html": "emails/doctor_verification_submission.html",
+        "text": "emails/doctor_verification_submission.txt",
+    },
+}
+
 
 def _resolve_display_name(user: Any) -> str:
     if not user:
@@ -104,6 +113,10 @@ def _default_context(user: Any) -> Dict[str, Any]:
     }
 
 
+def _resolve_admin_notification_email() -> str:
+    return getattr(settings, "ADMIN_EMAIL", "")
+
+
 def _send_templated_email(
     *,
     subject: str,
@@ -116,6 +129,7 @@ def _send_templated_email(
     if not recipient_email:
         return False
 
+    recipient_email = recipient_email.strip()
     html_content = render_to_string(html_template, context)
     text_content = render_to_string(text_template, context)
 
@@ -124,8 +138,13 @@ def _send_templated_email(
         body=text_content,
         from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
         to=[recipient_email],
+        cc=[],
+        bcc=[],
     )
     message.attach_alternative(html_content, "text/html")
+
+    if len(message.to) != 1 or message.cc or message.bcc:
+        raise ValueError("Emails must be sent to exactly one recipient.")
 
     try:
         message.send(fail_silently=fail_silently)
@@ -208,6 +227,10 @@ def send_verification_email(user: Any, verification_type: str, data: Optional[Di
     if not recipient_email:
         return False
 
+    admin_email = _resolve_admin_notification_email().strip().lower()
+    if admin_email and recipient_email.strip().lower() == admin_email:
+        raise ValueError("Verification emails cannot be sent to the admin email address.")
+
     context = _default_context(user)
     context.update(payload)
 
@@ -218,6 +241,50 @@ def send_verification_email(user: Any, verification_type: str, data: Optional[Di
         text_template=config["text"],
         context=context,
         fail_silently=False,
+    )
+
+
+def send_doctor_verification_submission_email(doctor_profile: Any, submitted_at: Optional[Any] = None) -> bool:
+    config = DOCTOR_VERIFICATION_EMAIL_CONFIG["submission_notification"]
+    admin_email = _resolve_admin_notification_email()
+    if not doctor_profile or not admin_email:
+        return False
+
+    submitted_datetime = timezone.localtime(submitted_at or timezone.now())
+    user = getattr(doctor_profile, "user", None)
+    certificate = getattr(doctor_profile, "certificate", None)
+    certificate_url = ""
+    if certificate and getattr(certificate, "url", ""):
+        certificate_url = _build_absolute_url(certificate.url)
+
+    context = {
+        "brand_name": "FemiCare",
+        "admin_greeting": "Admin",
+        "doctor_name": doctor_profile.full_name or (getattr(user, "get_full_name", lambda: "")() if user else "") or getattr(user, "username", "Unknown doctor"),
+        "doctor_email": getattr(user, "email", "") or "Not provided",
+        "doctor_specialization": doctor_profile.specialization or "Not provided",
+        "doctor_license_number": doctor_profile.license_number or "Not provided",
+        "doctor_hospital_name": doctor_profile.hospital_name or "Not provided",
+        "doctor_location": doctor_profile.location or "Not provided",
+        "doctor_experience_years": (
+            f"{doctor_profile.experience_years} year(s)" if doctor_profile.experience_years is not None else "Not provided"
+        ),
+        "medical_certificate_name": getattr(certificate, "name", "") or "No certificate uploaded",
+        "medical_certificate_url": certificate_url,
+        "submitted_at_display": submitted_datetime.strftime("%b %d, %Y at %I:%M %p"),
+        "review_message": "A new doctor has submitted a verification request. Please review it in the admin dashboard and approve or reject as soon as possible.",
+        "signature_name": "FemiCare Verification System",
+        "subject": config["subject"],
+        "support_email": getattr(settings, "DEFAULT_FROM_EMAIL", "support@femicare.local"),
+    }
+
+    return _send_templated_email(
+        subject=context.get("subject", config["subject"]),
+        recipient_email=admin_email,
+        html_template=config["html"],
+        text_template=config["text"],
+        context=context,
+        fail_silently=True,
     )
 
 
