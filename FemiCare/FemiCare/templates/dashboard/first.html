@@ -270,8 +270,9 @@
                title="Click to view full calendar">
         <div class="calendar-header d-flex align-items-center justify-content-between mb-2">
           <h6 class="mb-0">Cycle Calendar</h6>
-          <span class="small text-muted">Tap to expand</span>
+          <span class="calendar-expand-hint">Tap to expand</span>
         </div>
+        <p class="calendar-helper-text mb-2">Monthly overview of period, fertile days, and ovulation highlights.</p>
         <div id="compactCalendar"></div>
         <div class="calendar-legend mt-2">
           <span class="calendar-legend-item"><span class="calendar-legend-dot calendar-legend-dot-current"></span>Current period</span>
@@ -388,6 +389,7 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
+        <p class="calendar-helper-text mb-2">Use previous and next controls to browse your cycle history by month.</p>
         <div class="calendar-legend mb-2">
           <span class="calendar-legend-item"><span class="calendar-legend-dot calendar-legend-dot-current"></span>Current period</span>
           <span class="calendar-legend-item"><span class="calendar-legend-dot calendar-legend-dot-predicted"></span>Predicted period</span>
@@ -777,6 +779,49 @@ document.addEventListener('DOMContentLoaded', function () {
     ? [calendarCurrentPeriodRange]
     : [];
 
+  function toDateAtMidnight(isoDate) {
+    return new Date(isoDate + 'T00:00:00');
+  }
+
+  function getEarliestCalendarDate() {
+    var candidates = [];
+
+    (calendarActualRanges || []).forEach(function (item) {
+      if (item && item.start) {
+        candidates.push(item.start);
+      }
+    });
+
+    (calendarPredictedRanges || []).forEach(function (item) {
+      if (item && item.start) {
+        candidates.push(item.start);
+      }
+    });
+
+    (currentRanges || []).forEach(function (item) {
+      if (item && item.start) {
+        candidates.push(item.start);
+      }
+    });
+
+    (rawLogs || []).forEach(function (item) {
+      ['start', 'prediction', 'ovulation', 'fertileStart'].forEach(function (key) {
+        if (item && item[key]) {
+          candidates.push(item[key]);
+        }
+      });
+    });
+
+    if (!candidates.length) {
+      return new Date();
+    }
+
+    candidates.sort();
+    var earliest = toDateAtMidnight(candidates[0]);
+    earliest.setDate(1);
+    return earliest;
+  }
+
   var events = []
     .concat(toBackgroundRangeEvents(calendarActualRanges, 'calendar-range-actual'))
     .concat(toBackgroundRangeEvents(calendarPredictedRanges, 'calendar-range-predicted'))
@@ -798,13 +843,20 @@ document.addEventListener('DOMContentLoaded', function () {
     fixedWeekCount: false,
     dayCellDidMount: function (arg) {
       arg.el.classList.add('calendar-day');
+      arg.el.setAttribute(
+        'title',
+        arg.date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+      );
     },
     dayMaxEvents: 2,
     events: events
   });
   compactCalendar.render();
 
+  var initialFullCalendarDate = getEarliestCalendarDate();
+
   var fullCalendar = new FullCalendar.Calendar(fullCalendarEl, {
+    initialDate: initialFullCalendarDate,
     initialView: 'multiMonthSix',
     views: {
       multiMonthSix: {
@@ -815,11 +867,26 @@ document.addEventListener('DOMContentLoaded', function () {
     multiMonthMaxColumns: 1,
     height: 'auto',
     headerToolbar: {
-      left: 'today',
+      left: 'prev,next today',
       center: 'title',
       right: ''
     },
     fixedWeekCount: false,
+    dayCellDidMount: function (arg) {
+      arg.el.classList.add('calendar-day');
+      arg.el.setAttribute(
+        'title',
+        arg.date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+      );
+    },
+    datesSet: function () {
+      if (!fullCalendarEl) {
+        return;
+      }
+      fullCalendarEl.classList.remove('calendar-month-transition');
+      void fullCalendarEl.offsetWidth;
+      fullCalendarEl.classList.add('calendar-month-transition');
+    },
     events: events
   });
 

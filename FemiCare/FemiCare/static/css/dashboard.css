@@ -1579,7 +1579,11 @@ body {
 
 .calendar-compact #compactCalendar {
     min-height: 220px;
-    max-width: 260px;
+    max-width: 100%;
+    border: 1px solid rgba(185, 34, 34, 0.1);
+    border-radius: 12px;
+    padding: 6px;
+    background: #fff;
 }
 
 .calendar-compact .fc-toolbar {
@@ -1625,25 +1629,52 @@ body {
 
 .calendar-compact {
     padding: 12px 12px 10px;
+    border: 1px solid rgba(185, 34, 34, 0.12);
+    background: linear-gradient(180deg, #ffffff 0%, #fff9f9 100%);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.calendar-compact:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(185, 34, 34, 0.12);
 }
 
 .calendar-compact .calendar-header {
     margin-bottom: 6px !important;
 }
 
+.calendar-expand-hint {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--color-primary);
+    background: rgba(185, 34, 34, 0.1);
+    border: 1px solid rgba(185, 34, 34, 0.18);
+    padding: 3px 8px;
+    border-radius: 999px;
+}
+
+.calendar-helper-text {
+    font-size: 0.78rem;
+    color: #646b78;
+    line-height: 1.4;
+}
+
 .calendar-modal .modal-dialog {
-    max-width: 780px;
+    max-width: 900px;
 }
 
 .calendar-modal .modal-body {
-    padding: 12px 16px 14px;
+    padding: 14px 16px 16px;
 }
 
 .vertical-calendar-scroll {
-    max-height: 62vh;
+    max-height: 70vh;
     overflow-y: auto;
     scroll-behavior: smooth;
-    padding-right: 4px;
+    padding: 6px;
+    border: 1px solid rgba(185, 34, 34, 0.1);
+    border-radius: 12px;
+    background: #fff;
 }
 
 .vertical-calendar-scroll .fc .fc-multimonth {
@@ -1660,15 +1691,20 @@ body {
 .calendar-legend {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px 12px;
+    gap: 8px;
 }
 
 .calendar-legend-item {
     font-size: 11px;
-    color: var(--color-text-light);
+    color: #4e5968;
+    font-weight: 600;
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: #f8f9fb;
+    border: 1px solid #e6e9ef;
 }
 
 .calendar-legend-dot {
@@ -1679,11 +1715,11 @@ body {
 }
 
 .calendar-legend-dot-current {
-    background: #059669;
+    background: #0f766e;
 }
 
 .calendar-legend-dot-predicted {
-    background: #ec4899;
+    background: #db2777;
 }
 
 .calendar-legend-dot-actual {
@@ -1695,7 +1731,7 @@ body {
 }
 
 .calendar-legend-dot-fertile {
-    background: #38bdf8;
+    background: #0284c7;
 }
 
 .calendar-compact .fc-event-title,
@@ -1706,6 +1742,60 @@ body {
 
 .calendar-day {
     max-height: 48px;
+}
+
+.calendar-day .fc-daygrid-day-frame {
+    transition: background-color 0.16s ease, transform 0.16s ease;
+    border-radius: 8px;
+}
+
+.calendar-day:hover .fc-daygrid-day-frame {
+    background: #fff4f4;
+    transform: translateY(-1px);
+}
+
+.calendar-month-transition {
+    animation: calendar-month-fade 220ms ease;
+}
+
+@keyframes calendar-month-fade {
+    from {
+        opacity: 0.55;
+        transform: translateY(4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.calendar-modal .fc .fc-toolbar-title {
+    font-size: 1.05rem;
+    color: #243349;
+}
+
+.calendar-modal .fc .fc-button {
+    border-radius: 999px !important;
+    padding: 6px 12px !important;
+}
+
+@media (max-width: 576px) {
+    .calendar-compact {
+        padding: 10px;
+    }
+
+    .calendar-legend-item {
+        font-size: 10px;
+        padding: 3px 7px;
+    }
+
+    .vertical-calendar-scroll {
+        max-height: 65vh;
+    }
+
+    .calendar-modal .modal-body {
+        padding: 10px 10px 12px;
+    }
 }
 
 .menstrual-insight {
