@@ -1,0 +1,15 @@
+FemiCare - Delayed Period Alert
+
+Hello {{ greeting_name|default:"there" }},
+
+Your period appears delayed based on your recent cycle records.
+Please monitor your symptoms and seek medical guidance if the delay continues.
+
+Do not panic. Cycle variations can happen, but professional advice is recommended when delays persist.
+
+{% if resources_url %}Resources: {{ resources_url }}
+{% endif %}{% if action_url %}Book Doctor: {{ action_url }}
+{% endif %}
+
+Disclaimer: This message is not a replacement for professional medical advice.
+Support: {{ support_email|default:"support@femicare.local" }}

@@ -19,12 +19,13 @@
   type="text/css"
   href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/fill/style.css"
 />
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 <!-- CSS -->
 <link rel="stylesheet" href="{% static 'css/style.css' %}">
 </head>
 
 <body>
-    
+    {% include 'components/toast_notifications.html' %}
 <section class="doctors-section">
 <div class="public-doctor-container">
 
@@ -103,78 +104,282 @@
     <p>{{ doctor.bio }}</p>
   </div>
 
-  <!-- AVAILABILITY -->
-  <div class="doctor-card">
-    <h4>Available Time Slots</h4>
+<!-- AVAILABILITY -->
+<div class="doctor-card mt-4">
+  <h4 class="mb-4"><i class="ph ph-calendar-check"></i> Book an Appointment</h4>
 
-    {% if availabilities %}
-      <div class="availability-grid">
-        {% for slot in availabilities %}
-          <div class="availability-slot">
-            <strong>{{ slot.date }}</strong>
-            <span>
-              {{ slot.start_time }} – {{ slot.end_time }}
-            </span>
-          </div>
-        {% endfor %}
-      </div>
-    {% else %}
-      <p class="text-muted">No availability added yet.</p>
-    {% endif %}
+  {% regroup availabilities by date as date_list %}
+
+  {% if date_list %}
+
+  <!-- DATE RIBBON -->
+  <div class="date-ribbon">
+    {% for day in date_list %}
+    <button type="button"
+      class="date-tab-btn {% if forloop.first %}active{% endif %}"
+      onclick="switchBookingDay('day-{{ forloop.counter }}', this)">
+      <span class="day-name">{{ day.grouper|date:"D" }}</span>
+      <span class="day-date">{{ day.grouper|date:"d M" }}</span>
+    </button>
+    {% endfor %}
   </div>
 
-<div class="doctor-card">
-  <h4>Patient Reviews</h4>
+  <!-- DAY PANES -->
+  {% for day in date_list %}
+  <div id="day-{{ forloop.counter }}"
+       class="booking-day-pane"
+       {% if not forloop.first %}style="display:none"{% endif %}>
 
-  {% if reviews %}
-    {% for review in reviews %}
-      <div class="review-box">
-        <strong>{{ review.patient.username }}</strong>
-        <span>{{ review.rating }} ⭐</span>
+    <p class="slot-heading">
+      Available times for <strong>{{ day.grouper|date:"l, F j" }}</strong>
+    </p>
 
-        {% if review.comment %}
-          <p>{{ review.comment }}</p>
-        {% endif %}
+    <div class="time-slot-grid">
+      {% for slot in day.list %}
+<button type="button" class="slot-btn"
+        onclick="openBookingModal(
+            '{{ slot.id }}',
+            '{{ doctor.user.get_full_name }}',
+            '{{ slot.date }}',
+            '{{ slot.start_time|time:"g:i A" }}'
+        )">
+    {{ slot.start_time|time:"g:i A" }}
+</button>
+      {% endfor %}
+    </div>
 
-        <small class="text-muted">
-          {{ review.created_at|date:"M d, Y" }}
-        </small>
-      </div>
-      <hr>
-    {% endfor %}
+  </div>
+  {% endfor %}
+
+
   {% else %}
-    <p class="text-muted">No reviews yet.</p>
+  <div class="empty-slots-state">
+    <i class="ph ph-calendar-x"></i>
+    <p>No available slots.</p>
+  </div>
   {% endif %}
 </div>
+<div class="doctor-card mt-4">
+    <h4 class="mb-4"><i class="ph ph-star-half-tilt text-danger"></i> Patient Reviews</h4>
+    
+    <div class="reviews-viewport">
+        <div class="reviews-track" id="reviewsTrack">
+            {% if reviews %}
+                {% for review in reviews %}
+<div class="review-slide">
+    <div class="review-box">
+        <span class="star-rating">
+            {% for i in "12345"|make_list %}
+                <i class="{% if forloop.counter <= review.rating %}ph-fill{% else %}ph{% endif %} ph-star"></i>
+            {% endfor %}
+        </span>
 
+        <p class="review-comment">"{{ review.comment }}"</p>
+
+        <div class="patient-info">
+            <div class="patient-avatar">
+                {{ review.patient.username|slice:":1"|upper }}
+            </div>
+            <div class="patient-details">
+                <span class="patient-name">{{ review.patient.username }}</span>
+                <span class="review-date">{{ review.created_at|date:"M d, Y" }}</span>
+            </div>
+        </div>
+    </div>
+</div>
+                {% endfor %}
+            {% else %}
+                <p class="text-center text-muted">No reviews yet.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="carousel-controls">
+        <button class="nav-btn prev" onclick="moveCarousel(-1)"><i class="ph ph-caret-left"></i></button>
+        <button class="nav-btn next" onclick="moveCarousel(1)"><i class="ph ph-caret-right"></i></button>
+    </div>
+</div>
 
 {% if user.is_authenticated and user.role == "user" %}
-<div class="doctor-card">
-  <h4>Leave a Review</h4>
+<div class="doctor-card mt-4">
+    <h4 class="mb-3"><i class="ph ph-note-pencil text-danger"></i> Leave a Review</h4>
 
-  <form method="POST" action="{% url 'submit_doctor_review' doctor.pk %}">
-    {% csrf_token %}
+    <form method="POST" action="{% url 'submit_doctor_review' doctor.pk %}" class="review-form">
+        {% csrf_token %}
 
-    <label>Rating</label>
-    <select name="rating" class="form-control mb-2" required>
-      <option value="">Select</option>
-      {% for i in "12345" %}
-        <option value="{{ i }}">{{ i }} ⭐</option>
-      {% endfor %}
-    </select>
+        <div class="rating-wrapper mb-3">
+            <p class="small text-muted mb-2">How was your experience?</p>
+            <div class="star-input-container">
+                {% for i in "54321"|make_list %}
+                <input type="radio" name="rating" id="star{{ i }}" value="{{ i }}" required>
+                <label for="star{{ i }}" class="ph-fill ph-star"></label>
+                {% endfor %}
+            </div>
+        </div>
 
-    <textarea
-      name="comment"
-      class="form-control mb-2"
-      placeholder="Write your experience..."
-    ></textarea>
+        <div class="form-group mb-3">
+            <textarea
+                name="comment"
+                class="form-control review-textarea"
+                placeholder="Share your details..."
+                rows="4"
+            ></textarea>
+        </div>
 
-    <button class="btn btn-primary">Submit Review</button>
-  </form>
+        <button class="btn btn-submit-review">
+            Submit Feedback <i class="ph ph-paper-plane-tilt"></i>
+        </button>
+    </form>
 </div>
 {% endif %}
 
 </div>
+
+
+
+
+
+<!-- Dynamic Booking Modal -->
+<div class="modal fade" id="bookingModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content booking-modal">
+
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm Appointment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+
+            <form method="POST" id="bookingForm">
+                {% csrf_token %}
+
+<div class="modal-body">
+
+    <p><strong>Doctor:</strong> <span id="modalDoctor"></span></p>
+    <p><strong>Date:</strong> <span id="modalDate"></span></p>
+    <p><strong>Time:</strong> <span id="modalTime"></span></p>
+
+    <input type="hidden" name="doctor" id="doctorInput">
+    <input type="hidden" name="date" id="dateInput">
+    <input type="hidden" name="time" id="timeInput">
+
+    <!-- ⭐ REASON FIELD -->
+    <label class="form-label mt-3">Reason for appointment</label>
+    <textarea name="reason"
+        class="form-control"
+        placeholder="Describe your concern..."
+        required></textarea>
+
+</div>
+
+                <div class="modal-footer">
+                    <button type="submit" class="btn" style="background-color: #b92222; color:white;">Confirm Booking</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                </div>
+
+            </form>
+
+        </div>
+    </div>
+</div>
+
+
+
+
+
 </section>
 {% include 'components/footer.html' %}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+function switchBookingDay(dayId, btn){
+
+    // hide all panes
+    document.querySelectorAll('.booking-day-pane').forEach(p => {
+        p.style.display = 'none';
+    });
+
+    // remove active state
+    document.querySelectorAll('.date-tab-btn').forEach(b => {
+        b.classList.remove('active');
+    });
+
+    // show selected
+    document.getElementById(dayId).style.display = 'block';
+
+    // activate button
+    btn.classList.add('active');
+}
+</script>
+<script>
+const bookingModalEl = document.getElementById('bookingModal');
+const bookingModal = new bootstrap.Modal(bookingModalEl);
+
+function openBookingModal(slotId, doctorName, date, time){
+
+    // display
+    document.getElementById('modalDoctor').innerText = doctorName;
+    document.getElementById('modalDate').innerText = date;
+    document.getElementById('modalTime').innerText = time;
+
+    // ⭐ dynamically set form action
+    document.getElementById('bookingForm').action = "/book/" + slotId + "/";
+
+    bookingModal.show();
+}
+
+// reset
+bookingModalEl.addEventListener('hidden.bs.modal', function () {
+    document.getElementById('bookingForm').reset();
+});
+</script>
+
+<script>
+bookingModalEl.addEventListener('hidden.bs.modal', function () {
+    document.getElementById('bookingForm').reset();
+});
+</script>
+
+<script>
+let currentIndex = 0;
+const track = document.getElementById('reviewsTrack');
+const slides = document.querySelectorAll('.review-slide');
+
+function updateCarousel() {
+    if (slides.length === 0) return;
+
+    // Remove active class and add to current
+    slides.forEach((slide, index) => {
+        slide.classList.remove('active');
+        if (index === currentIndex) {
+            slide.classList.add('active');
+        }
+    });
+
+    const slideWidth = slides[0].offsetWidth + 30; // 30 is the gap defined in CSS
+    const viewport = document.querySelector('.reviews-viewport');
+    const containerWidth = viewport.offsetWidth;
+    
+    // Calculate the shift needed to center the currentIndex slide
+    const centerOffset = (containerWidth / 2) - (slideWidth / 2);
+    const shift = centerOffset - (currentIndex * slideWidth);
+    
+    track.style.transform = `translateX(${shift}px)`;
+}
+
+// ⭐ THE MISSING FUNCTION
+function moveCarousel(direction) {
+    currentIndex += direction;
+
+    // Prevent going out of bounds
+    if (currentIndex < 0) currentIndex = 0;
+    if (currentIndex >= slides.length) currentIndex = slides.length - 1;
+
+    updateCarousel();
+}
+
+// Initialize position on load
+window.addEventListener('load', updateCarousel);
+window.addEventListener('resize', updateCarousel);
+</script>
+
 </body>

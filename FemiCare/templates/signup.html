@@ -1,4 +1,5 @@
 {% load static %}
+{% load socialaccount %}
 
 <head>
   <!-- Google Font -->
@@ -77,27 +78,60 @@
   <button class="signup-btn" type="submit">Create Account</button>
 </form>
 
-<!-- Messages -->
-{% if messages %}
-  <div class="messages">
-    {% for message in messages %}
-      <p class="message" style="color: red;">{{ message }}</p>
-    {% endfor %}
-  </div>
-{% endif %}
-
-
         <p class="login-link">Already have an account? <a href="{% url 'login' %}">Login</a></p>
-
         <p class="or">or</p>
 
         <!-- GOOGLE SIGNUP -->
-        <button class="google-btn">
+        {% if google_oauth_ready %}
+        <a class="google-btn" href="{% provider_login_url 'google' process='signup' %}">
           <i class="ph ph-google-logo"></i>
           Sign up with Google
+        </a>
+        {% else %}
+        <button class="google-btn" type="button" disabled aria-disabled="true" title="Google signup is not configured yet">
+          <i class="ph ph-google-logo"></i>
+          Sign up with Google (setup required)
         </button>
+        {% endif %}
 
       </div>
     </div>
   </div>
 </section>
+
+{% if messages %}
+  <div class="auth-toast-container" aria-live="polite" aria-atomic="true">
+    {% for message in messages %}
+      <div class="auth-toast {{ message.tags|default:'info' }}" data-auth-toast>
+        <div class="auth-toast-content">{{ message }}</div>
+        <button type="button" class="auth-toast-close" aria-label="Close notification" data-auth-toast-close>&times;</button>
+      </div>
+    {% endfor %}
+  </div>
+
+  <script>
+    (function () {
+      var toasts = document.querySelectorAll('[data-auth-toast]');
+      toasts.forEach(function (toast) {
+        setTimeout(function () {
+          toast.classList.add('hide');
+          setTimeout(function () {
+            toast.remove();
+          }, 250);
+        }, 4200);
+      });
+
+      var closeButtons = document.querySelectorAll('[data-auth-toast-close]');
+      closeButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var toast = btn.closest('[data-auth-toast]');
+          if (!toast) return;
+          toast.classList.add('hide');
+          setTimeout(function () {
+            toast.remove();
+          }, 250);
+        });
+      });
+    })();
+  </script>
+{% endif %}

@@ -1,11 +1,8 @@
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
-from django.core.mail import send_mail
-from django.conf import settings
-from .models import DoctorProfile
-from django.core.mail import EmailMultiAlternatives # Use this for HTML
-from django.utils.html import strip_tags
-from django.template.loader import render_to_string
+from .models import DoctorProfile, SymptomLog
+from allauth.account.signals import user_signed_up
+from tracker.emails.utils import send_notification_email
 
 
 @receiver(pre_save, sender=DoctorProfile)
@@ -22,31 +19,16 @@ def send_verification_email(sender, instance, **kwargs):
     was_verified = getattr(instance, '_was_verified', False)
 
     if not was_verified and instance.is_verified:
-        subject = "Your FemiCare Professional Account is Verified! 🎉"
-        
-        # Context data to pass to the HTML template
-        context = {
-            'doctor_name': instance.user.username,
-            'login_url': "http://127.0.0.1:8000/login/", # Change to your actual URL in production
-        }
-        
-        # Render HTML and create plain text version
-        html_content = render_to_string('doctor_verified.html', context)
-        text_content = strip_tags(html_content) 
-
-        # Create the email object
-        email = EmailMultiAlternatives(
-            subject=subject,
-            body=text_content,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            to=[instance.user.email],
+        send_notification_email(
+            instance.user,
+            'Congratulations. Your professional account has been verified and you can now access doctor features.',
+            {
+                'notification_title': 'Professional Account Verified',
+                'subject': 'Your FemiCare Professional Account is Verified',
+                'action_url': '/login/',
+                'action_label': 'Sign In',
+            },
         )
-        email.attach_alternative(html_content, "text/html")
-        
-        try:
-            email.send(fail_silently=False)
-        except Exception as e:
-            print(f"Error sending email: {e}")
 
 @receiver(post_save, sender=DoctorProfile)
 def update_profile_completion(sender, instance, **kwargs):
@@ -54,3 +36,26 @@ def update_profile_completion(sender, instance, **kwargs):
     DoctorProfile.objects.filter(pk=instance.pk).update(
         is_profile_complete=instance.is_profile_complete
     )
+
+
+@receiver(post_save, sender=SymptomLog)
+def run_symptom_emergency_check(sender, instance, created, **kwargs):
+    if not created or not instance.user_id:
+        return
+
+    from tracker.views import trigger_emergency_alert
+
+    trigger_emergency_alert(instance.user)
+
+
+@receiver(user_signed_up)
+def prompt_2fa_after_allauth_signup(request, user, **kwargs):
+    if request is None:
+        return
+
+    if not user.role:
+        user.role = 'user'
+        user.save(update_fields=['role'])
+
+    request.session['prompt_2fa_after_signup'] = True
+    request.session['post_signup_next'] = 'doctor_details' if user.role == 'doctor' else 'user_profile'

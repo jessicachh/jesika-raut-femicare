@@ -1,0 +1,13 @@
+{% extends "emails/base.html" %}
+
+{% block email_title %}Profile and Settings Updated{% endblock %}
+{% block email_intro %}
+Your account information was updated successfully.
+{% endblock %}
+{% block email_details %}
+<p style="margin:0 0 6px 0;font-size:14px;"><strong>Change Summary:</strong> {{ change_summary|default:"Your profile/settings details were updated." }}</p>
+{% if changed_email %}<p style="margin:0;font-size:14px;"><strong>Updated Email:</strong> {{ changed_email }}</p>{% endif %}
+{% endblock %}
+{% block email_reassurance %}
+<p style="margin:0;font-size:14px;line-height:1.7;color:#374151;">If you did not make this change, please secure your account immediately and contact support.</p>
+{% endblock %}

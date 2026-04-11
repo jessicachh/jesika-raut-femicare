@@ -1,0 +1,12 @@
+{% extends "emails/base.html" %}
+
+{% block email_title %}Delayed Period Alert{% endblock %}
+{% block email_intro %}
+Your period appears delayed based on your recent cycle records.
+{% endblock %}
+{% block email_details %}
+<p style="margin:0;font-size:14px;line-height:1.7;">Please monitor your symptoms and seek medical guidance if the delay continues.</p>
+{% endblock %}
+{% block email_reassurance %}
+<p style="margin:0;font-size:14px;line-height:1.7;color:#374151;">Do not panic. Cycle variations can happen, but professional advice is recommended when delays persist.</p>
+{% endblock %}

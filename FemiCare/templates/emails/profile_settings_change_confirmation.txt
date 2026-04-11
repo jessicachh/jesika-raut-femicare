@@ -1,0 +1,13 @@
+FemiCare - Profile and Settings Updated
+
+Hello {{ greeting_name|default:"there" }},
+
+Your account information was updated successfully.
+
+Change Summary: {{ change_summary|default:"Your profile/settings details were updated." }}
+{% if changed_email %}Updated Email: {{ changed_email }}
+{% endif %}
+If this was not you, please secure your account and contact support.
+
+Disclaimer: This message is not a replacement for professional medical advice.
+Support: {{ support_email|default:"support@femicare.local" }}

@@ -1,8 +1,11 @@
-{% load static %}
 {% load static user_extras %}
-<header class="dashboard-header">
+<header class="dashboard-header" data-user-role="{{ request.user.role|default:'user' }}" data-current-path="{{ request.path }}">
   <div class="header-left">
-           <a href="{% url 'home' %}"> <img src="{% static 'images/logo1.png' %}" alt="FemiCare Logo" class="nav-logo"></a>
+    {% if request.user.is_authenticated and request.user.role == 'doctor' %}
+      <a href="{% url 'doctor_dashboard' %}"><img src="{% static 'images/logo1.png' %}" alt="FemiCare Logo" class="nav-logo"></a>
+    {% else %}
+      <a href="{% url 'home' %}"><img src="{% static 'images/logo1.png' %}" alt="FemiCare Logo" class="nav-logo"></a>
+    {% endif %}
   </div>
 
   <div class="header-right">
@@ -11,43 +14,72 @@
         <circle cx="11" cy="11" r="8"/>
         <path d="m21 21-4.35-4.35"/>
       </svg>
-      <input type="text" placeholder="Search Keyword">
+      <input
+        type="text"
+        id="dashboardSearchInput"
+        placeholder="Search sections, pages, keywords"
+        autocomplete="off"
+      >
+      <div class="search-suggestions d-none" id="searchSuggestions" role="listbox" aria-label="Search suggestions"></div>
     </div>
 
-    <button class="icon-btn notification-btn">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-      </svg>
-    </button>
+    <div class="dropdown notification-dropdown-wrap">
+      <button class="icon-btn notification-btn" id="notificationBell" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        </svg>
+        <span id="notificationUnreadBadge" class="notification-unread-badge d-none">0</span>
+      </button>
 
-    <!-- <div class="user-profile">
-      <div class="user-info">
-        <span class="welcome-text">Welcome back</span>
-        <span class="user-name">{{ request.user.username }}</span>
-      </div>
-      <div class="user-avatar">
-        <img src="{{ request.user.profile.bio }}" alt="User Avatar">
-      </div>
-    </div> -->
-<div class="user-profile">
-  <div class="user-info">
-    <span class="welcome-text">Welcome back</span>
-    <span class="user-name">
-      {{ request.user.get_full_name|default:request.user.username }}
-    </span>
-  </div>
+      <div class="dropdown-menu dropdown-menu-end notification-dropdown-menu p-0" id="notificationDropdownMenu">
+        <div class="notification-dropdown-header">
+          <h6 class="mb-0">Notifications</h6>
+          <button type="button" id="markAllNotificationsRead" class="btn btn-link p-0">Mark all as read</button>
+        </div>
 
-  <div class="user-avatar">
-{% if request.user.is_authenticated %}
-  {% if request.user|has_doctor_profile and request.user.doctorprofile.photo %}
-    <img src="{{ request.user.doctorprofile.photo.url }}" alt="Doctor Avatar">
-  {% else %}
-    <img src="{% static 'img/default-user.png' %}" alt="Avatar">
-  {% endif %}
-{% endif %}
-  </div>
-</div>
+        <div class="notification-dropdown-list" id="notificationDropdownList">
+          <div class="notification-empty-state">No notifications yet</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dropdown user-menu-dropdown">
+      <button class="user-profile user-profile-toggle" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+        <div class="user-info">
+          <span class="welcome-text">Welcome back</span>
+          <span class="user-name">{{ request.user.get_full_name|default:request.user.username }}</span>
+        </div>
+
+        {% render_user_avatar request.user 'user-avatar' 'Avatar' %}
+      </button>
+
+      <div class="dropdown-menu dropdown-menu-end user-dropdown-menu p-0">
+        <div class="user-dropdown-header">
+          {% render_user_avatar request.user 'user-avatar user-dropdown-avatar' 'Avatar' %}
+
+          <div class="user-dropdown-meta">
+            <h6>{{ request.user.get_full_name|default:request.user.username }}</h6>
+            <p>{{ request.user.email }}</p>
+            <small>@{{ request.user.username }}</small>
+          </div>
+        </div>
+
+        <div class="user-dropdown-links">
+          {% if request.user.is_authenticated and request.user.role == 'doctor' %}
+            <a class="dropdown-item" href="{% url 'doctor_profile' %}">Profile</a>
+            <a class="dropdown-item" href="{% url 'doctor_settings' %}">Settings</a>
+          {% else %}
+            <a class="dropdown-item" href="{% url 'dashboard_profile' %}">Profile</a>
+            <a class="dropdown-item" href="{% url 'dashboard_settings' %}">Settings</a>
+          {% endif %}
+        </div>
+
+        <div class="user-dropdown-footer">
+          <a class="btn btn-danger w-100" href="{% url 'logout' %}">Logout</a>
+        </div>
+      </div>
+    </div>
 
   </div>
 </header>

@@ -1,4 +1,5 @@
 {% load static %}
+{% load socialaccount %}
 
 <head>
   <!-- Google Fonts -->
@@ -36,6 +37,11 @@
           <label>Password</label>
           <input type="password" name="password" placeholder="********" required>
 
+          <label class="remember-me-row" for="rememberMe">
+            <input id="rememberMe" type="checkbox" name="remember_me">
+            <span>Remember Me on this device</span>
+          </label>
+
           <!-- ✅ FIXED FORGOT PASSWORD -->
           <a href="{% url 'password_reset' %}" class="forgot-password">
             Forgot Password?
@@ -44,25 +50,22 @@
           <button class="login-btn" type="submit">Log In</button>
         </form>
 
-        <!-- Messages -->
-        {% if messages %}
-          <div class="messages">
-            {% for message in messages %}
-              <p class="message" style="color: red;">{{ message }}</p>
-            {% endfor %}
-          </div>
-        {% endif %}
-
         <p class="signup-redirect">
           Don't have an account? <a href="{% url 'signup' %}">Sign Up</a>
         </p>
-
         <p class="or">or</p>
 
-        <button class="google-login-btn">
+        {% if google_oauth_ready %}
+        <a class="google-login-btn" href="{% provider_login_url 'google' process='login' %}">
           <i class="ph ph-google-logo"></i>
-          Continue with Google
+          Login with Google
+        </a>
+        {% else %}
+        <button class="google-login-btn" type="button" disabled aria-disabled="true" title="Google login is not configured yet">
+          <i class="ph ph-google-logo"></i>
+          Login with Google (setup required)
         </button>
+        {% endif %}
 
       </div>
     </div>
@@ -74,3 +77,40 @@
 
   </div>
 </section>
+
+{% if messages %}
+  <div class="auth-toast-container" aria-live="polite" aria-atomic="true">
+    {% for message in messages %}
+      <div class="auth-toast {{ message.tags|default:'info' }}" data-auth-toast>
+        <div class="auth-toast-content">{{ message }}</div>
+        <button type="button" class="auth-toast-close" aria-label="Close notification" data-auth-toast-close>&times;</button>
+      </div>
+    {% endfor %}
+  </div>
+
+  <script>
+    (function () {
+      var toasts = document.querySelectorAll('[data-auth-toast]');
+      toasts.forEach(function (toast) {
+        setTimeout(function () {
+          toast.classList.add('hide');
+          setTimeout(function () {
+            toast.remove();
+          }, 250);
+        }, 4200);
+      });
+
+      var closeButtons = document.querySelectorAll('[data-auth-toast-close]');
+      closeButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var toast = btn.closest('[data-auth-toast]');
+          if (!toast) return;
+          toast.classList.add('hide');
+          setTimeout(function () {
+            toast.remove();
+          }, 250);
+        });
+      });
+    })();
+  </script>
+{% endif %}

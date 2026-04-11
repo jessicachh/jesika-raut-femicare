@@ -1,0 +1,676 @@
+{% load static %} {% include 'components/navbar.html' %}
+
+<head>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&family=Raleway:wght@500;700;800&display=swap"
+    rel="stylesheet"
+  />
+  <link
+    rel="stylesheet"
+    type="text/css"
+    href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/regular/style.css"
+  />
+  <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+
+  <style>
+    :root {
+      --res-bg: linear-gradient(145deg, #fff6f6 0%, #fffefe 48%, #f8fbff 100%);
+      --res-text: #2d2d2d;
+      --res-subtext: #555;
+      --res-primary: var(--color-primary);
+      --res-primary-soft: #fdf0f0;
+      --res-card: #ffffff;
+      --res-border: #f0d7d7;
+      --res-shadow: var(--shadow-card);
+    }
+
+    .resources-wrapper {
+      max-width: 1180px;
+      margin: 1.5rem auto 3rem;
+      padding: 2.25rem 1rem 0;
+      color: var(--res-text);
+      background: var(--res-bg);
+      border: 1px solid #f3dede;
+      border-radius: 24px;
+    }
+
+    .resources-header {
+      text-align: center;
+      margin: 0 auto 1.5rem;
+      max-width: 760px;
+      animation: rise-in 450ms ease;
+    }
+
+    .section-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.35rem 0.85rem;
+      border-radius: 999px;
+      font: 700 0.78rem/1 var(--font-body);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      background: #ffecec;
+      color: var(--res-primary);
+      border: 1px solid #f3c8c8;
+    }
+
+    .resources-title {
+      margin-top: 0.85rem;
+      font: 800 clamp(1.65rem, 2vw + 1rem, 2.45rem) / 1.2 var(--font-title);
+    }
+
+    .resources-subtitle {
+      margin-top: 0.4rem;
+      font: 500 1rem/1.55 var(--font-body);
+      color: var(--res-subtext);
+    }
+
+    .resource-controls {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 0.9rem;
+      margin: 1.4rem auto 1.8rem;
+      max-width: 880px;
+      padding: 0 0.2rem;
+    }
+
+    .control-group {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      background: #ffffff;
+      border: 1px solid #efd6d6;
+      border-radius: 12px;
+      padding: 0 0.85rem;
+      box-shadow: 0 6px 18px rgba(185, 34, 34, 0.08);
+    }
+
+    .control-group i {
+      color: #9a6f6f;
+      font-size: 1rem;
+    }
+
+    .control-input,
+    .control-select {
+      width: 100%;
+      border: 0;
+      outline: none;
+      font: 600 0.95rem/1.4 var(--font-body);
+      color: #2f2f2f;
+      padding: 0.75rem 0;
+      background: transparent;
+    }
+
+    .resources-list {
+      display: grid;
+      gap: 1rem;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .resource-category {
+      border: 1px solid var(--res-border);
+      border-radius: 16px;
+      background: var(--res-card);
+      box-shadow: var(--res-shadow);
+      overflow: clip;
+      animation: rise-in 520ms ease both;
+    }
+
+    .resource-category summary {
+      list-style: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 1rem 1.1rem;
+      background: linear-gradient(180deg, #fff, #fff8f8);
+      border-bottom: 1px solid #f4e6e6;
+    }
+
+    .resource-category summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .resource-category-title {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      font: 800 1.04rem/1.35 var(--font-title);
+      color: #2a2a2a;
+      margin: 0;
+    }
+
+    .resource-category-title i {
+      font-size: 1.1rem;
+      color: var(--res-primary);
+      background: #ffeaea;
+      border: 1px solid #f2c3c3;
+      border-radius: 10px;
+      padding: 0.4rem;
+    }
+
+    .resource-category summary .toggle-icon {
+      font-size: 1rem;
+      color: #8b6c6c;
+      transition: transform 220ms ease;
+    }
+
+    .resource-category[open] summary .toggle-icon {
+      transform: rotate(180deg);
+    }
+
+    .resource-items {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(225px, 1fr));
+      gap: 0.85rem;
+      padding: 0.95rem 1.1rem 1.1rem;
+    }
+
+    .resource-item {
+      background: #fffcfc;
+      border: 1px solid #f1dfdf;
+      border-radius: 14px;
+      padding: 0.85rem;
+      display: grid;
+      grid-template-rows: auto auto 1fr auto;
+      gap: 0.5rem;
+      min-height: 210px;
+      transition: transform 220ms ease, box-shadow 220ms ease;
+    }
+
+    .resource-item:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 22px rgba(185, 34, 34, 0.14);
+    }
+
+    .resource-item h3 {
+      margin: 0;
+      font: 700 0.98rem/1.35 var(--font-body);
+      color: #222;
+    }
+
+    .resource-item p {
+      margin: 0;
+      font: 500 0.9rem/1.46 var(--font-body);
+      color: #5a6d80;
+      min-height: 2.9em;
+    }
+
+    .source-badge {
+      width: fit-content;
+      padding: 0.24rem 0.5rem;
+      border-radius: 999px;
+      font: 700 0.7rem/1 var(--font-body);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      border: 1px solid #f3d0d0;
+      color: #8a2c2c;
+      background: #fff1f1;
+    }
+
+    .resource-link {
+      text-decoration: none;
+      width: fit-content;
+      border-radius: 10px;
+      padding: 0.45rem 0.7rem;
+      font: 700 0.83rem/1 var(--font-body);
+      color: #ffffff;
+      background: linear-gradient(135deg, var(--res-primary), #cf4444);
+      transition: transform 180ms ease, filter 180ms ease;
+    }
+
+    .resource-link:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.05);
+    }
+
+    .resource-link.inactive {
+      pointer-events: none;
+      color: #7b8b9b;
+      background: #e3ebf2;
+      border: 1px dashed #bfd0df;
+    }
+
+    .resource-category.is-hidden,
+    .resource-item.is-hidden {
+      display: none;
+    }
+
+    .empty-state {
+      margin: 0.8rem 0.1rem 0;
+      color: #7d6666;
+      font: 600 0.9rem/1.4 var(--font-body);
+      display: none;
+    }
+
+    .emergency-box {
+      margin-top: 1.5rem;
+      padding: 1rem;
+      border-radius: 14px;
+      border: 1px solid #f0c2c2;
+      background: #fff4f4;
+      box-shadow: 0 8px 18px rgba(174, 38, 38, 0.08);
+      animation: rise-in 620ms ease;
+    }
+
+    .emergency-box h2 {
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      font: 800 1rem/1.3 var(--font-title);
+      color: #842121;
+    }
+
+    .emergency-grid {
+      margin-top: 0.8rem;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 0.55rem;
+    }
+
+    .emergency-item {
+      border: 1px solid #ffc6c2;
+      background: #fff;
+      border-radius: 10px;
+      padding: 0.6rem 0.7rem;
+      font: 700 0.88rem/1.4 var(--font-body);
+      color: #5f2b2b;
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+    }
+
+    .emergency-item i {
+      color: #d04646;
+      font-size: 1rem;
+    }
+
+    .resources-footer {
+      margin-top: 1rem;
+      padding: 0.3rem 0 0.8rem;
+      text-align: right;
+      color: #7d6666;
+      font: 600 0.86rem/1.4 var(--font-body);
+    }
+
+    @keyframes rise-in {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 768px) {
+      .resources-wrapper {
+        margin: 1rem 0.65rem 2.5rem;
+        padding: 1.4rem 0.75rem 0;
+      }
+
+      .resource-controls {
+        grid-template-columns: 1fr;
+      }
+
+      .resource-items {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  {% include 'components/toast_notifications.html' %}
+
+  <section class="resources-wrapper">
+    <div class="resources-header">
+      <span class="section-badge"><i class="ph ph-book-open-text"></i> Resources</span>
+      <h1 class="resources-title">Women&apos;s Health Resources</h1>
+      <p class="resources-subtitle">
+        Explore trusted guides and verified support links. Use search and category filters to quickly find what you need.
+      </p>
+    </div>
+
+    <div class="resource-controls" aria-label="Search and filter resources">
+      <label class="control-group" for="resourceSearch">
+        <i class="ph ph-magnifying-glass"></i>
+        <input class="control-input" type="search" id="resourceSearch" placeholder="Search guides, topics, or sources..." />
+      </label>
+      <label class="control-group" for="resourceFilter">
+        <i class="ph ph-funnel-simple"></i>
+        <select class="control-select" id="resourceFilter">
+          <option value="all">All categories</option>
+          <option value="video-guides">A) Video Guides</option>
+          <option value="womens-health-education">A) Women&apos;s Health Education</option>
+          <option value="medical-guidelines">B) Medical Guidelines</option>
+          <option value="practical-everyday-guides">C) Practical Everyday Guides</option>
+          <option value="nepal-specific-resources">D) Nepal-Specific Resources</option>
+        </select>
+      </label>
+    </div>
+
+    <ul class="resources-list" id="resourcesList">
+      <li>
+        <details class="resource-category" data-category="video-guides" open>
+          <summary>
+            <h2 class="resource-category-title"><i class="ph ph-play-circle"></i> A) Video Guides</h2>
+            <i class="ph ph-caret-down toggle-icon"></i>
+          </summary>
+          <div class="resource-items">
+            <article class="resource-item" data-search="menstrual cycle mayo clinic understanding your menstrual cycle video guide">
+              <h3>Menstrual Cycle</h3>
+              <span class="source-badge">Mayo Clinic</span>
+              <p>Explains cycle phases and hormonal changes.<br />Great starting point for first-time learners.</p>
+              <a class="resource-link" href="https://www.youtube.com/watch?v=EmvLlnlrTNk" target="_blank" rel="noopener noreferrer">Watch video</a>
+            </article>
+
+            <article class="resource-item" data-search="pregnancy basics mayo clinic pregnancy what to expect video guide">
+              <h3>Pregnancy Basics</h3>
+              <span class="source-badge">Mayo Clinic</span>
+              <p>Covers key pregnancy stages and body changes.<br />Useful overview for expecting mothers.</p>
+              <a class="resource-link" href="https://www.youtube.com/watch?v=KWoDCr8NslQ" target="_blank" rel="noopener noreferrer">Watch video</a>
+            </article>
+
+            <article class="resource-item" data-search="pcos cleveland clinic what is pcos video guide">
+              <h3>PCOS</h3>
+              <span class="source-badge">Cleveland Clinic</span>
+              <p>Introduces PCOS causes and common symptoms.<br />Includes practical treatment direction.</p>
+              <a class="resource-link" href="https://www.youtube.com/watch?v=HzG-zaMYZZ8" target="_blank" rel="noopener noreferrer">Watch video</a>
+            </article>
+
+            <article class="resource-item" data-search="menopause johns hopkins what happens during menopause video guide">
+              <h3>Menopause</h3>
+              <span class="source-badge">Johns Hopkins</span>
+              <p>Describes hormonal transitions during menopause.<br />Clarifies expected symptoms and care steps.</p>
+              <a class="resource-link" href="https://www.youtube.com/watch?v=MTSjFkZ-igM" target="_blank" rel="noopener noreferrer">Watch video</a>
+            </article>
+
+            <article class="resource-item" data-search="cervical cancer awareness cervical cancer prevention video guide">
+              <h3>Cervical Cancer Awareness</h3>
+              <span class="source-badge">Cervical Cancer Prevention</span>
+              <p>Highlights prevention, screening, and HPV awareness.<br />Encourages early action and regular checks.</p>
+              <a class="resource-link" href="https://www.youtube.com/watch?v=H8FO2tSE76E" target="_blank" rel="noopener noreferrer">Watch video</a>
+            </article>
+          </div>
+        </details>
+      </li>
+
+      <li>
+        <details class="resource-category" data-category="womens-health-education" open>
+          <summary>
+            <h2 class="resource-category-title"><i class="ph ph-graduation-cap"></i> A) Women&apos;s Health Education</h2>
+            <i class="ph ph-caret-down toggle-icon"></i>
+          </summary>
+          <div class="resource-items">
+            <article class="resource-item" data-search="menstrual cycle mayo clinic women health education">
+              <h3>Menstrual Cycle</h3>
+              <span class="source-badge">Mayo Clinic</span>
+              <p>Clear article on cycle timing and variability.<br />Supports understanding of normal patterns.</p>
+              <a class="resource-link" href="https://www.mayoclinic.org/healthy-lifestyle/womens-health/in-depth/menstrual-cycle/art-20047186" target="_blank" rel="noopener noreferrer">Open resource</a>
+            </article>
+
+            <article class="resource-item" data-search="pregnancy cdc women health education">
+              <h3>Pregnancy</h3>
+              <span class="source-badge">CDC</span>
+              <p>Trusted overview of pregnancy health basics.<br />Includes planning and safety guidance.</p>
+              <a class="resource-link" href="https://www.cdc.gov/pregnancy/about/index.html" target="_blank" rel="noopener noreferrer">Open resource</a>
+            </article>
+
+            <article class="resource-item" data-search="pcos cleveland clinic women health education">
+              <h3>PCOS</h3>
+              <span class="source-badge">Cleveland Clinic</span>
+              <p>Details signs, diagnosis, and treatment options.<br />Helpful for long-term condition management.</p>
+              <a class="resource-link" href="https://my.clevelandclinic.org/health/diseases/8316-polycystic-ovary-syndrome-pcos" target="_blank" rel="noopener noreferrer">Open resource</a>
+            </article>
+
+            <article class="resource-item" data-search="fertility cdc women health education">
+              <h3>Fertility</h3>
+              <span class="source-badge">CDC</span>
+              <p>Explains infertility and fertility care pathways.<br />Useful for couples planning pregnancy.</p>
+              <a class="resource-link" href="https://www.cdc.gov/reproductivehealth/infertility/index.htm" target="_blank" rel="noopener noreferrer">Open resource</a>
+            </article>
+
+            <article class="resource-item" data-search="sexual reproductive health who women health education">
+              <h3>Sexual &amp; Reproductive Health</h3>
+              <span class="source-badge">WHO</span>
+              <p>Global guidance on sexual health rights and care.<br />Supports safe and informed choices.</p>
+              <a class="resource-link" href="https://www.who.int/health-topics/sexual-health" target="_blank" rel="noopener noreferrer">Open resource</a>
+            </article>
+          </div>
+        </details>
+      </li>
+
+      <li>
+        <details class="resource-category" data-category="medical-guidelines" open>
+          <summary>
+            <h2 class="resource-category-title"><i class="ph ph-clipboard-text"></i> B) Medical Guidelines</h2>
+            <i class="ph ph-caret-down toggle-icon"></i>
+          </summary>
+          <div class="resource-items">
+            <article class="resource-item" data-search="who reproductive health southeast asia medical guidelines">
+              <h3>WHO Reproductive Health</h3>
+              <span class="source-badge">WHO</span>
+              <p>Regional guidance for reproductive healthcare priorities.<br />Useful policy and practice references.</p>
+              <a class="resource-link" href="https://www.who.int/southeastasia/health-topics/reproductive-health" target="_blank" rel="noopener noreferrer">Open guideline</a>
+            </article>
+
+            <article class="resource-item" data-search="prenatal care guide acog medical guidelines">
+              <h3>Prenatal Care Guide</h3>
+              <span class="source-badge">ACOG</span>
+              <p>Expert prenatal care recommendations by trimester.<br />Supports healthier pregnancy outcomes.</p>
+              <a class="resource-link" href="https://www.acog.org/womens-health/faqs/prenatal-care" target="_blank" rel="noopener noreferrer">Open guideline</a>
+            </article>
+
+            <article class="resource-item" data-search="hpv cervical cancer who fact sheet medical guidelines">
+              <h3>HPV / Cervical Cancer</h3>
+              <span class="source-badge">WHO</span>
+              <p>Fact sheet on HPV risks and prevention strategies.<br />Explains screening and vaccination importance.</p>
+              <a class="resource-link" href="https://www.who.int/news-room/fact-sheets/detail/cervical-cancer" target="_blank" rel="noopener noreferrer">Open guideline</a>
+            </article>
+
+            <article class="resource-item" data-search="breast cancer screening national cancer institute medical guidelines">
+              <h3>Breast Cancer Screening</h3>
+              <span class="source-badge">NCI</span>
+              <p>Evidence-based screening recommendations and methods.<br />Covers benefits and possible risks.</p>
+              <a class="resource-link" href="https://www.cancer.gov/types/breast/screening" target="_blank" rel="noopener noreferrer">Open guideline</a>
+            </article>
+          </div>
+        </details>
+      </li>
+
+      <li>
+        <details class="resource-category" data-category="practical-everyday-guides" open>
+          <summary>
+            <h2 class="resource-category-title"><i class="ph ph-sparkle"></i> C) Practical Everyday Guides</h2>
+            <i class="ph ph-caret-down toggle-icon"></i>
+          </summary>
+          <div class="resource-items">
+            <article class="resource-item" data-search="managing period symptoms mayo clinic practical guides">
+              <h3>Managing Period Symptoms</h3>
+              <span class="source-badge">Mayo Clinic</span>
+              <p>Practical treatment options for PMS discomfort.<br />Includes clinical and home-care ideas.</p>
+              <a class="resource-link" href="https://www.mayoclinic.org/diseases-conditions/premenstrual-syndrome/diagnosis-treatment/drc-20376787" target="_blank" rel="noopener noreferrer">Open guide</a>
+            </article>
+
+            <article class="resource-item" data-search="when to see a gynecologist cleveland clinic practical guides">
+              <h3>When to See a Gynecologist</h3>
+              <span class="source-badge">Cleveland Clinic</span>
+              <p>Explains signs that need specialist attention.<br />Helps plan preventive and routine visits.</p>
+              <a class="resource-link" href="https://my.clevelandclinic.org/health/articles/24489-gynecologist" target="_blank" rel="noopener noreferrer">Open guide</a>
+            </article>
+
+            <article class="resource-item" data-search="signs of hormonal imbalance cleveland clinic practical guides">
+              <h3>Signs of Hormonal Imbalance</h3>
+              <span class="source-badge">Cleveland Clinic</span>
+              <p>Lists common symptoms linked to hormone shifts.<br />Supports earlier medical consultation.</p>
+              <a class="resource-link" href="https://my.clevelandclinic.org/health/diseases/22673-hormonal-imbalance" target="_blank" rel="noopener noreferrer">Open guide</a>
+            </article>
+
+            <article class="resource-item" data-search="breast self exam breastcancer.org practical guides">
+              <h3>Breast Self-Exam</h3>
+              <span class="source-badge">Breastcancer.org</span>
+              <p>Step-by-step self-exam awareness instructions.<br />Encourages body familiarity and early detection.</p>
+              <a class="resource-link" href="https://www.breastcancer.org/screening-testing/breast-self-exam-bse" target="_blank" rel="noopener noreferrer">Open guide</a>
+            </article>
+
+            <article class="resource-item" data-search="healthy lifestyle tips for women cdc menstrual hygiene practical guides">
+              <h3>Healthy Lifestyle Tips for Women</h3>
+              <span class="source-badge">CDC</span>
+              <p>Simple menstrual hygiene and healthy routine tips.<br />Good for daily self-care improvements.</p>
+              <a class="resource-link" href="https://www.cdc.gov/hygiene/about/menstrual-hygiene.html" target="_blank" rel="noopener noreferrer">Open guide</a>
+            </article>
+
+            <article class="resource-item" data-search="what to do on heavy flow cleveland clinic menorrhagia practical guides">
+              <h3>What to Do on Heavy Flow</h3>
+              <span class="source-badge">Cleveland Clinic</span>
+              <p>Medical guidance for heavy period bleeding signs.<br />Helps decide when urgent care is needed.</p>
+              <a class="resource-link" href="https://my.clevelandclinic.org/health/diseases/17734-menorrhagia-heavy-menstrual-bleeding" target="_blank" rel="noopener noreferrer">Open guide</a>
+            </article>
+
+            <article class="resource-item" data-search="ways to stop period pain healthpartners practical guides">
+              <h3>Ways to Stop Period Pain</h3>
+              <span class="source-badge">HealthPartners</span>
+              <p>Shares daily habits and pain-relief techniques.<br />Useful non-invasive options to try first.</p>
+              <a class="resource-link" href="https://www.healthpartners.com/blog/13-ways-to-stop-period-pain/" target="_blank" rel="noopener noreferrer">Open guide</a>
+            </article>
+          </div>
+        </details>
+      </li>
+
+      <li>
+        <details class="resource-category" data-category="nepal-specific-resources" open>
+          <summary>
+            <h2 class="resource-category-title"><i class="ph ph-globe-hemisphere-west"></i> D) Nepal-Specific Resources</h2>
+            <i class="ph ph-caret-down toggle-icon"></i>
+          </summary>
+          <div class="resource-items">
+            <article class="resource-item" data-search="ministry of health and population nepal specific resources">
+              <h3>Ministry of Health &amp; Population</h3>
+              <span class="source-badge">Government of Nepal</span>
+              <p>National health authority updates and services.<br />Primary official policy and public guidance.</p>
+              <a class="resource-link" href="https://mohp.gov.np" target="_blank" rel="noopener noreferrer">Open resource</a>
+            </article>
+
+            <article class="resource-item" data-search="national health training center nepal specific resources">
+              <h3>National Health Training Center</h3>
+              <span class="source-badge">NHTC</span>
+              <p>Training resources and healthcare learning support.<br />Useful for local health education access.</p>
+              <a class="resource-link" href="https://nhtc.gov.np" target="_blank" rel="noopener noreferrer">Open resource</a>
+            </article>
+
+            <article class="resource-item" data-search="patan hospital nepal specific resources">
+              <h3>Patan Hospital</h3>
+              <span class="source-badge">PAHS</span>
+              <p>Hospital services, departments, and contact details.<br />Trusted tertiary care institution in Nepal.</p>
+              <a class="resource-link" href="https://pahs.edu.np/" target="_blank" rel="noopener noreferrer">Open resource</a>
+            </article>
+
+            <article class="resource-item" data-search="tu teaching hospital iom nepal specific resources">
+              <h3>TU Teaching Hospital</h3>
+              <span class="source-badge">IOM</span>
+              <p>Academic hospital information and clinical services.<br />Important referral center for specialist care.</p>
+              <a class="resource-link" href="https://www.iom.edu.np/" target="_blank" rel="noopener noreferrer">Open resource</a>
+            </article>
+          </div>
+        </details>
+      </li>
+    </ul>
+
+    <p class="empty-state" id="resourceEmptyState">No resources matched your current search/filter.</p>
+
+    <aside class="emergency-box" aria-label="Emergency support Nepal">
+      <h2><i class="ph ph-warning-circle"></i> E) Emergency Support (Nepal)</h2>
+      <div class="emergency-grid">
+        <div class="emergency-item"><i class="ph ph-ambulance"></i> Ambulance (Nepal Red Cross): 102</div>
+        <div class="emergency-item"><i class="ph ph-phone-call"></i> Women&apos;s Helpline (National Women Commission): 1145</div>
+        <div class="emergency-item"><i class="ph ph-heartbeat"></i> Mental Health Support (TPO Nepal): 1660-01-20067</div>
+        <div class="emergency-item"><i class="ph ph-shield-warning"></i> Violence Against Women Hotline: 1091</div>
+        <div class="emergency-item"><i class="ph ph-police-car"></i> Nepal Police Emergency: 100</div>
+      </div>
+    </aside>
+
+    <div class="resources-footer" id="resourcesLastUpdated">Last updated: --</div>
+  </section>
+
+  {% include 'components/footer.html' %}
+
+  <script>
+    (function () {
+      const searchInput = document.getElementById('resourceSearch');
+      const filterSelect = document.getElementById('resourceFilter');
+      const categoryCards = Array.from(document.querySelectorAll('.resource-category'));
+      const emptyState = document.getElementById('resourceEmptyState');
+      const lastUpdated = document.getElementById('resourcesLastUpdated');
+      const allResourceLinks = Array.from(document.querySelectorAll('.resource-link'));
+
+      function setInactiveLinks() {
+        allResourceLinks.forEach((link) => {
+          const href = (link.getAttribute('href') || '').trim();
+          const isInactive = !href || href === '#' || href.toLowerCase() === 'tbd';
+          if (isInactive) {
+            link.classList.add('inactive');
+            link.textContent = 'Link coming soon';
+            link.setAttribute('aria-disabled', 'true');
+            link.removeAttribute('target');
+            link.removeAttribute('rel');
+          }
+        });
+      }
+
+      function applyFilters() {
+        const q = (searchInput.value || '').toLowerCase().trim();
+        const selectedCategory = filterSelect.value;
+        let visibleCategories = 0;
+
+        categoryCards.forEach((category) => {
+          const matchesCategory = selectedCategory === 'all' || category.dataset.category === selectedCategory;
+          const items = Array.from(category.querySelectorAll('.resource-item'));
+          let visibleItems = 0;
+
+          items.forEach((item) => {
+            const haystack = item.dataset.search || '';
+            const matchesSearch = !q || haystack.includes(q);
+            const show = matchesCategory && matchesSearch;
+            item.classList.toggle('is-hidden', !show);
+            if (show) {
+              visibleItems += 1;
+            }
+          });
+
+          const showCategory = matchesCategory && visibleItems > 0;
+          category.classList.toggle('is-hidden', !showCategory);
+          if (showCategory) {
+            visibleCategories += 1;
+            category.setAttribute('open', 'open');
+          }
+        });
+
+        emptyState.style.display = visibleCategories ? 'none' : 'block';
+      }
+
+      const dateNow = new Date();
+      lastUpdated.textContent =
+        'Last updated: ' +
+        dateNow.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+
+      setInactiveLinks();
+      applyFilters();
+      searchInput.addEventListener('input', applyFilters);
+      filterSelect.addEventListener('change', applyFilters);
+    })();
+  </script>
+</body>

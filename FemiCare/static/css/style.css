@@ -1640,6 +1640,198 @@ body {
   margin-bottom: 14px;
   font-weight: 600;
 }
+/* REVIEWS SECTION */
+/* VIEWPORT & TRACK */
+.reviews-viewport {
+    overflow: hidden; 
+    padding: 40px 0;
+    position: relative;
+}
+
+.reviews-track {
+    display: flex;
+    gap: 30px;
+    transition: transform 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+    align-items: center;
+    /* This ensures we have enough space to move left/right */
+    width: max-content; 
+    will-change: transform;
+}
+
+/* THE REVIEW CARD */
+.review-slide {
+    min-width: 340px;
+    flex-shrink: 0;
+    transition: all 0.5s ease;
+    filter: blur(1px); /* Slight blur for non-active cards */
+    opacity: 0.4;
+    transform: scale(0.85);
+}
+
+.review-slide.active {
+    opacity: 1;
+    filter: blur(0);
+    transform: scale(1.05); /* Make center card slightly larger */
+    z-index: 10;
+}
+
+/* CARD INTERNAL STYLING (Matches your sample) */
+.review-box {
+    background: #fff;
+    padding: 30px;
+    border-radius: 20px;
+    position: relative;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+    height: 100%;
+}
+
+/* The Quote Icon from your sample */
+.review-box::after {
+    content: "”";
+    position: absolute;
+    top: 10px;
+    right: 25px;
+    font-size: 80px;
+    color: #f1f5f9;
+    font-family: serif;
+    line-height: 1;
+}
+
+.star-rating {
+    color: #f59e0b;
+    font-size: 0.9rem;
+    margin-bottom: 15px;
+    display: block;
+}
+
+.review-comment {
+    font-size: 1.05rem;
+    color: #334155;
+    line-height: 1.6;
+    margin-bottom: 25px;
+    min-height: 80px;
+}
+
+/* PATIENT INFO AREA (Bottom aligned like sample) */
+.patient-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-top: 1px solid #f1f5f9;
+    padding-top: 15px;
+}
+
+.patient-avatar {
+    width: 45px;
+    height: 45px;
+    background: #b92222; /* Your theme red */
+    color: #fff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+}
+
+.patient-details {
+    display: flex;
+    flex-direction: column;
+}
+
+.patient-name {
+    font-weight: 700;
+    color: #1e293b;
+    font-size: 0.95rem;
+}
+
+.review-date {
+    font-size: 0.8rem;
+    color: #94a3b8;
+}
+/* Fix the navigation buttons position */
+.carousel-controls {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-top: -20px; /* Pull buttons up slightly */
+    position: relative;
+    z-index: 10;
+}
+
+.nav-btn {
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 1.2rem;
+}
+
+/* Leave Review */
+/* STAR RATING INPUT */
+.star-input-container {
+    display: flex;
+    flex-direction: row-reverse; /* Allows us to highlight all previous stars */
+    justify-content: flex-end;
+    gap: 5px;
+}
+
+.star-input-container input {
+    display: none; /* Hide the circles */
+}
+
+.star-input-container label {
+    font-size: 1.8rem;
+    color: #e2e8f0; /* Default empty star color */
+    cursor: pointer;
+    transition: transform 0.2s ease, color 0.2s ease;
+}
+
+/* Hover & Checked Logic */
+.star-input-container label:hover,
+.star-input-container label:hover ~ label,
+.star-input-container input:checked ~ label {
+    color: #f59e0b; /* Golden Yellow */
+    transform: scale(1.1);
+}
+
+/* TEXTAREA STYLING */
+.review-textarea {
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 15px;
+    font-size: 0.95rem;
+    resize: none;
+    transition: border-color 0.3s ease;
+}
+
+.review-textarea:focus {
+    border-color: #b92222;
+    box-shadow: 0 0 0 3px rgba(185, 34, 34, 0.1);
+    outline: none;
+}
+
+/* SUBMIT BUTTON */
+.btn-submit-review {
+    background-color: #b92222;
+    color: white;
+    padding: 12px 25px;
+    border-radius: 10px;
+    font-weight: 600;
+    border: none;
+    transition: all 0.3s ease;
+}
+
+.btn-submit-review:hover {
+    background-color: #8e1a1a;
+    transform: translateY(-2px);
+    color: white;
+    box-shadow: 0 4px 12px rgba(185, 34, 34, 0.2);
+}
+
+
 
 /* Availability */
 .availability-grid {
@@ -1689,4 +1881,429 @@ body {
 
 .doctor-detail-item span {
   color: #222;
+}
+
+
+
+
+
+/* DATE RIBBON */
+/* 
+.date-ribbon{
+    display:flex;
+    gap:12px;
+    overflow-x:auto;
+    padding-bottom:10px;
+    margin-bottom:20px;
+}
+
+.date-ribbon::-webkit-scrollbar{
+    height:6px;
+}
+.date-ribbon::-webkit-scrollbar-thumb{
+    background:#ccc;
+    border-radius:10px;
+}
+
+.date-tab-btn{
+    min-width:90px;
+    height:70px;
+    flex:0 0 auto;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    background:#fff;
+    border:1px solid #ddd;
+    border-radius:12px;
+    cursor:pointer;
+    transition:.2s;
+}
+.date-tab-btn.active{
+    background:#b92222;
+    color:#fff;
+    border-color:#b92222;
+}
+
+.time-slot-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(110px,1fr));
+    gap:12px;
+}
+.time-pill{
+    padding:14px;
+    border-radius:10px;
+    border:1px solid #b92222;
+    background:#fff;
+    color:#b92222;
+    font-weight:600;
+    cursor:pointer;
+    transition:.2s;
+}
+.time-pill:hover{
+    background:#b92222;
+    color:#fff;
+} */
+
+
+/* DATE RIBBON SCROLLING */
+.date-ribbon {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    padding: 5px 2px 15px 2px;
+    margin-bottom: 25px;
+    scrollbar-width: thin; /* Firefox */
+}
+
+.date-ribbon::-webkit-scrollbar {
+    height: 6px;
+}
+
+.date-ribbon::-webkit-scrollbar-thumb {
+    background: #e2e8f0;
+    border-radius: 10px;
+}
+
+/* DATE TABS */
+.date-tab-btn {
+    min-width: 90px;
+    height: 80px;
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+}
+
+.date-tab-btn .day-name {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    font-weight: 700;
+    margin-bottom: 4px;
+    color: #64748b;
+}
+
+.date-tab-btn .day-date {
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.date-tab-btn:hover {
+    border-color: #b92222;
+    transform: translateY(-2px);
+}
+
+.date-tab-btn.active {
+    background: #b92222;
+    color: #ffffff;
+    border-color: #b92222;
+    box-shadow: 0 4px 12px rgba(185, 34, 34, 0.2);
+}
+
+.date-tab-btn.active .day-name {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+/* TIME SLOTS */
+.slot-heading {
+    font-size: 0.95rem;
+    color: #475569;
+    margin-bottom: 15px;
+}
+
+.time-slot-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 12px;
+}
+
+.slot-btn {
+    padding: 12px 10px;
+    border-radius: 10px;
+    border: 1px solid #b92222;
+    background: #fff;
+    color: #b92222;
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+}
+
+.slot-btn:hover {
+    background: #b92222;
+    color: #fff;
+    box-shadow: 0 4px 8px rgba(185, 34, 34, 0.15);
+}
+
+/* EMPTY STATE */
+.empty-slots-state {
+    text-align: center;
+    padding: 40px;
+    background: #f8fafc;
+    border-radius: 12px;
+    color: #94a3b8;
+}
+
+.empty-slots-state i {
+    font-size: 3rem;
+    margin-bottom: 10px;
+}
+
+/* MODAL */
+.modal{
+    will-change: transform;
+}
+.booking-modal{
+    border-radius:16px;
+}
+.booking-summary{
+    background:#fdf2f2;
+    padding:12px;
+    border-left:4px solid #b92222;
+    border-radius:8px;
+    margin-bottom:15px;
+    font-weight:600;
+}
+.booking-textarea{
+    width:100%;
+    border:1px solid #ddd;
+    border-radius:10px;
+    padding:12px;
+    min-height:110px;
+}
+.booking-textarea:focus{
+    border-color:#b92222;
+    outline:none;
+}
+.booking-submit{
+    background:#b92222;
+    color:#fff;
+    border:none;
+    border-radius:8px;
+    padding:10px 18px;
+}
+.cancel-btn{
+    border-radius:8px;
+}
+
+
+
+
+/* Chat room css */
+    /* Main Layout */
+    .dashboard-container { display: flex; min-height: 100vh; }
+    .dashboard-main { flex-grow: 1; padding: 20px; background: #f0f2f5; }
+    
+    /* WhatsApp Styles with Healthcare Twist */
+    .chat-main-container {
+        display: flex;
+        flex-direction: column;
+        height: 85vh; /* Slightly taller */
+        background: #fff;
+        border-radius: 15px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        overflow: hidden;
+    }
+
+    .chat-messages-area {
+        flex-grow: 1;
+        padding: 25px;
+        background-color: #e5ddd5;
+        /* Healthcare Vector Pattern */
+        background-image: url('https://www.transparenttextures.com/patterns/medical-icons.png');
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .message { display: flex; width: 100%; }
+    
+    /* Alignment Logic: sender on right, receiver on left */
+    .message.sent { justify-content: flex-end; }
+    .message.received { justify-content: flex-start; }
+
+    .bubble {
+        padding: 10px 15px;
+        max-width: 75%;
+        position: relative;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+        font-size: 0.95rem;
+    }
+
+    /* Sent Bubble (Right Side - Light Green) */
+    .sent .bubble {
+        background-color: #dcf8c6;
+        color: #303030;
+        border-radius: 15px 15px 2px 15px; /* Distinct corner for sender */
+    }
+
+    /* Received Bubble (Left Side - White) */
+    .received .bubble {
+        background-color: #ffffff;
+        color: #303030;
+        border-radius: 15px 15px 15px 2px; /* Distinct corner for receiver */
+    }
+
+    /* Private Note Style (Doctor Highlight) */
+    .note-bubble {
+        background-color: #fff9c4 !important; /* Soft yellow for medical notes */
+        border: 1px dashed #fbc02d;
+        align-self: center; /* Center notes in the middle of the chat */
+        text-align: center;
+        border-radius: 10px !important;
+    }
+
+    .message-time {
+        font-size: 0.65rem;
+        color: #888;
+        display: block;
+        text-align: right;
+        margin-top: 5px;
+    }
+    
+    /* Input Styling */
+    .chat-input-area { border-top: 1px solid #eee; padding: 15px; }
+    .btn-primary { background-color: #b92222; border: none; } /* Matching Femicare Red */
+    .btn-primary:hover { background-color: #961b1b; }
+
+/* Public Resources Page */
+.resources-wrapper {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 42px 20px 70px;
+}
+
+.resources-header {
+  text-align: center;
+  margin-bottom: 34px;
+}
+
+.resources-title {
+  font-family: var(--font-title);
+  color: var(--color-primary);
+  font-size: clamp(1.9rem, 3vw, 2.6rem);
+  margin: 12px 0 10px;
+}
+
+.resources-subtitle {
+  margin: 0 auto;
+  max-width: 760px;
+  color: #515151;
+  font-family: var(--font-body);
+  line-height: 1.65;
+}
+
+.resources-section {
+  margin-top: 26px;
+}
+
+.resources-section-title {
+  font-family: var(--font-title);
+  color: #171717;
+  font-size: clamp(1.2rem, 2.2vw, 1.55rem);
+  margin: 0 0 14px;
+}
+
+.resource-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.resource-card {
+  border: 1px solid rgba(185, 34, 34, 0.14);
+  border-radius: 14px;
+  background: #fff;
+  padding: 16px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.05);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.resource-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.07);
+}
+
+.resource-card h3 {
+  margin: 0 0 8px;
+  font-family: var(--font-title);
+  font-size: 1.08rem;
+  color: #141414;
+}
+
+.resource-card p {
+  margin: 0;
+  color: #4f4f4f;
+  font-family: var(--font-body);
+  line-height: 1.56;
+}
+
+.resource-card a {
+  display: inline-flex;
+  margin-top: 11px;
+  color: var(--color-primary);
+  text-decoration: none;
+  font-family: var(--font-body);
+  font-weight: 700;
+}
+
+.resource-card a:hover {
+  text-decoration: underline;
+}
+
+.resource-videos-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.video-card {
+  border: 1px solid rgba(185, 34, 34, 0.14);
+  border-radius: 14px;
+  background: #fff;
+  overflow: hidden;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.05);
+}
+
+.video-frame-wrap {
+  position: relative;
+  width: 100%;
+  padding-top: 56.25%;
+}
+
+.video-frame-wrap iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.resources-last-section {
+  margin-bottom: 10px;
+}
+
+.resource-cards-grid-compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 900px) {
+  .resource-cards-grid,
+  .resource-videos-grid,
+  .resource-cards-grid-compact {
+    grid-template-columns: 1fr;
+  }
+
+  .resources-wrapper {
+    padding: 34px 16px 56px;
+  }
 }

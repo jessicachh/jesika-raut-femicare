@@ -1,0 +1,170 @@
+{% extends 'dashboard/main.html' %}
+
+{% block dashboard_content %}
+<div class="container-fluid" id="settings-section">
+  {% if requires_password_update %}
+  <div class="alert alert-warning security-update-banner" role="alert">
+    <strong>Security Update Required</strong>
+    <p class="mb-0">For improved security, please update your password to a stronger one. This helps protect your personal health data.</p>
+  </div>
+  {% endif %}
+
+  <div class="row g-4">
+    <div class="col-12 col-xl-7">
+      <div class="card settings-card border-0 shadow-sm">
+        <div class="card-body p-4 p-md-5">
+          <h4 class="mb-4">Change Password</h4>
+
+          <form method="post" action="{% url 'change_password' %}">
+            {% csrf_token %}
+
+            {% if password_form.non_field_errors %}
+              <div class="alert alert-danger" role="alert">
+                {{ password_form.non_field_errors }}
+              </div>
+            {% endif %}
+
+            <div class="mb-3">
+              <label class="form-label" for="{{ password_form.old_password.id_for_label }}">Current Password</label>
+              {{ password_form.old_password }}
+              {% if password_form.old_password.errors %}
+                <div class="invalid-feedback d-block">{{ password_form.old_password.errors|join:', ' }}</div>
+              {% endif %}
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label" for="{{ password_form.new_password1.id_for_label }}">New Password</label>
+              {{ password_form.new_password1 }}
+              {% if password_form.new_password1.errors %}
+                <div class="invalid-feedback d-block">{{ password_form.new_password1.errors|join:', ' }}</div>
+              {% endif %}
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label" for="{{ password_form.new_password2.id_for_label }}">Confirm New Password</label>
+              {{ password_form.new_password2 }}
+              {% if password_form.new_password2.errors %}
+                <div class="invalid-feedback d-block">{{ password_form.new_password2.errors|join:', ' }}</div>
+              {% endif %}
+            </div>
+
+            <button type="submit" class="btn btn-danger px-4">Change Password</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-xl-5">
+      <div class="card settings-card border-0 shadow-sm">
+        <div class="card-body p-4 p-md-5">
+          <h4 class="mb-4">Account Settings</h4>
+
+          <form method="post" action="{% url 'dashboard_settings' %}">
+            {% csrf_token %}
+
+            {% if account_form.non_field_errors %}
+              <div class="alert alert-danger" role="alert">
+                {{ account_form.non_field_errors }}
+              </div>
+            {% endif %}
+
+            <div class="mb-3">
+              <label class="form-label" for="{{ account_form.email.id_for_label }}">Email</label>
+              {{ account_form.email }}
+              {% if account_form.email.errors %}
+                <div class="invalid-feedback d-block">{{ account_form.email.errors|join:', ' }}</div>
+              {% endif %}
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label" for="{{ account_form.phone_number.id_for_label }}">Phone Number</label>
+              {{ account_form.phone_number }}
+              {% if account_form.phone_number.errors %}
+                <div class="invalid-feedback d-block">{{ account_form.phone_number.errors|join:', ' }}</div>
+              {% endif %}
+            </div>
+
+            <button type="submit" class="btn btn-danger px-4">Update Settings</button>
+          </form>
+
+          {% if pending_email %}
+            <hr class="my-4">
+            <div class="email-verification-box">
+              <h6 class="mb-2">Verify New Email</h6>
+              <p class="text-muted small mb-3">
+                We sent a 6-digit verification code to <strong>{{ pending_email }}</strong>.
+              </p>
+
+              <form method="post" action="{% url 'verify_email_code' %}">
+                {% csrf_token %}
+
+                <div class="mb-3">
+                  <label class="form-label" for="{{ verification_form.code.id_for_label }}">Enter Code</label>
+                  {{ verification_form.code }}
+                  {% if verification_form.code.errors %}
+                    <div class="invalid-feedback d-block">{{ verification_form.code.errors|join:', ' }}</div>
+                  {% endif %}
+                </div>
+
+                <button type="submit" class="btn btn-danger px-4">Verify Email</button>
+              </form>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="card settings-card delete-account-card border-0 shadow-sm mt-4">
+        <div class="card-body p-4 p-md-5">
+          <h4 class="mb-3">Two-Factor Authentication</h4>
+
+          {% if two_factor_enabled %}
+            <p class="text-muted mb-4">2FA is currently <strong>enabled</strong>. You will verify with a one-time email code at login.</p>
+            <form method="post" action="{% url 'disable_two_factor' %}">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-outline-danger px-4">Disable 2FA</button>
+            </form>
+          {% else %}
+            <p class="text-muted mb-4">2FA is currently <strong>disabled</strong>. Enable it to add stronger login security.</p>
+            <form method="post" action="{% url 'enable_two_factor' %}">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-danger px-4">Enable 2FA</button>
+            </form>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="card settings-card delete-account-card border-0 shadow-sm mt-4">
+        <div class="card-body p-4 p-md-5">
+          <h4 class="mb-3">Delete Account</h4>
+          <p class="text-muted mb-4">This action is permanent and will delete all your data.</p>
+
+          <button type="button" class="btn btn-outline-danger px-4" data-bs-toggle="modal" data-bs-target="#deleteAccountModal">
+            Delete Account
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="deleteAccountModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content delete-account-modal">
+      <div class="modal-header">
+        <h5 class="modal-title">Confirm Account Deletion</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-0">Are you sure you want to permanently delete your account and all related data?</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <form method="post" action="{% url 'delete_account' %}">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-danger">Yes, Delete Account</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
