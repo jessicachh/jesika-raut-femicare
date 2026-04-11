@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terms and Conditions | FemiCare</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .tc-container { max-width: 800px; margin: 50px auto; }
+        .card { border: none; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        .card-header { background: #b92222; color: white; border-radius: 15px 15px 0 0 !important; padding: 25px; }
+        .legal-box { 
+            height: 350px; 
+            overflow-y: scroll; 
+            background: #fff; 
+            border: 1px solid #eee; 
+            padding: 20px; 
+            border-radius: 10px;
+            font-size: 14px;
+            line-height: 1.6;
+            color: #444;
+        }
+        .legal-box h5 { color: #b92222; margin-top: 20px; font-weight: 700; }
+        .form-check-label { font-size: 14px; color: #555; cursor: pointer; }
+        .btn-proceed { background: #b92222; color: white; border: none; padding: 12px; font-weight: 600; transition: 0.3s; }
+        .btn-proceed:hover { background: #9b1c1c; color: white; transform: translateY(-2px); }
+        /* Custom Scrollbar */
+        .legal-box::-webkit-scrollbar { width: 6px; }
+        .legal-box::-webkit-scrollbar-thumb { background: #ccc; border-radius: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="tc-container">
+    <div class="card">
+        <div class="card-header text-center">
+            <h3 class="mb-0">Legal Compliance & Consent</h3>
+            <p class="mb-0 opacity-75">Please review the agreement for <strong>{{ request.user.role|title }}s</strong></p>
+        </div>
+        <div class="card-body p-4">
+            <div class="legal-box mb-4">
+                <h4>Welcome to FemiCare</h4>
+                <p>Before proceeding to the dashboard, you must read and accept the following legal and ethical guidelines governing the use of our health platform.</p>
+
+                {% if request.user.role == 'doctor' %}
+                <h5>1. Professional Responsibility</h5>
+                <p>By using this dashboard, you certify that you are a licensed medical professional. You agree to provide consultations based on established medical standards and acknowledge that the real-time chat is recorded for patient safety and legal audit purposes.</p>
+                
+                <h5>2. Data Privacy & Patient Confidentiality</h5>
+                <p>You are strictly prohibited from exporting, photographing, or sharing patient health data (including cycle logs and symptoms) outside of the FemiCare secure environment. Any breach of confidentiality may lead to legal action and account termination.</p>
+                
+                <h5>3. Telemedicine Limitations</h5>
+                <p>You agree to inform patients when their condition requires a physical examination that cannot be accurately assessed via the FemiCare platform.</p>
+
+                {% else %}
+                <h5>1. AI Medical Disclaimer (Crucial)</h5>
+                <p>FemiCare uses Machine Learning models (XGBoost/Random Forest) to predict menstrual cycles and fertile windows. <strong>These predictions are probabilistic estimates and NOT medical diagnoses.</strong> You should not use these predictions as a sole basis for contraception or for diagnosing reproductive health conditions.</p>
+                
+                <h5>2. Processing of Sensitive Health Data</h5>
+                <p>You grant FemiCare permission to store and process sensitive "Special Category" data, including your menstrual dates, symptoms, and private communications with doctors. This data is encrypted and used solely for your health tracking and consultations.</p>
+                
+                <h5>3. No Emergency Use</h5>
+                <p>This platform is for routine health tracking and non-emergency consultation. If you are experiencing a medical emergency, please contact your local emergency services immediately.</p>
+                {% endif %}
+
+                <h5>4. General Data Protection (GDPR)</h5>
+                <p>We adhere to data minimization principles. We only collect what is necessary. You have the right to request data deletion at any time through the profile settings.</p>
+            </div>
+
+            <form method="POST" action="{% url 'terms_and_conditions' %}">
+                {% csrf_token %}
+                <div class="form-check mb-4">
+                    <input class="form-check-input" type="checkbox" value="" id="acceptCheck" required>
+                    <label class="form-check-label" for="acceptCheck">
+                        I have read, understood, and agree to the FemiCare Terms of Service and Privacy Policy as a <strong>{{ request.user.role }}</strong>.
+                    </label>
+                </div>
+                <button type="submit" class="btn btn-proceed w-100 rounded-pill shadow-sm">
+                    Accept and Continue to Dashboard
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+  <body style="margin:0;padding:0;background:#f6f7fb;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f6f7fb;padding:24px 12px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="640" cellspacing="0" cellpadding="0" style="max-width:640px;width:100%;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;">
+            <tr>
+              <td style="background:#b92222;color:#ffffff;padding:16px 24px;font-size:20px;font-weight:700;letter-spacing:0.3px;">
+                {{ brand_name|default:"FemiCare" }}
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:24px;">
+                <p style="margin:0 0 12px 0;font-size:15px;line-height:1.6;">Hello {{ greeting_name|default:"there" }},</p>
+
+                <h2 style="margin:0 0 12px 0;font-size:20px;color:#111827;">{% block email_title %}FemiCare Update{% endblock %}</h2>
+                <p style="margin:0 0 14px 0;font-size:14px;line-height:1.7;color:#374151;">{% block email_intro %}{% endblock %}</p>
+
+                <div style="margin:0 0 14px 0;padding:14px;border:1px solid #e5e7eb;border-radius:8px;background:#fafafa;">
+                  {% block email_details %}{% endblock %}
+                </div>
+
+                {% block email_reassurance %}{% endblock %}
+
+                {% if action_url and action_label %}
+                <p style="margin:18px 0 20px 0;">
+                  <a href="{{ action_url }}" style="display:inline-block;background:#b92222;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:8px;font-size:14px;font-weight:600;">
+                    {{ action_label }}
+                  </a>
+                </p>
+                {% endif %}
+
+                <p style="margin:0;font-size:13px;color:#4b5563;">Thank you,<br>{{ brand_name|default:"FemiCare" }} Team</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="border-top:1px solid #e5e7eb;padding:16px 24px;background:#fbfbfd;">
+                <p style="margin:0 0 6px 0;font-size:12px;line-height:1.6;color:#6b7280;">
+                  Disclaimer: This email is for informational purposes only and is not a replacement for professional medical advice, diagnosis, or treatment.
+                </p>
+                <p style="margin:0;font-size:12px;line-height:1.6;color:#6b7280;">
+                  Need help? Contact us at {{ support_email|default:"support@femicare.local" }}.
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

@@ -1,0 +1,1404 @@
+{% extends 'dashboard/main.html' %}
+{% load static %}
+
+{% block dashboard_content %}
+
+<button type="button"
+        class="fab-add-cycle"
+        data-bs-toggle="modal"
+        data-bs-target="#cycleModal">
+  <span class="fab-icon">＋</span>
+  <span class="fab-text">Add Cycle</span>
+</button>
+
+<div class="insights-container">
+  <div class="row g-4">
+    <div class="col-12 col-xl-9">
+      <section class="greeting-row greeting-banner dashboard-card mb-4">
+        <div class="greeting-content">
+          <h4 class="greeting-title mb-1">
+            {% if "Morning" in greeting_text %}
+              Good Morning,
+            {% elif "Afternoon" in greeting_text %}
+              Good Afternoon,
+            {% else %}
+              Good Evening,
+            {% endif %}
+          </h4>
+          <p class="greeting-sub mb-1">
+            {% if today_mood_label %}
+              You are feeling {{ today_mood_label }} today
+            {% else %}
+              You have not checked in your mood today
+            {% endif %}
+          </p>
+          <p class="greeting-note mb-0">Your health insights are personalized using your cycle data and daily check-ins.</p>
+        </div>
+        <aside class="period-status period-status-{{ period_status_variant }}">
+          <h6 class="mb-1">Period Status</h6>
+          <p class="mb-0">{{ period_status_text }}</p>
+        </aside>
+      </section>
+
+      {% if show_emergency_panel %}
+      <section class="dashboard-card emergency-alert-panel mb-4" role="alert" aria-live="polite">
+        <div class="emergency-alert-head">
+          <h5 class="mb-1">Emergency Alert</h5>
+          <span class="emergency-risk-badge">Risk Score: {{ emergency_risk_score }}</span>
+        </div>
+        <p class="emergency-alert-message mb-3">You may be experiencing symptoms that require attention. Please monitor your health and consult a doctor if needed. Do not panic.</p>
+        <div class="emergency-alert-actions">
+          <a href="{% url 'resources' %}" class="btn btn-outline-danger">View Resources</a>
+          <form method="POST" action="{% url 'submit_emergency_request' %}" class="d-inline-block">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger">Book Emergency Doctor</button>
+          </form>
+          <a href="tel:102" class="btn btn-outline-danger">Contact Emergency</a>
+        </div>
+      </section>
+      {% endif %}
+
+      {% if feedback_target %}
+      <section class="dashboard-card mood-card mb-4">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+          <div>
+            <h5 class="mb-1">Prediction Feedback</h5>
+            <p class="mb-0 text-muted">Update your period status for {{ feedback_target.predicted_start_date|default:feedback_target.predicted_next_period|date:"M d, Y" }}.</p>
+          </div>
+          {% if is_active_period %}
+          <div class="d-flex gap-2 flex-wrap align-items-center">
+            <span class="text-muted">Your period is currently ongoing</span>
+            <button type="button" class="btn btn-secondary" disabled>Log Period</button>
+            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#endPeriodModal">
+              End Period
+            </button>
+          </div>
+          {% else %}
+          <div class="d-flex gap-2 flex-wrap">
+            <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#predictionFeedbackModal">
+              Submit Feedback
+            </button>
+            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#manualPeriodModal">
+              Log Period
+            </button>
+          </div>
+          {% endif %}
+        </div>
+      </section>
+      {% else %}
+      <section class="dashboard-card mood-card mb-4">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+          <div>
+            <h5 class="mb-1">Manual Period Logging</h5>
+            <p class="mb-0 text-muted">Started early or at an unexpected time? Log your actual period start date.</p>
+          </div>
+          {% if is_active_period %}
+          <div class="d-flex gap-2 flex-wrap align-items-center">
+            <span class="text-muted">Your period is currently ongoing</span>
+            <button type="button" class="btn btn-secondary" disabled>Log Period</button>
+            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#endPeriodModal">
+              End Period
+            </button>
+          </div>
+          {% else %}
+          <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#manualPeriodModal">
+            Log Period
+          </button>
+          {% endif %}
+        </div>
+      </section>
+      {% endif %}
+
+      <section class="health-summary-cards mb-4">
+        <div class="summary-grid">
+          <article class="summary-card">
+            <p class="summary-label">Total Appointments</p>
+            <h4 class="summary-value">{{ appointments_count|default:0 }}</h4>
+          </article>
+          <article class="summary-card">
+            <p class="summary-label">BMI</p>
+            <h4 class="summary-value" id="bmiCardValue">{% if bmi %}{{ bmi }}{% else %}--{% endif %}</h4>
+          </article>
+          <article class="summary-card">
+            <p class="summary-label">Prediction Accuracy</p>
+            <h4 class="summary-value">{{ prediction_accuracy }}%</h4>
+          </article>
+          <article class="summary-card">
+            <p class="summary-label">Cycle Regularity</p>
+            <h4 class="summary-value">{{ cycle_pattern_short }}</h4>
+          </article>
+        </div>
+      </section>
+
+      <section class="dashboard-card chart-card mb-4" id="insightsNoDataBanner">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+          <h5 class="mb-0">Start tracking your cycle to unlock insights</h5>
+          <span class="badge bg-light text-dark">No Data</span>
+        </div>
+      </section>
+
+      <section class="charts-grid mb-4">
+        <div class="row g-4">
+          <div class="col-12 col-lg-6">
+            <article class="dashboard-card chart-card">
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">Cycle Length Trend</h5>
+                <span class="text-muted small">Monthly</span>
+              </div>
+              <canvas id="cycleLengthTrendChart"></canvas>
+            </article>
+          </div>
+          <div class="col-12 col-lg-6">
+            <article class="dashboard-card chart-card symptom-frequency-card">
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">Symptom Frequency</h5>
+                <span class="text-muted small">Based on your cycle logs</span>
+              </div>
+              {% if symptom_frequency %}
+              <div class="symptom-frequency-list symptom-frequency-scroll">
+                {% for item in symptom_frequency %}
+                <div class="symptom-frequency-item">
+                  <div class="symptom-frequency-head">
+                    <span>{{ item.symptom }}</span>
+                    <strong>{{ item.count }}x</strong>
+                  </div>
+                  <progress class="symptom-frequency-progress" value="{{ item.count }}" max="{{ max_symptom_frequency }}"></progress>
+                </div>
+                {% endfor %}
+              </div>
+              {% else %}
+              <p class="text-muted small mb-0">No symptom records yet. Add cycle logs to see your symptom patterns.</p>
+              {% endif %}
+            </article>
+          </div>
+          <div class="col-12 col-lg-6">
+            <article class="dashboard-card chart-card">
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">BMI Category</h5>
+                <span class="text-muted small">Health indicator</span>
+              </div>
+              <canvas id="bmiCategoryChart"></canvas>
+            </article>
+          </div>
+          <div class="col-12 col-lg-6">
+            <article class="dashboard-card chart-card">
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">Period Prediction Timeline</h5>
+                <span class="text-muted small">Forecast points</span>
+              </div>
+              <canvas id="predictionTimelineChart"></canvas>
+            </article>
+          </div>
+          <div class="col-12 col-lg-6">
+            <article class="dashboard-card chart-card">
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">Mood Distribution</h5>
+                <span class="text-muted small">Daily check-ins</span>
+              </div>
+              <canvas id="moodDistributionChart"></canvas>
+            </article>
+          </div>
+          <div class="col-12 col-lg-6">
+            <article class="dashboard-card chart-card">
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">Cycle Phase Distribution</h5>
+                <span class="text-muted small">Current cycle estimate</span>
+              </div>
+              <canvas id="cyclePhaseDistributionChart"></canvas>
+              <div class="phase-legend mt-3">
+                {% for phase in phase_labels %}
+                <span class="phase-legend-item phase-legend-{{ phase|lower }}">{{ phase }}</span>
+                {% endfor %}
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="dashboard-card health-summary">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
+          <h5 class="mb-0">Health Summary</h5>
+          <span class="text-muted small">Simple insights from your cycle and body data</span>
+        </div>
+        <div class="health-summary-grid">
+          <article class="health-summary-card">
+            <h6 class="mb-1">Cycle Pattern</h6>
+            <p class="health-summary-value mb-1">{{ cycle_pattern_value }}</p>
+            <p class="health-summary-help mb-0">{{ cycle_pattern_helper }}</p>
+          </article>
+          <article class="health-summary-card">
+            <h6 class="mb-1">Body Health Status</h6>
+            <p class="health-summary-value mb-1">{{ body_health_value }}</p>
+            <p class="health-summary-help mb-0">{{ body_health_helper }}</p>
+          </article>
+          <article class="health-summary-card">
+            <h6 class="mb-1">Most Common Symptom</h6>
+            <p class="health-summary-value mb-1">{{ most_common_symptom }}</p>
+            <p class="health-summary-help mb-0">This is the symptom you experience most frequently during your cycle.</p>
+          </article>
+          <article class="health-summary-card">
+            <h6 class="mb-2">Mood Trend</h6>
+            <div class="mood-emoji-trend">
+              <div class="mood-emoji-row">
+                <span class="mood-emoji">😊</span>
+                <progress value="{{ mood_trend_points.happy }}" max="{{ mood_trend_max }}"></progress>
+                <strong>{{ mood_trend_points.happy }}</strong>
+              </div>
+              <div class="mood-emoji-row">
+                <span class="mood-emoji">😐</span>
+                <progress value="{{ mood_trend_points.neutral }}" max="{{ mood_trend_max }}"></progress>
+                <strong>{{ mood_trend_points.neutral }}</strong>
+              </div>
+              <div class="mood-emoji-row">
+                <span class="mood-emoji">😔</span>
+                <progress value="{{ mood_trend_points.sad }}" max="{{ mood_trend_max }}"></progress>
+                <strong>{{ mood_trend_points.sad }}</strong>
+              </div>
+            </div>
+            <p class="health-summary-help mb-1">{{ mood_trend_summary }}</p>
+            <p class="mood-tip mb-0">{{ mood_trend_tip }}</p>
+          </article>
+        </div>
+      </section>
+    </div>
+
+    <div class="col-12 col-xl-3 right-insights-panel">
+      <section class="dashboard-card calendar-compact mb-4"
+               role="button"
+               data-bs-toggle="modal"
+               data-bs-target="#fullCalendarModal"
+               title="Click to view full calendar">
+        <div class="calendar-header d-flex align-items-center justify-content-between mb-2">
+          <h6 class="mb-0">Cycle Calendar</h6>
+          <span class="calendar-expand-hint">Tap to expand</span>
+        </div>
+        <p class="calendar-helper-text mb-2">Monthly overview of period, fertile days, and ovulation highlights.</p>
+        <div id="compactCalendar"></div>
+        <div class="calendar-legend mt-2">
+          <span class="calendar-legend-item"><span class="calendar-legend-dot calendar-legend-dot-current"></span>Current period</span>
+          <span class="calendar-legend-item"><span class="calendar-legend-dot calendar-legend-dot-predicted"></span>Predicted period</span>
+          <span class="calendar-legend-item"><span class="calendar-legend-dot calendar-legend-dot-actual"></span>Past cycle</span>
+          <span class="calendar-legend-item"><span class="calendar-legend-dot calendar-legend-dot-ovulation"></span>Ovulation</span>
+          <span class="calendar-legend-item"><span class="calendar-legend-dot calendar-legend-dot-fertile"></span>Fertile window</span>
+        </div>
+      </section>
+
+      <section class="dashboard-card symptom-section mb-4" id="symptoms-section">
+        <button type="button" class="symptom-header" id="symptomToggleBtn" aria-expanded="false">
+          <span class="symptom-header-row">
+            <h6 class="mb-0">Add Symptoms</h6>
+            <small class="symptom-header-note">Tap to toggle for today</small>
+          </span>
+          <span class="symptom-toggle-icon" id="symptomToggleIcon">+</span>
+        </button>
+
+        <div class="symptom-content" id="symptomContent">
+          <form method="POST" action="{% url 'save_symptoms' %}" id="symptomForm">
+            {% csrf_token %}
+            <div class="symptom-scroll mb-3">
+              <div class="symptom-list" id="allSymptomsList">
+                {% for symptom in symptom_options %}
+                  <button
+                    type="button"
+                    class="symptom-chip symptom-toggle-chip"
+                    data-symptom-chip="{{ symptom }}"
+                    aria-pressed="false"
+                  >
+                    <span class="symptom-chip-label">{{ symptom }}</span>
+                    <span class="symptom-chip-icon" aria-hidden="true">+</span>
+                  </button>
+                {% endfor %}
+              </div>
+            </div>
+
+            <div id="symptomHiddenInputs"></div>
+            <button type="submit" class="btn btn-danger symptom-save-btn">Save Today Symptoms</button>
+          </form>
+        </div>
+
+        <div class="symptom-recent mt-3">
+          <h6 class="mb-2">Recent Symptoms</h6>
+          <div class="recent-symptom-stack" id="recentSymptomsStack" aria-live="polite">
+            {% for symptom in recent_symptoms %}
+              <span class="symptom-recent-tag">{{ symptom }}</span>
+            {% empty %}
+              <span class="text-muted small">No recent symptoms yet.</span>
+            {% endfor %}
+          </div>
+        </div>
+      </section>
+
+      <section class="dashboard-card history-column">
+        <div class="cycle-log-header mb-3">
+          <h6 class="mb-0 cycle-log-title">Cycle Log History</h6>
+          <span class="cycle-log-count text-muted">Predictions Made: <strong id="cycleLogPredictionCount">0</strong></span>
+        </div>
+        <div class="history-scroll-container">
+          {% for log in logs|slice:":40" %}
+            <div class="history-item-mini card shadow-sm mb-3"
+                 role="button"
+                 data-bs-toggle="modal"
+                 data-bs-target="#historyModal{{ log.id }}"
+                 title="Click for full details">
+              <div class="card-body p-2">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  <span class="emoji-indicator">🩸</span>
+                  <small class="fw-bold">{{ log.last_period_start|date:"M d, Y" }}</small>
+                </div>
+                <div class="prediction-hint">
+                  <small class="text-muted">Next: {{ log.predicted_next_period|date:"M d" }}</small>
+                </div>
+              </div>
+            </div>
+
+            <div class="modal fade history-cycle-modal" id="historyModal{{ log.id }}" tabindex="-1">
+              <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                  <div class="modal-header">
+                    <h5 class="modal-title">Cycle Details</h5>
+                    <button class="btn-close" data-bs-dismiss="modal"></button>
+                  </div>
+                  <div class="modal-body">
+                    <h6 class="mb-3">Logged Data</h6>
+                    <p><strong>Start Date:</strong> {{ log.last_period_start }}</p>
+                    <p><strong>Cycle Length:</strong> {{ log.length_of_cycle }} days</p>
+                    <p><strong>Bleeding:</strong> {{ log.get_mean_bleeding_intensity_display }}</p>
+                    <hr>
+                    <h6 class="mb-3">Prediction Data</h6>
+                    <p><strong>Predicted Next:</strong> {{ log.predicted_next_period }}</p>
+                    <p><strong>Ovulation:</strong> {{ log.estimated_ovulation_day }}</p>
+                    <p><strong>Fertile Window:</strong> {{ log.fertile_window_start }} - {{ log.fertile_window_end }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          {% empty %}
+            <p class="text-muted small mb-0">No history logs found.</p>
+          {% endfor %}
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade calendar-modal" id="fullCalendarModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Full Cycle Calendar</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="calendar-helper-text mb-2">Use previous and next controls to browse your cycle history by month.</p>
+        <div class="calendar-legend mb-2">
+          <span class="calendar-legend-item"><span class="calendar-legend-dot calendar-legend-dot-current"></span>Current period</span>
+          <span class="calendar-legend-item"><span class="calendar-legend-dot calendar-legend-dot-predicted"></span>Predicted period</span>
+          <span class="calendar-legend-item"><span class="calendar-legend-dot calendar-legend-dot-actual"></span>Past cycle</span>
+          <span class="calendar-legend-item"><span class="calendar-legend-dot calendar-legend-dot-ovulation"></span>Ovulation</span>
+          <span class="calendar-legend-item"><span class="calendar-legend-dot calendar-legend-dot-fertile"></span>Fertile window</span>
+        </div>
+        <div class="vertical-calendar-scroll">
+          <div id="calendarFull"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="cycleModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-wide">
+    <div class="modal-content">
+      <form method="POST" action="{% url 'add_cycle_log' %}">
+        {% csrf_token %}
+        <div class="modal-header">
+          <h5 class="modal-title">Log New Cycle</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="cycle-form form-card">
+            <p class="text-muted small mb-3">Some data such as height and weight are automatically taken from your profile.</p>
+
+            <div class="form-section mb-3">
+              <h6 class="form-section-title">Period Info</h6>
+              <div class="row g-3">
+                <div class="col-12 col-md-6">
+                  <label class="form-label" for="id_last_period_start">Last period start</label>
+                  <input type="date" id="id_last_period_start" name="last_period_start" class="form-control" required>
+                </div>
+                <div class="col-12 col-md-6">
+                  <label class="form-label" for="id_length_of_cycle">Cycle Length (days)</label>
+                  <div class="day-counter" data-counter-wrapper>
+                    <button type="button" class="day-counter-btn" data-counter-action="decrement" data-counter-target="id_length_of_cycle" aria-label="Decrease cycle length">-</button>
+                    <input type="number" id="id_length_of_cycle" name="length_of_cycle" class="form-control day-counter-input" value="{{ form.length_of_cycle.value|default_if_none:'' }}" required>
+                    <button type="button" class="day-counter-btn" data-counter-action="increment" data-counter-target="id_length_of_cycle" aria-label="Increase cycle length">+</button>
+                    <span class="day-counter-label">days</span>
+                    <span class="day-counter-warning d-none" data-warning-icon aria-hidden="true">&#9888;</span>
+                  </div>
+                </div>
+                <div class="col-12 col-md-6">
+                  <label class="form-label" for="id_length_of_menses">Length of menses (days)</label>
+                  <div class="day-counter" data-counter-wrapper>
+                    <button type="button" class="day-counter-btn" data-counter-action="decrement" data-counter-target="id_length_of_menses" aria-label="Decrease period length">-</button>
+                    <input type="number" id="id_length_of_menses" name="length_of_menses" class="form-control day-counter-input" value="{{ form.length_of_menses.value|default_if_none:'' }}" required>
+                    <button type="button" class="day-counter-btn" data-counter-action="increment" data-counter-target="id_length_of_menses" aria-label="Increase period length">+</button>
+                    <span class="day-counter-label">days</span>
+                    <span class="day-counter-warning d-none" data-warning-icon aria-hidden="true">&#9888;</span>
+                  </div>
+                  <small class="text-muted">How many days your bleeding lasted.</small>
+                </div>
+                <div class="col-12">
+                  <div class="cycle-validation-panel d-none" id="cycleValidationPanel">
+                    <p class="cycle-validation-error d-none" id="cycleLengthError"></p>
+                    <p class="cycle-validation-error d-none" id="mensesLengthError"></p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-section mb-3">
+              <h6 class="form-section-title">Symptoms</h6>
+              <div class="row g-3">
+                <div class="col-12 col-md-6">
+                  <label class="form-label" for="id_mean_bleeding_intensity">Bleeding intensity</label>
+                  <select id="id_mean_bleeding_intensity" name="mean_bleeding_intensity" class="form-select" required>
+                    <option value="">Select flow level</option>
+                    <option value="1">Light</option>
+                    <option value="2">Moderate</option>
+                    <option value="3">Heavy</option>
+                  </select>
+                </div>
+                <div class="col-12 col-md-6">
+                  <label class="form-label" for="id_total_menses_score">Pain level</label>
+                  <select id="id_total_menses_score" name="total_menses_score" class="form-select" required>
+                    <option value="">Select pain level</option>
+                    <option value="0">None</option>
+                    <option value="3">As Regular</option>
+                    <option value="6">Moderate</option>
+                    <option value="9">Severe</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-section">
+              <h6 class="form-section-title">Additional Info</h6>
+              <label class="form-label" for="id_unusual_bleeding">Any unusual bleeding?</label>
+              <select id="id_unusual_bleeding" name="unusual_bleeding" class="form-select" required>
+                <option value="False">No</option>
+                <option value="True">Yes</option>
+              </select>
+              <small class="text-muted">Includes spotting between periods or unexpected heavy bleeding.</small>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-danger" id="saveCycleBtn">Save Cycle</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="moodCheckinModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content mood-card">
+      <form method="POST" action="{% url 'submit_mood_checkin' %}">
+        {% csrf_token %}
+        <div class="modal-header">
+          <h5 class="modal-title">How are you feeling today?</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mood-options-grid">
+            <button class="btn btn-outline-secondary" type="submit" name="mood" value="happy">Happy</button>
+            <button class="btn btn-outline-secondary" type="submit" name="mood" value="sad">Sad</button>
+            <button class="btn btn-outline-secondary" type="submit" name="mood" value="stressed">Stressed</button>
+            <button class="btn btn-outline-secondary" type="submit" name="mood" value="calm">Calm</button>
+            <button class="btn btn-outline-secondary" type="submit" name="mood" value="irritated">Irritated</button>
+            <button class="btn btn-outline-secondary" type="submit" name="mood" value="energetic">Energetic</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% if show_period_checkin_prompt and active_cycle_id %}
+<div class="modal fade" id="periodCheckinModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content mood-card">
+      <form method="POST" action="{% url 'submit_period_checkin' %}">
+        {% csrf_token %}
+        <input type="hidden" name="cycle_log_id" value="{{ active_cycle_id }}">
+        <div class="modal-header">
+          <h5 class="modal-title">Period Check-In</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted small mb-3">Tell us how you are feeling today. This appears once for the current cycle.</p>
+
+          <div class="mb-3">
+            <label class="form-label" for="periodPainLevel">Pain Level</label>
+            <select class="form-select" id="periodPainLevel" name="pain_level" required>
+              <option value="">Select pain level</option>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label" for="periodBloodFlow">Blood Flow</label>
+            <select class="form-select" id="periodBloodFlow" name="blood_flow" required>
+              <option value="">Select blood flow</option>
+              <option value="light">Light</option>
+              <option value="normal">Normal</option>
+              <option value="heavy">Heavy</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="form-label d-block mb-2">Symptoms</label>
+            <div class="period-checkin-symptoms">
+              {% for symptom in symptom_options %}
+              <label class="period-checkin-chip">
+                <input type="checkbox" name="symptoms" value="{{ symptom }}">
+                <span>{{ symptom }}</span>
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-danger">Save Check-In</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if feedback_target %}
+<div class="modal fade" id="predictionFeedbackModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content mood-card">
+      <form method="POST" action="{% url 'submit_prediction_feedback' %}">
+        {% csrf_token %}
+        <input type="hidden" name="cycle_log_id" value="{{ feedback_target.id }}">
+        <div class="modal-header">
+          <h5 class="modal-title">Prediction Accuracy Check</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-3">Did your period start on {{ feedback_target.predicted_start_date|default:feedback_target.predicted_next_period|date:"M d, Y" }}?</p>
+          <div class="d-flex flex-wrap gap-2 mb-3">
+            <button type="button" class="btn btn-outline-success feedback-status-choice" data-status="yes">Yes</button>
+            <button type="button" class="btn btn-outline-danger feedback-status-choice" data-status="started_earlier">Started earlier</button>
+            <button type="button" class="btn btn-outline-warning feedback-status-choice" data-status="still_not_started">Still not started</button>
+            <button type="button" class="btn btn-outline-primary feedback-status-choice" data-status="started_today">Started today</button>
+          </div>
+          <input type="hidden" name="feedback_status" id="feedbackStatusInput">
+          <div id="actualDateWrap" class="d-none">
+            <label class="form-label" for="actualDateInput">Actual period start date</label>
+            <input type="date" class="form-control" name="actual_date" id="actualDateInput">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-danger">Save Feedback</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="modal fade" id="manualPeriodModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content mood-card">
+      <form method="POST" action="{% url 'log_period_start' %}">
+        {% csrf_token %}
+        <div class="modal-header">
+          <h5 class="modal-title">Log Period Start</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label" for="manualPeriodStartDate">Period Start Date</label>
+            <input type="date" class="form-control" name="start_date" id="manualPeriodStartDate" required>
+          </div>
+          <div>
+            <label class="form-label" for="manualPeriodEndDate">Period End Date (optional for recent periods)</label>
+            <input type="date" class="form-control" name="end_date" id="manualPeriodEndDate">
+            <small class="text-muted">For periods started in the last 3 days, leave end date blank and use End Period later.</small>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-danger">Save Period Date</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="endPeriodModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content mood-card">
+      <form method="POST" action="{% url 'end_period' %}">
+        {% csrf_token %}
+        <div class="modal-header">
+          <h5 class="modal-title">End Period</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <label class="form-label" for="periodEndDate">Period End Date</label>
+          <input type="date" class="form-control" name="end_date" id="periodEndDate" required>
+          <small class="text-muted">End date cannot be before start date or in the future.</small>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-danger">Save End Date</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div id="emergency-section">
+<div class="floating-emergency-wrap" id="floatingEmergencyWrap" aria-label="Emergency actions" data-nav-section="emergency" >
+  <button type="button" class="floating-emergency-btn" id="floatingEmergencyBtn" aria-expanded="false" aria-controls="floatingEmergencyMenu" title="Emergency options">
+    <i class="bi bi-exclamation-triangle-fill"></i>
+  </button>
+  <div class="floating-emergency-menu" id="floatingEmergencyMenu" aria-label="Emergency options menu">
+    <h6>Emergency Options</h6>
+    <a href="{% url 'resources' %}" class="floating-emergency-link">View Resources</a>
+    <form method="POST" action="{% url 'submit_emergency_request' %}">
+      {% csrf_token %}
+      <input type="hidden" name="reason" value="Urgent consultation needed.">
+      <button type="submit" class="floating-emergency-link floating-emergency-link-button">Book Emergency Doctor</button>
+    </form>
+    <a href="tel:102" class="floating-emergency-link">Contact Emergency</a>
+    {% if active_emergency_request %}
+    <p class="floating-emergency-status mb-0">
+      Active request #{{ active_emergency_request.id }} ({{ active_emergency_request.get_status_display }})
+    </p>
+    {% endif %}
+  </div>
+</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{{ mood_chart_labels|json_script:"mood-chart-labels" }}
+{{ mood_chart_values|json_script:"mood-chart-values" }}
+{{ phase_labels|json_script:"phase-chart-labels" }}
+{{ phase_values|json_script:"phase-chart-values" }}
+{{ selected_today_symptoms|json_script:"selected-today-symptoms" }}
+{{ calendar_actual_ranges|json_script:"calendar-actual-ranges" }}
+{{ calendar_predicted_ranges|json_script:"calendar-predicted-ranges" }}
+{{ calendar_current_period_range|json_script:"calendar-current-period-range" }}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var compactCalendarEl = document.getElementById('compactCalendar');
+  var fullCalendarEl = document.getElementById('calendarFull');
+  var rawLogs = [];
+
+  {% for log in logs|slice:":120" %}
+    rawLogs.push({
+      start: {% if log.last_period_start %}'{{ log.last_period_start|date:"Y-m-d" }}'{% else %}null{% endif %},
+      cycleLength: {% if log.length_of_cycle %}{{ log.length_of_cycle }}{% else %}null{% endif %},
+      mensesLength: {% if log.length_of_menses %}{{ log.length_of_menses }}{% else %}null{% endif %},
+      prediction: {% if log.predicted_next_period %}'{{ log.predicted_next_period|date:"Y-m-d" }}'{% else %}null{% endif %},
+      ovulation: {% if log.estimated_ovulation_day %}'{{ log.estimated_ovulation_day|date:"Y-m-d" }}'{% else %}null{% endif %},
+      fertileStart: {% if log.fertile_window_start %}'{{ log.fertile_window_start|date:"Y-m-d" }}'{% else %}null{% endif %},
+      fertileEnd: {% if log.fertile_window_end %}'{{ log.fertile_window_end|date:"Y-m-d" }}'{% else %}null{% endif %},
+      intensity: {% if log.mean_bleeding_intensity %}{{ log.mean_bleeding_intensity }}{% else %}0{% endif %},
+      mensesScore: {% if log.total_menses_score or log.total_menses_score == 0 %}{{ log.total_menses_score }}{% else %}null{% endif %},
+      unusualBleeding: {% if log.unusual_bleeding %}true{% else %}false{% endif %}
+    });
+  {% endfor %}
+
+  var calendarActualRanges = JSON.parse(document.getElementById('calendar-actual-ranges').textContent || '[]');
+  var calendarPredictedRanges = JSON.parse(document.getElementById('calendar-predicted-ranges').textContent || '[]');
+  var calendarCurrentPeriodRange = JSON.parse(document.getElementById('calendar-current-period-range').textContent || 'null');
+
+  function toBackgroundRangeEvents(ranges, className) {
+    return (ranges || []).map(function (item) {
+      return {
+        title: item.title || '',
+        start: item.start,
+        end: item.end,
+        display: 'background',
+        allDay: true,
+        classNames: [className]
+      };
+    });
+  }
+
+  function toRangeStartMarkers(ranges, className, label) {
+    return (ranges || []).map(function (item) {
+      return {
+        title: label,
+        start: item.start,
+        allDay: true,
+        classNames: ['calendar-start-marker', className]
+      };
+    });
+  }
+
+  function toOvulationEvents(records) {
+    return (records || [])
+      .filter(function (item) { return !!item.ovulation; })
+      .map(function (item) {
+        return {
+          title: 'Ovulation',
+          start: item.ovulation,
+          allDay: true,
+          classNames: ['calendar-ovulation-marker']
+        };
+      });
+  }
+
+  function toFertileWindowEvents(records) {
+    return (records || [])
+      .filter(function (item) { return !!item.fertileStart && !!item.fertileEnd; })
+      .map(function (item) {
+        var fertileEndExclusive = new Date(item.fertileEnd + 'T00:00:00');
+        fertileEndExclusive.setDate(fertileEndExclusive.getDate() + 1);
+
+        return {
+          title: 'Fertile window',
+          start: item.fertileStart,
+          end: fertileEndExclusive.toISOString().slice(0, 10),
+          display: 'background',
+          allDay: true,
+          classNames: ['calendar-fertile-window']
+        };
+      });
+  }
+
+  var currentRanges = (calendarCurrentPeriodRange && calendarCurrentPeriodRange.start)
+    ? [calendarCurrentPeriodRange]
+    : [];
+
+  function toDateAtMidnight(isoDate) {
+    return new Date(isoDate + 'T00:00:00');
+  }
+
+  function getEarliestCalendarDate() {
+    var candidates = [];
+
+    (calendarActualRanges || []).forEach(function (item) {
+      if (item && item.start) {
+        candidates.push(item.start);
+      }
+    });
+
+    (calendarPredictedRanges || []).forEach(function (item) {
+      if (item && item.start) {
+        candidates.push(item.start);
+      }
+    });
+
+    (currentRanges || []).forEach(function (item) {
+      if (item && item.start) {
+        candidates.push(item.start);
+      }
+    });
+
+    (rawLogs || []).forEach(function (item) {
+      ['start', 'prediction', 'ovulation', 'fertileStart'].forEach(function (key) {
+        if (item && item[key]) {
+          candidates.push(item[key]);
+        }
+      });
+    });
+
+    if (!candidates.length) {
+      return new Date();
+    }
+
+    candidates.sort();
+    var earliest = toDateAtMidnight(candidates[0]);
+    earliest.setDate(1);
+    return earliest;
+  }
+
+  var events = []
+    .concat(toBackgroundRangeEvents(calendarActualRanges, 'calendar-range-actual'))
+    .concat(toBackgroundRangeEvents(calendarPredictedRanges, 'calendar-range-predicted'))
+    .concat(toBackgroundRangeEvents(currentRanges, 'calendar-range-current'))
+    .concat(toFertileWindowEvents(rawLogs))
+    .concat(toRangeStartMarkers(calendarActualRanges, 'calendar-start-actual', 'Past cycle'))
+    .concat(toRangeStartMarkers(calendarPredictedRanges, 'calendar-start-predicted', 'Predicted'))
+    .concat(toRangeStartMarkers(currentRanges, 'calendar-start-current', 'Current period'))
+    .concat(toOvulationEvents(rawLogs));
+
+  var compactCalendar = new FullCalendar.Calendar(compactCalendarEl, {
+    initialView: 'dayGridMonth',
+    height: 220,
+    headerToolbar: {
+      left: '',
+      center: 'title',
+      right: ''
+    },
+    fixedWeekCount: false,
+    dayCellDidMount: function (arg) {
+      arg.el.classList.add('calendar-day');
+      arg.el.setAttribute(
+        'title',
+        arg.date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+      );
+    },
+    dayMaxEvents: 2,
+    events: events
+  });
+  compactCalendar.render();
+
+  var initialFullCalendarDate = getEarliestCalendarDate();
+
+  var fullCalendar = new FullCalendar.Calendar(fullCalendarEl, {
+    initialDate: initialFullCalendarDate,
+    initialView: 'multiMonthSix',
+    views: {
+      multiMonthSix: {
+        type: 'multiMonth',
+        duration: { months: 6 }
+      }
+    },
+    multiMonthMaxColumns: 1,
+    height: 'auto',
+    headerToolbar: {
+      left: 'prev,next today',
+      center: 'title',
+      right: ''
+    },
+    fixedWeekCount: false,
+    dayCellDidMount: function (arg) {
+      arg.el.classList.add('calendar-day');
+      arg.el.setAttribute(
+        'title',
+        arg.date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+      );
+    },
+    datesSet: function () {
+      if (!fullCalendarEl) {
+        return;
+      }
+      fullCalendarEl.classList.remove('calendar-month-transition');
+      void fullCalendarEl.offsetWidth;
+      fullCalendarEl.classList.add('calendar-month-transition');
+    },
+    events: events
+  });
+
+  var fullCalendarModal = document.getElementById('fullCalendarModal');
+  var fullCalendarRendered = false;
+  if (fullCalendarModal) {
+    fullCalendarModal.addEventListener('shown.bs.modal', function () {
+      if (!fullCalendarRendered) {
+        fullCalendar.render();
+        fullCalendarRendered = true;
+      }
+      fullCalendar.updateSize();
+    });
+  }
+
+  var historyCycleModals = document.querySelectorAll('.history-cycle-modal');
+  historyCycleModals.forEach(function (modalEl) {
+    modalEl.addEventListener('show.bs.modal', function () {
+      if (modalEl.parentElement !== document.body) {
+        document.body.appendChild(modalEl);
+      }
+    });
+  });
+
+  var cycleLengthInput = document.getElementById('id_length_of_cycle');
+  var mensesLengthInput = document.getElementById('id_length_of_menses');
+  var cycleLengthError = document.getElementById('cycleLengthError');
+  var mensesLengthError = document.getElementById('mensesLengthError');
+  var cycleValidationPanel = document.getElementById('cycleValidationPanel');
+  var saveCycleBtn = document.getElementById('saveCycleBtn');
+  var counterButtonLimits = {
+    id_length_of_cycle: { min: 20, max: 36 },
+    id_length_of_menses: { min: 1, max: 8 }
+  };
+
+  function setCycleValidationState(target, messageEl, isValid, messageText) {
+    if (!target || !messageEl) {
+      return;
+    }
+
+    var counterWrapper = target.closest('[data-counter-wrapper]');
+    var warningIcon = counterWrapper ? counterWrapper.querySelector('[data-warning-icon]') : null;
+
+    if (isValid) {
+      if (counterWrapper) {
+        counterWrapper.classList.remove('counter-invalid');
+        counterWrapper.classList.add('counter-valid');
+      }
+      if (warningIcon) {
+        warningIcon.classList.add('d-none');
+      }
+      messageEl.classList.add('d-none');
+      messageEl.textContent = '';
+    } else {
+      if (counterWrapper) {
+        counterWrapper.classList.add('counter-invalid');
+        counterWrapper.classList.remove('counter-valid');
+      }
+      if (warningIcon) {
+        warningIcon.classList.remove('d-none');
+      }
+      messageEl.classList.remove('d-none');
+      messageEl.textContent = messageText;
+    }
+  }
+
+  function validateCycleFormInputs() {
+    var cycleValue = cycleLengthInput ? parseInt(cycleLengthInput.value, 10) : null;
+    var mensesValue = mensesLengthInput ? parseInt(mensesLengthInput.value, 10) : null;
+
+    var cycleIsValid = cycleLengthInput ? (!isNaN(cycleValue) && cycleValue >= 21 && cycleValue <= 35) : true;
+    var mensesIsValid = mensesLengthInput ? (!isNaN(mensesValue) && mensesValue >= 2 && mensesValue <= 7) : true;
+
+    setCycleValidationState(
+      cycleLengthInput,
+      cycleLengthError,
+      cycleIsValid,
+      'According to the American College of Obstetricians and Gynecologists, a cycle length of 21 to 35 days is within the normal range. If your average cycle is below 21 days or above 35 days, you may have irregular cycles, so speak to a health care professional for more information.'
+    );
+
+    setCycleValidationState(
+      mensesLengthInput,
+      mensesLengthError,
+      mensesIsValid,
+      'According to the American College of Obstetricians and Gynecologists, a typical period lasts between two to seven days. If your period lasts less than two days or more than seven days, you may be experiencing abnormal bleeding. Speak to a health care professional for more information.'
+    );
+
+    if (cycleValidationPanel) {
+      var showPanel = !cycleIsValid || !mensesIsValid;
+      cycleValidationPanel.classList.toggle('d-none', !showPanel);
+    }
+
+    if (saveCycleBtn) {
+      saveCycleBtn.disabled = !(cycleIsValid && mensesIsValid);
+    }
+  }
+
+  if (cycleLengthInput) {
+    cycleLengthInput.addEventListener('input', validateCycleFormInputs);
+    cycleLengthInput.addEventListener('change', validateCycleFormInputs);
+  }
+
+  if (mensesLengthInput) {
+    mensesLengthInput.addEventListener('input', validateCycleFormInputs);
+    mensesLengthInput.addEventListener('change', validateCycleFormInputs);
+  }
+
+  var counterButtons = document.querySelectorAll('[data-counter-action]');
+  counterButtons.forEach(function (button) {
+    button.addEventListener('click', function () {
+      var targetId = button.getAttribute('data-counter-target');
+      var action = button.getAttribute('data-counter-action');
+      var targetInput = document.getElementById(targetId);
+      var limits = counterButtonLimits[targetId] || {};
+
+      if (!targetInput) {
+        return;
+      }
+
+      var currentValue = parseInt(targetInput.value, 10);
+      if (isNaN(currentValue)) {
+        currentValue = action === 'increment'
+          ? (limits.min != null ? limits.min - 1 : 0)
+          : (limits.max != null ? limits.max + 1 : 0);
+      }
+
+      if (action === 'increment' && limits.max != null && currentValue >= limits.max) {
+        return;
+      }
+
+      if (action === 'decrement' && limits.min != null && currentValue <= limits.min) {
+        return;
+      }
+
+      var nextValue = action === 'increment' ? currentValue + 1 : currentValue - 1;
+      targetInput.value = String(nextValue);
+      targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  });
+
+  validateCycleFormInputs();
+
+  var symptomToggleBtn = document.getElementById('symptomToggleBtn');
+  var symptomToggleIcon = document.getElementById('symptomToggleIcon');
+  var symptomContent = document.getElementById('symptomContent');
+  var symptomChips = document.querySelectorAll('[data-symptom-chip]');
+  var symptomHiddenInputs = document.getElementById('symptomHiddenInputs');
+  var symptomForm = document.getElementById('symptomForm');
+  var selectedSymptoms = new Set(JSON.parse(document.getElementById('selected-today-symptoms').textContent || '[]'));
+  var floatingEmergencyWrap = document.getElementById('floatingEmergencyWrap');
+  var floatingEmergencyBtn = document.getElementById('floatingEmergencyBtn');
+  var floatingEmergencyMenu = document.getElementById('floatingEmergencyMenu');
+
+  if (symptomToggleBtn && symptomToggleIcon && symptomContent) {
+    symptomToggleBtn.addEventListener('click', function () {
+      var isExpanded = symptomToggleBtn.getAttribute('aria-expanded') === 'true';
+      symptomToggleBtn.setAttribute('aria-expanded', isExpanded ? 'false' : 'true');
+      symptomContent.classList.toggle('is-open');
+      symptomToggleIcon.textContent = isExpanded ? '+' : '-';
+    });
+  }
+
+  if (floatingEmergencyWrap && floatingEmergencyBtn && floatingEmergencyMenu) {
+    floatingEmergencyBtn.addEventListener('click', function () {
+      var isOpen = floatingEmergencyWrap.classList.toggle('is-open');
+      floatingEmergencyBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    });
+
+    document.addEventListener('click', function (event) {
+      if (!floatingEmergencyWrap.contains(event.target)) {
+        floatingEmergencyWrap.classList.remove('is-open');
+        floatingEmergencyBtn.setAttribute('aria-expanded', 'false');
+      }
+    });
+
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') {
+        floatingEmergencyWrap.classList.remove('is-open');
+        floatingEmergencyBtn.setAttribute('aria-expanded', 'false');
+      }
+    });
+  }
+
+  function syncChipStates() {
+    symptomChips.forEach(function (chip) {
+      var symptom = chip.getAttribute('data-symptom-chip');
+      var icon = chip.querySelector('.symptom-chip-icon');
+      if (selectedSymptoms.has(symptom)) {
+        chip.classList.add('active');
+        chip.setAttribute('aria-pressed', 'true');
+        if (icon) {
+          icon.textContent = '✓';
+        }
+      } else {
+        chip.classList.remove('active');
+        chip.setAttribute('aria-pressed', 'false');
+        if (icon) {
+          icon.textContent = '+';
+        }
+      }
+    });
+  }
+
+  symptomChips.forEach(function (chip) {
+    chip.addEventListener('click', function () {
+      var symptom = chip.getAttribute('data-symptom-chip');
+      if (selectedSymptoms.has(symptom)) {
+        selectedSymptoms.delete(symptom);
+      } else {
+        selectedSymptoms.add(symptom);
+      }
+      syncChipStates();
+    });
+  });
+
+  if (symptomForm && symptomHiddenInputs) {
+    symptomForm.addEventListener('submit', function () {
+      symptomHiddenInputs.innerHTML = '';
+      Array.from(selectedSymptoms).forEach(function (symptom) {
+        var input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'symptoms';
+        input.value = symptom;
+        symptomHiddenInputs.appendChild(input);
+      });
+    });
+  }
+
+  syncChipStates();
+
+  {% if show_period_checkin_prompt and active_cycle_id %}
+  var periodCheckinModalEl = document.getElementById('periodCheckinModal');
+  if (periodCheckinModalEl && window.bootstrap) {
+    var periodModal = new bootstrap.Modal(periodCheckinModalEl);
+    periodModal.show();
+  }
+  {% elif show_mood_prompt %}
+  var moodCheckinModalEl = document.getElementById('moodCheckinModal');
+  if (moodCheckinModalEl && window.bootstrap) {
+    var moodModal = new bootstrap.Modal(moodCheckinModalEl);
+    moodModal.show();
+  }
+  {% endif %}
+
+  var feedbackChoices = document.querySelectorAll('.feedback-status-choice');
+  feedbackChoices.forEach(function (button) {
+    button.addEventListener('click', function () {
+      var selected = button.getAttribute('data-status');
+      var hiddenInput = document.getElementById('feedbackStatusInput');
+      var dateWrap = document.getElementById('actualDateWrap');
+      var dateInput = document.getElementById('actualDateInput');
+      if (hiddenInput) {
+        hiddenInput.value = selected;
+      }
+      feedbackChoices.forEach(function (btn) { btn.classList.remove('active'); });
+      button.classList.add('active');
+      if (dateWrap) {
+        if (selected === 'started_earlier') {
+          dateWrap.classList.remove('d-none');
+          if (dateInput) {
+            dateInput.required = true;
+          }
+        } else {
+          dateWrap.classList.add('d-none');
+          if (dateInput) {
+            dateInput.required = false;
+            dateInput.value = '';
+          }
+        }
+      }
+    });
+  });
+
+  var cycleLengths = rawLogs.filter(function (r) { return r.cycleLength !== null; }).map(function (r) { return r.cycleLength; });
+  var hasCycleData = cycleLengths.length > 0;
+
+  var predictionsMade = rawLogs.filter(function (r) { return !!r.prediction; }).length;
+  var predictionCountEl = document.getElementById('cycleLogPredictionCount');
+  if (predictionCountEl) {
+    predictionCountEl.textContent = predictionsMade;
+  }
+
+  var cycleRegularityLabel = 'No Data';
+  if (cycleLengths.length >= 3) {
+    var maxLen = Math.max.apply(null, cycleLengths);
+    var minLen = Math.min.apply(null, cycleLengths);
+    var spread = maxLen - minLen;
+    cycleRegularityLabel = spread > 7 ? 'Irregular' : 'Regular';
+  } else if (cycleLengths.length > 0) {
+    cycleRegularityLabel = 'Regular';
+  }
+  var cycleRegularityCard = document.getElementById('cycleRegularityCard');
+  if (cycleRegularityCard) {
+    cycleRegularityCard.textContent = cycleRegularityLabel;
+  }
+  var noDataBanner = document.getElementById('insightsNoDataBanner');
+  if (hasCycleData) {
+    noDataBanner.classList.add('d-none');
+  }
+
+  function groupByMonth(records, dateKey, valueKey) {
+    var grouped = {};
+    records.forEach(function (item) {
+      if (!item[dateKey]) {
+        return;
+      }
+      var date = new Date(item[dateKey]);
+      var monthKey = date.toLocaleString('default', { month: 'short' }) + ' ' + date.getFullYear();
+      if (!grouped[monthKey]) {
+        grouped[monthKey] = { total: 0, count: 0 };
+      }
+      if (valueKey) {
+        if (item[valueKey] !== null && item[valueKey] !== undefined) {
+          grouped[monthKey].total += Number(item[valueKey]);
+          grouped[monthKey].count += 1;
+        }
+      } else {
+        grouped[monthKey].total += 1;
+        grouped[monthKey].count += 1;
+      }
+    });
+
+    var labels = Object.keys(grouped);
+    var values = labels.map(function (label) {
+      if (!valueKey) {
+        return grouped[label].total;
+      }
+      return grouped[label].count ? Number((grouped[label].total / grouped[label].count).toFixed(1)) : 0;
+    });
+    return { labels: labels, values: values };
+  }
+
+  var cycleTrend = groupByMonth(rawLogs, 'start', 'cycleLength');
+  if (!cycleTrend.labels.length) {
+    cycleTrend.labels = ['No Data'];
+    cycleTrend.values = [0];
+  }
+
+  var predictionTimeline = groupByMonth(rawLogs, 'prediction');
+  if (!predictionTimeline.labels.length) {
+    predictionTimeline.labels = ['No Data'];
+    predictionTimeline.values = [0];
+  }
+
+  var moodLabels = JSON.parse(document.getElementById('mood-chart-labels').textContent);
+  var moodValues = JSON.parse(document.getElementById('mood-chart-values').textContent);
+  var phaseLabels = JSON.parse(document.getElementById('phase-chart-labels').textContent);
+  var phaseValues = JSON.parse(document.getElementById('phase-chart-values').textContent);
+
+  var bmiValue = parseFloat('{{ bmi|default:"" }}');
+  var bmiCategoryValues = [0, 0, 0, 0];
+  if (!isNaN(bmiValue)) {
+    if (bmiValue < 18.5) {
+      bmiCategoryValues = [1, 0, 0, 0];
+    } else if (bmiValue < 25) {
+      bmiCategoryValues = [0, 1, 0, 0];
+    } else if (bmiValue < 30) {
+      bmiCategoryValues = [0, 0, 1, 0];
+    } else {
+      bmiCategoryValues = [0, 0, 0, 1];
+    }
+  } else {
+    bmiCategoryValues = [0, 0, 0, 1];
+  }
+
+  var cssVars = getComputedStyle(document.documentElement);
+  var primaryColor = cssVars.getPropertyValue('--color-primary').trim() || '#b92222';
+  var textLight = cssVars.getPropertyValue('--color-text-light').trim() || '#718096';
+  var gridColor = 'rgba(226, 232, 240, 0.7)';
+
+  function baseOptions() {
+    return {
+      responsive: true,
+      maintainAspectRatio: true,
+      aspectRatio: 2,
+      plugins: {
+        legend: {
+          labels: {
+            color: textLight
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: textLight },
+          grid: { color: gridColor }
+        },
+        y: {
+          ticks: { color: textLight },
+          grid: { color: gridColor },
+          beginAtZero: true
+        }
+      }
+    };
+  }
+
+  window.femiInsightsCharts = window.femiInsightsCharts || [];
+  if (window.femiInsightsCharts.length) {
+    window.femiInsightsCharts.forEach(function (chart) {
+      chart.destroy();
+    });
+    window.femiInsightsCharts = [];
+  }
+
+  window.femiInsightsCharts.push(new Chart(document.getElementById('cycleLengthTrendChart'), {
+    type: 'line',
+    data: {
+      labels: cycleTrend.labels,
+      datasets: [{
+        label: 'Cycle Length (days)',
+        data: cycleTrend.values,
+        borderColor: primaryColor,
+        backgroundColor: 'rgba(185, 34, 34, 0.1)',
+        fill: true,
+        tension: 0.35,
+        pointRadius: 3
+      }]
+    },
+    options: baseOptions()
+  }));
+
+  window.femiInsightsCharts.push(new Chart(document.getElementById('bmiCategoryChart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Underweight', 'Healthy', 'Overweight', 'No Data/Obese'],
+      datasets: [{
+        data: bmiCategoryValues,
+        backgroundColor: ['#38bdf8', '#16a34a', '#f59e0b', '#b91c1c'],
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      aspectRatio: 1.8,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            color: textLight
+          }
+        }
+      }
+    }
+  }));
+
+  window.femiInsightsCharts.push(new Chart(document.getElementById('predictionTimelineChart'), {
+    type: 'bar',
+    data: {
+      labels: predictionTimeline.labels,
+      datasets: [{
+        label: 'Predictions',
+        data: predictionTimeline.values,
+        backgroundColor: 'rgba(111, 66, 193, 0.8)',
+        borderRadius: 8
+      }]
+    },
+    options: baseOptions()
+  }));
+
+  window.femiInsightsCharts.push(new Chart(document.getElementById('moodDistributionChart'), {
+    type: 'bar',
+    data: {
+      labels: moodLabels,
+      datasets: [{
+        label: 'Mood Frequency',
+        data: moodValues,
+        backgroundColor: ['rgba(22, 163, 74, 0.8)', 'rgba(37, 99, 235, 0.8)', 'rgba(245, 158, 11, 0.8)', 'rgba(20, 184, 166, 0.8)', 'rgba(220, 38, 38, 0.8)', 'rgba(124, 58, 237, 0.8)'],
+        borderRadius: 8
+      }]
+    },
+    options: baseOptions()
+  }));
+
+  window.femiInsightsCharts.push(new Chart(document.getElementById('cyclePhaseDistributionChart'), {
+    type: 'pie',
+    data: {
+      labels: phaseLabels,
+      datasets: [{
+        data: phaseValues,
+        backgroundColor: [
+          'rgba(185, 34, 34, 0.86)',
+          'rgba(249, 115, 22, 0.82)',
+          'rgba(14, 116, 144, 0.82)',
+          'rgba(99, 102, 241, 0.8)'
+        ],
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      aspectRatio: 1.8,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            color: textLight
+          }
+        },
+        tooltip: {
+          callbacks: {
+            label: function (context) {
+              var value = context.raw || 0;
+              return context.label + ': ' + value + '%';
+            }
+          }
+        }
+      }
+    }
+  }));
+});
+</script>
+
+{% endblock %}

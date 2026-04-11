@@ -1,0 +1,13 @@
+{% extends "emails/base.html" %}
+
+{% block email_title %}Emergency Health Alert{% endblock %}
+{% block email_intro %}
+We detected symptom patterns that may require immediate attention.
+{% endblock %}
+{% block email_details %}
+{% if risk_score %}<p style="margin:0 0 6px 0;font-size:14px;"><strong>Risk Score:</strong> {{ risk_score }}</p>{% endif %}
+{% if symptoms %}<p style="margin:0;font-size:14px;"><strong>Reported Symptoms:</strong> {{ symptoms|join:", " }}</p>{% endif %}
+{% endblock %}
+{% block email_reassurance %}
+<p style="margin:0;font-size:14px;line-height:1.7;color:#374151;">Please monitor your health, seek care if symptoms worsen, and do not panic.</p>
+{% endblock %}

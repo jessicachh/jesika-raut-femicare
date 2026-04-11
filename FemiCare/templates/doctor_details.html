@@ -1,0 +1,275 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Doctor Verification</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;600;700&family=Open+Sans:wght@300;400;600&display=swap" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+
+  <style>
+    body {
+      font-family: 'Open Sans', sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(185, 34, 34, 0.10), transparent 32%),
+        radial-gradient(circle at bottom right, rgba(185, 34, 34, 0.06), transparent 28%),
+        #f7f6f3;
+      margin: 0;
+      min-height: 100vh;
+    }
+
+    .verification-shell {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      padding: 32px 16px;
+    }
+
+    .verification-card {
+      width: 100%;
+      max-width: 1060px;
+      margin: 0 auto;
+      border-radius: 28px;
+      overflow: hidden;
+      box-shadow: 0 28px 70px rgba(15, 23, 42, 0.14);
+      background: rgba(255, 255, 255, 0.96);
+      border: 1px solid rgba(185, 34, 34, 0.08);
+    }
+
+    .verification-aside {
+      background: linear-gradient(160deg, #8f1f1f 0%, #b92222 52%, #e15b5b 100%);
+      color: #fff;
+      padding: 40px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .verification-aside::after {
+      content: '';
+      position: absolute;
+      inset: auto -40px -60px auto;
+      width: 180px;
+      height: 180px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .brand-mark {
+      width: 52px;
+      height: 52px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.18);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 24px;
+      backdrop-filter: blur(10px);
+    }
+
+    .brand-mark img {
+      width: 30px;
+      height: 30px;
+    }
+
+    .verification-aside h1 {
+      font-family: 'Raleway', sans-serif;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+    }
+
+    .verification-aside p,
+    .verification-aside li {
+      color: rgba(255, 255, 255, 0.88);
+    }
+
+    .verification-content {
+      padding: 40px;
+    }
+
+    .verification-content h2 {
+      font-family: 'Raleway', sans-serif;
+      font-weight: 700;
+      color: #1f2937;
+    }
+
+    .verification-form .form-label {
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 0.4rem;
+    }
+
+    .verification-form .form-control,
+    .verification-form input[type="file"] {
+      border-radius: 12px;
+      border-color: #d6dae3;
+      padding: 0.8rem 0.95rem;
+    }
+
+    .verification-form .form-control:focus,
+    .verification-form input[type="file"]:focus {
+      border-color: #b92222;
+      box-shadow: 0 0 0 0.2rem rgba(185, 34, 34, 0.12);
+    }
+
+    .verification-form .btn {
+      border-radius: 999px;
+      padding: 0.8rem 1.4rem;
+      font-weight: 600;
+    }
+
+    .verification-summary {
+      display: grid;
+      gap: 12px;
+    }
+
+    .verification-summary-item {
+      border: 1px solid rgba(185, 34, 34, 0.10);
+      background: #fff;
+      border-radius: 16px;
+      padding: 14px 16px;
+    }
+
+    .verification-summary-item small {
+      display: block;
+      color: #6b7280;
+      margin-bottom: 4px;
+    }
+
+    .verification-summary-item strong {
+      color: #1f2937;
+    }
+
+    @media (max-width: 991px) {
+      .verification-aside,
+      .verification-content {
+        padding: 28px;
+      }
+    }
+
+    @media (max-width: 767px) {
+      .verification-shell {
+        padding: 16px;
+      }
+
+      .verification-aside,
+      .verification-content {
+        padding: 22px;
+      }
+
+      .verification-card {
+        border-radius: 22px;
+      }
+
+      .verification-content h2 {
+        font-size: 1.5rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="verification-shell">
+  <div class="verification-card row g-0">
+    <div class="col-12 col-lg-5 verification-aside d-flex flex-column justify-content-between">
+      <div>
+        <div class="brand-mark">
+          <img src="{% static 'images/logo1.png' %}" alt="FemiCare logo">
+        </div>
+        <span class="badge text-bg-light text-dark rounded-pill mb-3">Doctor onboarding</span>
+        <h1 class="h2 mb-3">Submit your professional details for review</h1>
+        <p class="mb-4">Your profile will be checked before doctor features become active. Make sure the certificate and contact details are accurate.</p>
+
+        <div class="verification-summary">
+          <div class="verification-summary-item">
+            <small>Review step</small>
+            <strong>Manual verification by the admin team</strong>
+          </div>
+          <div class="verification-summary-item">
+            <small>Expected documents</small>
+            <strong>License certificate and profile details</strong>
+          </div>
+          <div class="verification-summary-item">
+            <small>Notification</small>
+            <strong>You will be updated once the review is complete</strong>
+          </div>
+        </div>
+      </div>
+
+      <p class="mb-0 small text-white-50">Use a desktop browser if possible when uploading documents.</p>
+    </div>
+
+    <div class="col-12 col-lg-7 verification-content">
+      <div class="d-flex align-items-start justify-content-between gap-3 mb-4">
+        <div>
+          <p class="settings-eyebrow mb-1">Verification form</p>
+          <h2 class="mb-2">Doctor Verification</h2>
+          <p class="text-muted mb-0">Complete every field carefully. This information is used during manual review.</p>
+        </div>
+      </div>
+
+      {% if form.non_field_errors %}
+        <div class="alert alert-danger">{{ form.non_field_errors|join:', ' }}</div>
+      {% endif %}
+
+      <form method="post" enctype="multipart/form-data" class="verification-form">
+        {% csrf_token %}
+
+        <div class="mb-3">
+          <label class="form-label">Full Name</label>
+          <input type="text" class="form-control" name="full_name" value="{{ form.full_name.value|default_if_none:'' }}" placeholder="Jane Doe" required>
+          {% if form.full_name.errors %}<div class="invalid-feedback d-block">{{ form.full_name.errors|join:', ' }}</div>{% endif %}
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Specialization</label>
+          <input type="text" class="form-control" name="specialization" value="{{ form.specialization.value|default_if_none:'Gynecologist' }}" required>
+          {% if form.specialization.errors %}<div class="invalid-feedback d-block">{{ form.specialization.errors|join:', ' }}</div>{% endif %}
+        </div>
+
+        <div class="row g-3">
+          <div class="col-12 col-md-6">
+            <label class="form-label">License Number</label>
+            <input type="text" class="form-control" name="license_number" value="{{ form.license_number.value|default_if_none:'' }}" placeholder="ABC-12345" required>
+            {% if form.license_number.errors %}<div class="invalid-feedback d-block">{{ form.license_number.errors|join:', ' }}</div>{% endif %}
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Years of Experience</label>
+            <input type="number" class="form-control" name="experience_years" value="{{ form.experience_years.value|default_if_none:'' }}" placeholder="5" required>
+            {% if form.experience_years.errors %}<div class="invalid-feedback d-block">{{ form.experience_years.errors|join:', ' }}</div>{% endif %}
+          </div>
+        </div>
+
+        <div class="mb-3 mt-3">
+          <label class="form-label">Hospital / Clinic Name</label>
+          <input type="text" class="form-control" name="hospital_name" value="{{ form.hospital_name.value|default_if_none:'' }}" placeholder="City General Hospital">
+          {% if form.hospital_name.errors %}<div class="invalid-feedback d-block">{{ form.hospital_name.errors|join:', ' }}</div>{% endif %}
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Clinic/Hospital Address (Location)</label>
+          <input type="text" class="form-control" name="location" value="{{ form.location.value|default_if_none:'' }}" placeholder="Street name, City, State" required>
+          {% if form.location.errors %}<div class="invalid-feedback d-block">{{ form.location.errors|join:', ' }}</div>{% endif %}
+        </div>
+
+        <div class="mb-4">
+          <label class="form-label">Upload License Certificate</label>
+          <input type="file" class="form-control" name="certificate" required>
+          {% if form.certificate.errors %}<div class="invalid-feedback d-block">{{ form.certificate.errors|join:', ' }}</div>{% endif %}
+        </div>
+
+        <button type="submit" class="btn btn-danger w-100">Submit for Verification</button>
+
+        <p class="text-muted small mt-3 mb-0">
+          Your account will be manually reviewed by our medical board. You will receive an email notification once your verification status is updated.
+        </p>
+      </form>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

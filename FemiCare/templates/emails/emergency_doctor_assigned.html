@@ -1,0 +1,14 @@
+{% extends "emails/base.html" %}
+
+{% block email_title %}Emergency Doctor Assigned{% endblock %}
+{% block email_intro %}
+Your emergency consultation request has been assigned successfully.
+{% endblock %}
+{% block email_details %}
+<p style="margin:0 0 6px 0;font-size:14px;"><strong>Doctor:</strong> {{ doctor_name|default:"Assigned doctor" }}</p>
+<p style="margin:0 0 6px 0;font-size:14px;"><strong>Date:</strong> {{ appointment_date|default:"As scheduled" }}</p>
+<p style="margin:0;font-size:14px;"><strong>Time:</strong> {{ appointment_time|default:"As scheduled" }}</p>
+{% endblock %}
+{% block email_reassurance %}
+<p style="margin:0;font-size:14px;line-height:1.7;color:#374151;">Please join from your dashboard at the scheduled time. If your condition worsens, seek urgent care immediately.</p>
+{% endblock %}

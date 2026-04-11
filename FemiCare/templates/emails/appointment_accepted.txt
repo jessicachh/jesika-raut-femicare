@@ -1,0 +1,16 @@
+FemiCare - Appointment Accepted
+
+Hello {{ greeting_name|default:"there" }},
+
+Your appointment has been accepted.
+
+Doctor: {{ doctor_name }}
+Date: {{ appointment_date }}
+Time: {{ appointment_time }}
+
+Please check your dashboard for full details.
+{% if action_url %}Dashboard: {{ action_url }}
+{% endif %}
+
+Disclaimer: This message is not a replacement for professional medical advice.
+Support: {{ support_email|default:"support@femicare.local" }}
