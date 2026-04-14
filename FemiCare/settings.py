@@ -54,7 +54,7 @@ STATICFILES_DIRS = [
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-DEBUG = True  # local
+DEBUG = False  # local
 
 if not DEBUG:
     SECURE_SSL_REDIRECT = True
@@ -214,16 +214,16 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 #email setup
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_USE_TLS = True
-EMAIL_PORT = 587
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').strip().lower() in ('1', 'true', 'yes')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
+EMAIL_HOST_USER = 'jsscraut@gmail.com'
+EMAIL_HOST_PASSWORD = 'qtow ufan vbzs zjea'
 DEFAULT_FROM_EMAIL = 'FemiCare <jsscraut@gmail.com>'
 ADMIN_EMAIL = EMAIL_HOST_USER
 
-SITE_ID = int(os.getenv('SITE_ID', '3'))
+SITE_ID = int(os.getenv('SITE_ID', '1'))
 
 ACCOUNT_LOGIN_METHODS = {'email', 'username'}
 ACCOUNT_SIGNUP_FIELDS = ['email*', 'username*', 'password1*', 'password2*']

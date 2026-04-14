@@ -343,7 +343,7 @@ def _is_google_oauth_ready():
     except Exception:
         return False
 
-    return SocialApp.objects.filter(provider='google', sites__id=getattr(settings, 'SITE_ID', 1)).exists()
+    return SocialApp.objects.filter(provider='google').exists()
 # -----------------------------
 # Public pages
 # -----------------------------
