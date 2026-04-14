@@ -8,12 +8,14 @@ from .models import (
     Conversation,
     CycleLog,
     DoctorAvailability,
+    DoctorPaymentDetails,
     DoctorProfile,
     DoctorReview,
     EmergencyRequest,
     HealthLog,
     MoodEntry,
     Notification,
+    Payment,
     PeriodCheckIn,
     PredictionFeedback,
     SymptomLog,
@@ -101,6 +103,7 @@ class DoctorProfileAdmin(admin.ModelAdmin):
         'license_number',
         'is_verified',
         'is_profile_complete',
+        'consultation_fee',
         'view_certificate',
         'created_at',
     )
@@ -313,3 +316,30 @@ class TwoFactorCodeAdmin(admin.ModelAdmin):
     search_fields = ('user__username', 'user__email', 'code')
     ordering = ('-created_at',)
     list_select_related = ('user',)
+
+
+@admin.register(DoctorPaymentDetails)
+class DoctorPaymentDetailsAdmin(admin.ModelAdmin):
+    list_display = ('doctor', 'payment_method', 'is_completed', 'created_at', 'updated_at')
+    list_filter = ('payment_method', 'is_completed', 'created_at')
+    search_fields = ('doctor__username', 'doctor__email', 'account_name', 'account_number', 'esewa_id', 'khalti_id')
+    ordering = ('-updated_at',)
+    list_select_related = ('doctor',)
+
+
+@admin.register(Payment)
+class PaymentAdmin(admin.ModelAdmin):
+    list_display = (
+        'id',
+        'user',
+        'appointment',
+        'total_amount',
+        'commission_amount',
+        'doctor_earning',
+        'status',
+        'created_at',
+    )
+    list_filter = ('status', 'created_at')
+    search_fields = ('user__username', 'user__email', 'appointment__id')
+    ordering = ('-created_at',)
+    list_select_related = ('user', 'appointment')

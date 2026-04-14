@@ -1,4 +1,5 @@
 from collections import Counter
+from decimal import Decimal, InvalidOperation
 from io import BytesIO
 from pathlib import Path
 from xml.sax.saxutils import escape
@@ -16,8 +17,10 @@ from django.contrib.auth.decorators import login_required
 from .models import (
     UserProfile,
     DoctorProfile,
+    DoctorPaymentDetails,
     DoctorAvailability,
     Appointment,
+    Payment,
     DoctorReview,
     UserDocument,
     HealthLog,
@@ -379,8 +382,10 @@ def terms_and_conditions(request):
 def explore_doctors(request):
     doctors = DoctorProfile.objects.filter(
         is_verified=True,
-        is_profile_complete=True
-    )
+        is_profile_complete=True,
+        consultation_fee__isnull=False,
+        user__payment_details__is_completed=True,
+    ).exclude(consultation_fee__lte=0)
 
     specialization = request.GET.get('specialization')
     if specialization:
@@ -908,7 +913,12 @@ def doctor_details(request):
 
 @login_required
 def public_doctor_profile(request, pk):
-    doctor = get_object_or_404(DoctorProfile, pk=pk)
+    doctor = get_object_or_404(
+        DoctorProfile,
+        pk=pk,
+        is_verified=True,
+        is_profile_complete=True,
+    )
     
     # Use localtime to match your actual time zone
     now = timezone.localtime(timezone.now())
@@ -921,7 +931,7 @@ def public_doctor_profile(request, pk):
         date__range=[today, two_weeks],
         is_active=True,
     ).exclude(
-        appointment__status__in=['pending', 'approved'] 
+        appointment__status__in=['pending', 'awaiting_payment', 'payment_verification', 'upcoming']
     ).order_by('date', 'start_time')
 
     valid_slots = []
@@ -949,7 +959,7 @@ def book_appointment(request, slot_id):
         already_booked = Appointment.objects.filter(
             user=request.user,
             availability__date=slot.date,
-            status__in=['pending', 'approved']
+            status__in=['pending', 'awaiting_payment', 'payment_verification', 'upcoming']
         ).exists()
 
         if already_booked:
@@ -1082,6 +1092,13 @@ def doctor_appointment(request):
     completed_appointments = []
     rejected_appointments = []
 
+    pending_payment_verifications = list(
+        Payment.objects.filter(
+            appointment__doctor=request.user,
+            status='pending'
+        ).select_related('user', 'appointment__availability')
+    )
+
     now = timezone.localtime(timezone.now())
     emergency_pending_requests = list(
         EmergencyRequest.objects.filter(status='pending')
@@ -1106,7 +1123,17 @@ def doctor_appointment(request):
             appt.status_color = "info" if appt.availability.date >= today else "secondary"
             pending_appointments.append(appt)
 
-        elif appt.status == 'approved':
+        elif appt.status == 'awaiting_payment':
+            appt.display_status = "Awaiting Payment"
+            appt.status_color = "secondary"
+            upcoming_appointments.append(appt)
+
+        elif appt.status == 'payment_verification':
+            appt.display_status = "Payment Verification"
+            appt.status_color = "warning"
+            upcoming_appointments.append(appt)
+
+        elif appt.status == 'upcoming':
             if appt_time_start > now:
                 # Still in the future
                 appt.display_status = "Upcoming"
@@ -1141,6 +1168,7 @@ def doctor_appointment(request):
         'ongoing_appointments': ongoing_appointments,
         'completed_appointments': completed_appointments,
         'rejected_appointments': rejected_appointments,
+        'pending_payment_verifications': pending_payment_verifications,
         'today': today,
     })
 
@@ -1153,7 +1181,7 @@ def respond_appointment(request, appointment_id):
         reject_reason = request.POST.get('reject_reason', '')
 
         if action == 'approve':
-            appointment.status = 'approved'
+            appointment.status = 'awaiting_payment'
         
         elif action == 'reject':
             appointment.status = 'rejected'
@@ -1173,7 +1201,7 @@ def respond_appointment(request, appointment_id):
             _create_notification(
                 appointment.user,
                 'Appointment accepted',
-                f'Your appointment with Dr. {request.user.doctor_profile.full_name} was accepted.',
+                f'Your appointment with Dr. {request.user.doctor_profile.full_name} was accepted. Consultation will begin only after payment is completed.',
                 'appointment_accepted',
                 target_url=reverse('appointment'),
                 target_section_id='upcoming-appointments-section',
@@ -1197,7 +1225,7 @@ def respond_appointment(request, appointment_id):
                     'appointment_date': appointment.availability.date.strftime('%Y-%m-%d'),
                     'appointment_time': f"{appointment.availability.start_time.strftime('%H:%M')} - {appointment.availability.end_time.strftime('%H:%M')}",
                     'action_url': reverse('appointment'),
-                    'action_label': 'Open Appointments',
+                    'action_label': 'Open Appointments & Pay',
                 },
             )
         elif action == 'reject':
@@ -1217,15 +1245,177 @@ def respond_appointment(request, appointment_id):
     
     return redirect('doctor_appointment') # Redirect back to the requests list
 
+
+@login_required
+def payment_page(request, appointment_id):
+    """Display doctor's payment receiving details for a patient appointment."""
+    appointment = get_object_or_404(Appointment, id=appointment_id, user=request.user)
+
+    if appointment.status != 'awaiting_payment':
+        messages.error(request, 'Payment page is available only for appointments awaiting payment.')
+        return redirect('appointment')
+
+    doctor_profile = get_object_or_404(DoctorProfile, user=appointment.doctor)
+    payment_details = get_object_or_404(DoctorPaymentDetails, doctor=appointment.doctor, is_completed=True)
+
+    existing_payment = Payment.objects.filter(appointment=appointment).first()
+    if existing_payment and existing_payment.status in ['pending', 'approved']:
+        messages.info(request, 'Payment has already been submitted for this appointment.')
+        return redirect('appointment')
+
+    return render(
+        request,
+        'payment/payment_page.html',
+        {
+            'appointment': appointment,
+            'doctor_profile': doctor_profile,
+            'payment_details': payment_details,
+        }
+    )
+
+
+@login_required
+def submit_payment(request, appointment_id):
+    """Submit payment proof for manual doctor-side verification."""
+    if request.method != 'POST':
+        return redirect('payment_page', appointment_id=appointment_id)
+
+    appointment = get_object_or_404(Appointment, id=appointment_id, user=request.user)
+    if appointment.status != 'awaiting_payment':
+        messages.error(request, 'You cannot submit payment for this appointment right now.')
+        return redirect('appointment')
+
+    payment_proof = request.FILES.get('payment_proof')
+    if not payment_proof:
+        messages.error(request, 'Please upload payment proof screenshot/image.')
+        return redirect('payment_page', appointment_id=appointment.id)
+
+    doctor_profile = get_object_or_404(DoctorProfile, user=appointment.doctor)
+    total = doctor_profile.consultation_fee
+    if not total or total <= 0:
+        messages.error(request, 'Doctor consultation fee is not configured yet.')
+        return redirect('appointment')
+
+    commission = (total * Decimal('0.25')).quantize(Decimal('0.01'))
+    doctor_earning = (total * Decimal('0.75')).quantize(Decimal('0.01'))
+
+    existing_payment = Payment.objects.filter(appointment=appointment).first()
+    if existing_payment and existing_payment.status in ['pending', 'approved']:
+        messages.error(request, 'Payment has already been submitted for this appointment.')
+        return redirect('appointment')
+
+    if existing_payment and existing_payment.status == 'rejected':
+        existing_payment.total_amount = total
+        existing_payment.commission_amount = commission
+        existing_payment.doctor_earning = doctor_earning
+        existing_payment.payment_proof = payment_proof
+        existing_payment.status = 'pending'
+        existing_payment.save()
+    else:
+        Payment.objects.create(
+            user=request.user,
+            appointment=appointment,
+            total_amount=total,
+            commission_amount=commission,
+            doctor_earning=doctor_earning,
+            payment_proof=payment_proof,
+            status='pending',
+        )
+
+    appointment.status = 'payment_verification'
+    appointment.save(update_fields=['status'])
+
+    _create_notification(
+        appointment.doctor,
+        'Payment Submitted',
+        f'{request.user.username} submitted payment proof for appointment #{appointment.id}.',
+        'appointment',
+        target_url=reverse('doctor_dashboard'),
+        target_section_id='payment-verification-section',
+    )
+
+    messages.success(request, 'Payment successful. Your consultation is now pending doctor verification.')
+    return redirect('appointment')
+
+
+@login_required
+def verify_payment(request, payment_id):
+    """Doctor verifies submitted payment proof for own appointment only."""
+    if request.user.role != 'doctor':
+        return redirect('home')
+
+    payment = get_object_or_404(
+        Payment.objects.select_related('appointment', 'user'),
+        id=payment_id,
+        appointment__doctor=request.user,
+    )
+
+    if request.method != 'POST':
+        messages.error(request, 'Invalid verification request.')
+        return redirect('doctor_dashboard')
+
+    action = (request.POST.get('action') or '').strip().lower()
+    if payment.status != 'pending':
+        messages.error(request, 'This payment has already been verified.')
+        return redirect('doctor_dashboard')
+
+    if action == 'approve':
+        payment.status = 'approved'
+        payment.save(update_fields=['status'])
+        payment.appointment.status = 'upcoming'
+        payment.appointment.save(update_fields=['status'])
+
+        _create_notification(
+            payment.user,
+            'Payment Approved',
+            'Payment successful. Your consultation is now scheduled.',
+            'appointment_accepted',
+            target_url=reverse('appointment'),
+            target_section_id='upcoming-appointments-section',
+        )
+        messages.success(request, 'Payment approved and consultation unlocked.')
+    elif action == 'reject':
+        payment.status = 'rejected'
+        payment.save(update_fields=['status'])
+        payment.appointment.status = 'awaiting_payment'
+        payment.appointment.save(update_fields=['status'])
+
+        _create_notification(
+            payment.user,
+            'Payment Rejected',
+            'Your payment proof was rejected. Please submit a valid screenshot again.',
+            'appointment_rejected',
+            target_url=reverse('payment_page', kwargs={'appointment_id': payment.appointment.id}),
+            target_section_id='upcoming-appointments-section',
+        )
+        messages.warning(request, 'Payment rejected. Appointment moved back to awaiting payment.')
+    else:
+        messages.error(request, 'Invalid action.')
+
+    return redirect('doctor_dashboard')
+
 @login_required
 def doctor_profile(request):
     profile = get_object_or_404(DoctorProfile, user=request.user)
+    payment_details, _ = DoctorPaymentDetails.objects.get_or_create(
+        doctor=request.user,
+        defaults={'payment_method': 'bank'}
+    )
 
     if request.method == "POST":
         uploaded_photo = request.FILES.get("photo")
         bio = request.POST.get("bio", "").strip()
         qualifications = request.POST.get("qualifications", "").strip()
         languages_spoken = request.POST.get("languages_spoken", "").strip()
+        consultation_fee_raw = (request.POST.get("consultation_fee") or "").strip()
+
+        payment_method = (request.POST.get('payment_method') or '').strip()
+        account_name = (request.POST.get('account_name') or '').strip()
+        account_number = (request.POST.get('account_number') or '').strip()
+        bank_name = (request.POST.get('bank_name') or '').strip()
+        esewa_id = (request.POST.get('esewa_id') or '').strip()
+        khalti_id = (request.POST.get('khalti_id') or '').strip()
+        qr_code_image = request.FILES.get('qr_code_image')
 
         # Prevent making a previously browsable profile incomplete.
         has_photo_after_update = bool(uploaded_photo or (profile.photo and profile.photo.name))
@@ -1236,12 +1426,38 @@ def doctor_profile(request):
             bool(languages_spoken),
         ])
 
+        consultation_fee = None
+        if consultation_fee_raw:
+            try:
+                consultation_fee = Decimal(consultation_fee_raw)
+            except (InvalidOperation, TypeError):
+                messages.warning(request, "Please provide a valid consultation fee.")
+                return render(request, "doctor/doctor_profile.html", {"profile": profile, "payment_details": payment_details})
+
+        if consultation_fee is None or consultation_fee <= 0:
+            messages.warning(request, "Consultation fee is required and must be greater than 0.")
+            return render(request, "doctor/doctor_profile.html", {"profile": profile, "payment_details": payment_details})
+
         if has_empty_required_field:
             messages.warning(
                 request,
                 "Please fill all profile fields. If any field is empty, users will not be able to browse your profile."
             )
-            return render(request, "doctor/doctor_profile.html", {"profile": profile})
+            return render(request, "doctor/doctor_profile.html", {"profile": profile, "payment_details": payment_details})
+
+        if payment_method not in dict(DoctorPaymentDetails.PAYMENT_METHOD_CHOICES):
+            messages.warning(request, "Please select a valid payment method.")
+            return render(request, "doctor/doctor_profile.html", {"profile": profile, "payment_details": payment_details})
+
+        payment_complete = False
+        if payment_method == 'bank':
+            payment_complete = bool(account_name and account_number and bank_name)
+        elif payment_method == 'esewa':
+            payment_complete = bool(esewa_id)
+        elif payment_method == 'khalti':
+            payment_complete = bool(khalti_id)
+        elif payment_method == 'qr':
+            payment_complete = bool(qr_code_image or payment_details.qr_code_image)
 
         if uploaded_photo:
             profile.photo = uploaded_photo
@@ -1249,18 +1465,30 @@ def doctor_profile(request):
         profile.bio = bio
         profile.qualifications = qualifications
         profile.languages_spoken = languages_spoken
+        profile.consultation_fee = consultation_fee
+
+        payment_details.payment_method = payment_method
+        payment_details.account_name = account_name or None
+        payment_details.account_number = account_number or None
+        payment_details.bank_name = bank_name or None
+        payment_details.esewa_id = esewa_id or None
+        payment_details.khalti_id = khalti_id or None
+        if qr_code_image:
+            payment_details.qr_code_image = qr_code_image
+        payment_details.is_completed = payment_complete
 
         try:
             with transaction.atomic():
                 profile.save()
+                payment_details.save()
         except IntegrityError:
             messages.error(request, 'A doctor with this license number already exists.')
-            return render(request, "doctor/doctor_profile.html", {"profile": profile})
+            return render(request, "doctor/doctor_profile.html", {"profile": profile, "payment_details": payment_details})
 
         messages.success(request, "Profile updated successfully!")
         return redirect("doctor_profile")
 
-    return render(request, "doctor/doctor_profile.html", {"profile": profile})
+    return render(request, "doctor/doctor_profile.html", {"profile": profile, "payment_details": payment_details})
 
 
 @login_required
@@ -1797,7 +2025,7 @@ def schedule_emergency_appointment(request_obj, doctor):
         user=request_obj.user,
         doctor=doctor,
         availability=slot,
-        status='approved',
+        status='upcoming',
         patient_message=(request_obj.reason or 'Emergency consultation request')[:400],
     )
 
@@ -4334,14 +4562,21 @@ def appointment(request):
     past = []
 
     for appt in all_appts:
-        # Add your existing status and color logic here...
         if appt.availability.date < today:
-            appt.display_status = "Completed" if appt.status == 'approved' else "Missed"
+            appt.display_status = "Completed" if appt.status in ['upcoming', 'completed'] else "Missed"
             appt.status_color = "secondary"
             past.append(appt)
         else:
-            appt.display_status = appt.status.capitalize()
-            appt.status_color = "success" if appt.status == 'approved' else "warning"
+            status_labels = {
+                'pending': 'Pending Approval',
+                'awaiting_payment': 'Awaiting Payment',
+                'payment_verification': 'Payment Verification',
+                'upcoming': 'Upcoming Consultation',
+                'completed': 'Completed',
+                'rejected': 'Rejected',
+            }
+            appt.display_status = status_labels.get(appt.status, appt.status.capitalize())
+            appt.status_color = "success" if appt.status in ['upcoming', 'completed'] else "warning"
             upcoming.append(appt)
 
     # The absolute next thing the user needs to do
@@ -4383,14 +4618,19 @@ def doctor_dashboard(request):
     total_patients = doctor_appointments.values('user_id').distinct().count()
     completed_appointments = doctor_appointments.filter(
         Q(status='completed') |
-        Q(status='approved', availability__date__lt=today) |
-        Q(status='approved', availability__date=today, availability__end_time__lt=now.time())
+        Q(status='upcoming', availability__date__lt=today) |
+        Q(status='upcoming', availability__date=today, availability__end_time__lt=now.time())
     ).count()
 
     availabilities = DoctorAvailability.objects.filter(
         doctor=request.user,
         date__range=[today, end_date]
     ).select_related('appointment').order_by('date', 'start_time') 
+
+    pending_payment_verifications = Payment.objects.filter(
+        appointment__doctor=request.user,
+        status='pending'
+    ).select_related('user', 'appointment').order_by('-created_at')
 
     return render(request, 'doctor/doctor_dashboard.html', {
         'availabilities': availabilities,
@@ -4402,6 +4642,7 @@ def doctor_dashboard(request):
         'total_patients': total_patients,
         'completed_appointments': completed_appointments,
         'show_profile_warning': profile.is_verified and not profile.is_profile_complete,
+        'pending_payment_verifications': pending_payment_verifications,
     })
 
 
@@ -4667,7 +4908,7 @@ def _get_consultation_chat_state(appointment):
         timezone.datetime.combine(appointment.availability.date, appointment.availability.end_time)
     )
 
-    is_status_open = appointment.status == 'approved'
+    is_status_open = appointment.status == 'upcoming'
     is_active = is_status_open and (start_dt <= now <= end_dt)
     is_future = now < start_dt
     is_locked = now > end_dt or not is_status_open
@@ -4691,7 +4932,7 @@ def chat_room(request, appointment_id):
 @login_required
 def consultation_patient_document(request, appointment_id, document_id):
     """Serve patient document only to the assigned doctor or the patient in this consultation."""
-    appointment = get_object_or_404(Appointment, id=appointment_id, status='approved')
+    appointment = get_object_or_404(Appointment, id=appointment_id, status='upcoming')
 
     if request.user.id not in (appointment.user_id, appointment.doctor_id):
         return HttpResponse(status=403)
@@ -4705,7 +4946,7 @@ def consultation_patient_document(request, appointment_id, document_id):
 @login_required
 def consultation_chat_file(request, appointment_id, message_id):
     """Serve chat attachment files only to participants of the approved consultation."""
-    appointment = get_object_or_404(Appointment, id=appointment_id, status='approved')
+    appointment = get_object_or_404(Appointment, id=appointment_id, status='upcoming')
 
     if request.user.id not in (appointment.user_id, appointment.doctor_id):
         return HttpResponse(status=403)
@@ -4749,6 +4990,10 @@ def dashboard_chat_redirect(request, appointment_id):
         messages.error(request, 'You do not have access to this consultation room.')
         return redirect('dashboard_chat' if request.user.role == 'user' else 'doctor_chat_hub')
 
+    if appointment.status != 'upcoming':
+        messages.error(request, 'Payment not verified yet')
+        return redirect('appointment' if request.user.role == 'user' else 'doctor_appointment')
+
     return render(
         request,
         'dashboard/chat.html',
@@ -4767,13 +5012,13 @@ def doctor_chat_hub(request):
 
     now = timezone.now()
     approved_appts = list(
-        Appointment.objects.filter(doctor=request.user, status='approved')
+        Appointment.objects.filter(doctor=request.user, status='upcoming')
         .select_related('availability')
         .order_by('availability__date', 'availability__start_time')
     )
 
     if not approved_appts:
-        messages.info(request, 'No approved consultations available for chat yet.')
+        messages.info(request, 'No upcoming consultations available for chat yet.')
         return redirect('doctor_appointment')
 
     active = []
@@ -4817,7 +5062,7 @@ def upload_chat_file(request):
 
     appointment = None
     try:
-        appointment = Appointment.objects.get(id=appointment_id, status='approved')
+        appointment = Appointment.objects.get(id=appointment_id, status='upcoming')
     except (Appointment.DoesNotExist, ValueError, TypeError):
         return JsonResponse({'success': False, 'error': 'Invalid appointment'})
 

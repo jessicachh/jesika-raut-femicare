@@ -77,6 +77,9 @@ urlpatterns = [
     
     # This allows the "Accept/Reject" buttons to work
     path('appointment/respond/<int:appointment_id>/', views.respond_appointment, name='respond_appointment'),
+    path('payment/<int:appointment_id>/', views.payment_page, name='payment_page'),
+    path('payment/<int:appointment_id>/submit/', views.submit_payment, name='submit_payment'),
+    path('payment/verify/<int:payment_id>/', views.verify_payment, name='verify_payment'),
     path('doctor/emergency/accept/<int:emergency_request_id>/', views.accept_emergency_request, name='accept_emergency_request'),
 
     path('dashboard/add-cycle-log/', views.add_cycle_log, name='add_cycle_log'),

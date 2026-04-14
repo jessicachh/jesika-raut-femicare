@@ -21,6 +21,19 @@
 />
 <!-- CSS -->
 <link rel="stylesheet" href="{% static 'css/style.css' %}">
+<style>
+  .doctor-fee-chip {
+    display: inline-block;
+    margin: 8px 0 10px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: #fff1f1;
+    border: 1px solid #f5b7b7;
+    color: #991b1b;
+    font-weight: 700;
+    font-size: 13px;
+  }
+</style>
 </head>
 
 <body>
@@ -65,6 +78,10 @@
     <p class="doctor-bio">
       {{ doctor.bio|truncatewords:20 }}
     </p>
+
+    <div class="doctor-fee-chip">
+      Consultation Fee: Rs. {{ doctor.consultation_fee }}
+    </div>
 
     <a href="{% url 'public_doctor_profile' doctor.pk %}" class="doctor-btn">
       View Profile

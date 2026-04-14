@@ -156,6 +156,59 @@
     </div>
 
     <div class="card border-0 shadow-sm mb-4 doctor-availability-form-card">
+        <div class="card-header doctor-form-header" id="payment-verification-section">
+            <h5 class="mb-0">Payment Verification</h5>
+        </div>
+        <div class="card-body p-4 border-bottom">
+            {% if pending_payment_verifications %}
+                <div class="table-responsive">
+                    <table class="table align-middle">
+                        <thead>
+                            <tr>
+                                <th>Patient</th>
+                                <th>Amount</th>
+                                <th>Screenshot</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for p in pending_payment_verifications %}
+                                <tr>
+                                    <td>{{ p.user.username }}</td>
+                                    <td>Rs {{ p.total_amount }}</td>
+                                    <td>
+                                        {% if p.payment_proof %}
+                                            <a href="{{ p.payment_proof.url }}" target="_blank" class="btn btn-sm btn-outline-secondary">View</a>
+                                        {% else %}
+                                            <span class="text-muted small">No proof</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="d-flex gap-2">
+                                            <form method="post" action="{% url 'verify_payment' p.id %}">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="action" value="approve">
+                                                <button class="btn btn-sm btn-success" type="submit">Approve</button>
+                                            </form>
+                                            <form method="post" action="{% url 'verify_payment' p.id %}">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="action" value="reject">
+                                                <button class="btn btn-sm btn-danger" type="submit">Reject</button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-muted mb-0">No payments pending verification.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-4 doctor-availability-form-card">
         <div class="card-header doctor-form-header">
             <h5 class="mb-0">Set Weekly Availability</h5>
         </div>

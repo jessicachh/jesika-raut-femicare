@@ -141,6 +141,7 @@ class DoctorProfile(models.Model):
     bio = models.TextField(blank=True)
     qualifications = models.TextField(blank=True)
     languages_spoken = models.CharField(max_length=255, blank=True)
+    consultation_fee = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
 
     is_verified = models.BooleanField(default=False)
     is_profile_complete = models.BooleanField(default=False)
@@ -231,11 +232,11 @@ class Appointment(models.Model):
 
     STATUS_CHOICES = (
         ('pending', 'Pending'),
-        ('approved', 'Approved'),
-        ('rejected', 'Rejected'),
-        ('cancelled', 'Cancelled'),
+        ('awaiting_payment', 'Awaiting Payment'),
+        ('payment_verification', 'Payment Verification'),
+        ('upcoming', 'Upcoming'),
         ('completed', 'Completed'),
-        ('expired', 'Expired'),
+        ('rejected', 'Rejected'),
     )
 
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
@@ -251,6 +252,65 @@ class Appointment(models.Model):
     def is_expired(self):
         from django.utils import timezone
         return self.status == "pending" and (timezone.now() - self.created_at).total_seconds() >= 21600
+
+
+class DoctorPaymentDetails(models.Model):
+    PAYMENT_METHOD_CHOICES = [
+        ('bank', 'Bank Transfer'),
+        ('esewa', 'eSewa'),
+        ('khalti', 'Khalti'),
+        ('qr', 'QR Code'),
+    ]
+
+    doctor = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name='payment_details',
+        limit_choices_to={'role': 'doctor'},
+    )
+    payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES)
+
+    account_name = models.CharField(max_length=255, blank=True, null=True)
+    account_number = models.CharField(max_length=255, blank=True, null=True)
+    bank_name = models.CharField(max_length=255, blank=True, null=True)
+
+    esewa_id = models.CharField(max_length=255, blank=True, null=True)
+    khalti_id = models.CharField(max_length=255, blank=True, null=True)
+
+    qr_code_image = models.ImageField(upload_to='payment_qr/', blank=True, null=True)
+    is_completed = models.BooleanField(default=False)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.doctor.username} Payment Details"
+
+
+class Payment(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending Verification'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='payments')
+    appointment = models.OneToOneField('Appointment', on_delete=models.CASCADE, related_name='payment')
+
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    commission_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    doctor_earning = models.DecimalField(max_digits=10, decimal_places=2)
+
+    payment_proof = models.ImageField(upload_to='payment_proofs/', blank=True, null=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Payment #{self.id} - {self.user.username} - {self.status}"
     
 
 
