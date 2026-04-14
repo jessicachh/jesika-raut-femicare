@@ -1,3 +1,4 @@
 #!/bin/bash
 python manage.py migrate
-gunicorn FemiCare.wsgi:application --bind 0.0.0.0:8000
+python manage.py collectstatic --noinput
+daphne -b 0.0.0.0 -p 8080 FemiCare.asgi:application

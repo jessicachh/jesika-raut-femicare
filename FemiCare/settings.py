@@ -41,7 +41,7 @@ load_env_file(Path(__file__).resolve().parent / '.env')
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-gd=a88^tfo3n)=*l_v@80oo=nt1aa1zax4u%=r#dz7&lq!^nbd')
 
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'femicare.up.railway.app/']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'femicare.up.railway.app']
 
 CSRF_TRUSTED_ORIGINS = ['https://femicare.up.railway.app']
 
