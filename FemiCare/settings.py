@@ -11,21 +11,35 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 import os
 from pathlib import Path
+import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-import warnings
-warnings.filterwarnings("ignore")
+
+def load_env_file(env_path):
+    if not env_path.exists():
+        return
+    for raw_line in env_path.read_text(encoding='utf-8').splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith('#') or '=' not in line:
+            continue
+        key, value = line.split('=', 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        os.environ.setdefault(key, value)
+
+
+load_env_file(Path(__file__).resolve().parent / '.env')
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-gd=a88^tfo3n)=*l_v@80oo=nt1aa1zax4u%=r#dz7&lq!^nbd'
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-gd=a88^tfo3n)=*l_v@80oo=nt1aa1zax4u%=r#dz7&lq!^nbd')
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
 
 ALLOWED_HOSTS = []
 
@@ -118,19 +132,34 @@ WSGI_APPLICATION = 'FemiCare.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'femicare_db',
-        'USER': 'root',
-        'PASSWORD': '',
-        'HOST': '127.0.0.1',
-        'PORT': '3306',
-        'OPTIONS': {
-            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
-        },
+# Database connection
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.mysql',
+#         'NAME': 'femicare_db',
+#         'USER': 'root',
+#         'PASSWORD': '',
+#         'HOST': '127.0.0.1',
+#         'PORT': '3306',
+#         'OPTIONS': {
+#             'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
+#         },
+#     }
+# }
+
+ENVIRONMENT = os.getenv('ENVIRONMENT', 'development').strip().lower()
+POSTGRES_LOCALLY = os.getenv('POSTGRES_LOCALLY', 'False').strip().lower() in ('1', 'true', 'yes')
+database_url = os.getenv('DATABASE_URL', '').strip()
+
+if (ENVIRONMENT == 'production' or POSTGRES_LOCALLY) and database_url:
+    DATABASES = {
+        'default': dj_database_url.parse(database_url, conn_max_age=600)
     }
-}
+else:
+    raise ImproperlyConfigured(
+        "PostgreSQL DATABASE_URL is required. "
+        "Ensure ENVIRONMENT=production or POSTGRES_LOCALLY=True and DATABASE_URL is set in .env"
+    )
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -186,8 +215,8 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_USE_TLS = True
 EMAIL_PORT = 587
-EMAIL_HOST_USER = 'jsscraut@gmail.com'
-EMAIL_HOST_PASSWORD = 'qtow ufan vbzs zjea'
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = 'FemiCare <jsscraut@gmail.com>'
 ADMIN_EMAIL = EMAIL_HOST_USER
 
@@ -197,7 +226,6 @@ ACCOUNT_LOGIN_METHODS = {'email', 'username'}
 ACCOUNT_SIGNUP_FIELDS = ['email*', 'username*', 'password1*', 'password2*']
 ACCOUNT_EMAIL_VERIFICATION = 'none'
 ACCOUNT_UNIQUE_EMAIL = True
-SILENCED_SYSTEM_CHECKS = ['models.W036']
 SOCIALACCOUNT_AUTO_SIGNUP = True
 SOCIALACCOUNT_LOGIN_ON_GET = True
 SOCIALACCOUNT_EMAIL_AUTHENTICATION = True
