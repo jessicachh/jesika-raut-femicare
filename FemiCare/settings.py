@@ -47,9 +47,12 @@ CSRF_TRUSTED_ORIGINS = ['https://femicare.up.railway.app']
 
 #Static Urls
 STATIC_URL = 'static/'
+
 STATICFILES_DIRS = [
     BASE_DIR / 'FemiCare' / 'static'
 ]
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
