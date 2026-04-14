@@ -1,0 +1,16 @@
+# Local environment and secrets
+.env
+**/.env
+
+# Python virtual environment
+env/
+.venv/
+
+# Python cache/build artifacts
+__pycache__/
+*.py[cod]
+*.sqlite3
+
+# Django collected/static uploads
+staticfiles/
+media/

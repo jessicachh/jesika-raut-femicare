@@ -38,7 +38,7 @@ load_env_file(Path(__file__).resolve().parent / '.env')
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-gd=a88^tfo3n)=*l_v@80oo=nt1aa1zax4u%=r#dz7&lq!^nbd')
+SECRET_KEY = os.getenv('SECRET_KEY')
 
 
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'femicare.up.railway.app']
@@ -218,10 +218,10 @@ EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.smtp.Email
 EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
 EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').strip().lower() in ('1', 'true', 'yes')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
-EMAIL_HOST_USER = 'jsscraut@gmail.com'
-EMAIL_HOST_PASSWORD = 'qtow ufan vbzs zjea'
-DEFAULT_FROM_EMAIL = 'FemiCare <jsscraut@gmail.com>'
-ADMIN_EMAIL = EMAIL_HOST_USER
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', f'FemiCare <{EMAIL_HOST_USER}>') if EMAIL_HOST_USER else os.getenv('DEFAULT_FROM_EMAIL', 'FemiCare <noreply@femicare.local>')
+ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', EMAIL_HOST_USER)
 
 SITE_ID = int(os.getenv('SITE_ID', '1'))
 
