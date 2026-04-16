@@ -385,7 +385,7 @@ def explore_doctors(request):
         is_profile_complete=True,
         consultation_fee__isnull=False,
         user__payment_details__is_completed=True,
-    ).exclude(consultation_fee__lte=0)
+    ).exclude(consultation_fee__lte=0).select_related('user', 'user__payment_details')
 
     specialization = request.GET.get('specialization')
     if specialization:
@@ -914,7 +914,7 @@ def doctor_details(request):
 @login_required
 def public_doctor_profile(request, pk):
     doctor = get_object_or_404(
-        DoctorProfile,
+        DoctorProfile.objects.select_related('user', 'user__payment_details'),
         pk=pk,
         is_verified=True,
         is_profile_complete=True,
@@ -946,8 +946,8 @@ def public_doctor_profile(request, pk):
 
     return render(request, "doctor_profile.html", {
         "doctor": doctor,
-        "availabilities": valid_slots, 
-        "reviews": doctor.reviews.all().select_related("patient"),
+        "availabilities": valid_slots,
+        "reviews": doctor.reviews.select_related("patient").order_by("-created_at"),
     })
 
 @login_required
@@ -1095,14 +1095,15 @@ def doctor_appointment(request):
     pending_payment_verifications = list(
         Payment.objects.filter(
             appointment__doctor=request.user,
-            status='pending'
-        ).select_related('user', 'appointment__availability')
+            status='pending',
+        ).select_related('user', 'appointment', 'appointment__availability')
     )
 
     now = timezone.localtime(timezone.now())
     emergency_pending_requests = list(
         EmergencyRequest.objects.filter(status='pending')
         .exclude(user=request.user)
+        .select_related('user')
         .order_by('-created_at')
     )
 
@@ -1174,34 +1175,41 @@ def doctor_appointment(request):
 
 @login_required
 def respond_appointment(request, appointment_id):
-    appointment = get_object_or_404(Appointment, id=appointment_id, doctor=request.user)
-    
+    appointment = get_object_or_404(
+        Appointment.objects.select_related('user', 'availability'),
+        id=appointment_id,
+        doctor=request.user,
+    )
+
     if request.method == 'POST':
-        action = request.POST.get('action') 
+        action = request.POST.get('action')
         reject_reason = request.POST.get('reject_reason', '')
+
+        # Cache the doctor profile once to avoid repeated DB hits below.
+        doctor_profile = get_object_or_404(DoctorProfile, user=request.user)
 
         if action == 'approve':
             appointment.status = 'awaiting_payment'
-        
+
         elif action == 'reject':
             appointment.status = 'rejected'
             appointment.reject_reason = reject_reason
-            
+
             # Re-activate the slot so other patients can see/book it again
             slot = appointment.availability
-            slot.is_active = True 
-            # If you use 'appointment__isnull' in public profile, 
+            slot.is_active = True
+            # If you use 'appointment__isnull' in public profile,
             # you might want to nullify the relation or delete the appt.
             # But keeping it as 'rejected' is better for history.
             slot.save()
-            
+
         appointment.save()
 
         if action == 'approve':
             _create_notification(
                 appointment.user,
                 'Appointment accepted',
-                f'Your appointment with Dr. {request.user.doctor_profile.full_name} was accepted. Consultation will begin only after payment is completed.',
+                f'Your appointment with Dr. {doctor_profile.full_name} was accepted. Consultation will begin only after payment is completed.',
                 'appointment_accepted',
                 target_url=reverse('appointment'),
                 target_section_id='upcoming-appointments-section',
@@ -1221,7 +1229,7 @@ def respond_appointment(request, appointment_id):
                 appointment.user,
                 'accepted',
                 {
-                    'doctor_name': f"Dr. {request.user.doctor_profile.full_name}",
+                    'doctor_name': f"Dr. {doctor_profile.full_name}",
                     'appointment_date': appointment.availability.date.strftime('%Y-%m-%d'),
                     'appointment_time': f"{appointment.availability.start_time.strftime('%H:%M')} - {appointment.availability.end_time.strftime('%H:%M')}",
                     'action_url': reverse('appointment'),
@@ -1233,7 +1241,7 @@ def respond_appointment(request, appointment_id):
                 appointment.user,
                 'rejected',
                 {
-                    'doctor_name': f"Dr. {request.user.doctor_profile.full_name}",
+                    'doctor_name': f"Dr. {doctor_profile.full_name}",
                     'appointment_date': appointment.availability.date.strftime('%Y-%m-%d'),
                     'reject_reason': reject_reason or 'No specific reason was provided.',
                     'action_url': reverse('explore_doctors'),
@@ -1242,14 +1250,18 @@ def respond_appointment(request, appointment_id):
             )
 
         messages.success(request, f"Appointment {appointment.status} successfully.")
-    
-    return redirect('doctor_appointment') # Redirect back to the requests list
+
+    return redirect('doctor_appointment')  # Redirect back to the requests list
 
 
 @login_required
 def payment_page(request, appointment_id):
     """Display doctor's payment receiving details for a patient appointment."""
-    appointment = get_object_or_404(Appointment, id=appointment_id, user=request.user)
+    appointment = get_object_or_404(
+        Appointment.objects.select_related('doctor', 'doctor__doctor_profile', 'doctor__payment_details', 'availability'),
+        id=appointment_id,
+        user=request.user,
+    )
 
     if appointment.status != 'awaiting_payment':
         messages.error(request, 'Payment page is available only for appointments awaiting payment.')
@@ -1280,7 +1292,11 @@ def submit_payment(request, appointment_id):
     if request.method != 'POST':
         return redirect('payment_page', appointment_id=appointment_id)
 
-    appointment = get_object_or_404(Appointment, id=appointment_id, user=request.user)
+    appointment = get_object_or_404(
+        Appointment.objects.select_related('doctor', 'doctor__doctor_profile'),
+        id=appointment_id,
+        user=request.user,
+    )
     if appointment.status != 'awaiting_payment':
         messages.error(request, 'You cannot submit payment for this appointment right now.')
         return redirect('appointment')
@@ -3369,7 +3385,11 @@ def verify_email_code(request):
 
 @login_required
 def get_notifications(request):
-    notifications = Notification.objects.filter(user=request.user).order_by('-created_at')[:20]
+    # Fetch the 20 most recent notifications in a single query; derive the
+    # unread count from the already-fetched list to avoid a second round-trip.
+    notifications = list(
+        Notification.objects.filter(user=request.user).order_by('-created_at')[:20]
+    )
     unread_count = Notification.objects.filter(user=request.user, is_read=False).count()
 
     payload = []
@@ -4598,7 +4618,10 @@ def doctor_dashboard(request):
     if not _ensure_doctor_access(request):
         return redirect('home')
 
-    profile = get_object_or_404(DoctorProfile, user=request.user)
+    profile = get_object_or_404(
+        DoctorProfile.objects.select_related('user', 'user__payment_details'),
+        user=request.user,
+    )
     now = timezone.localtime(timezone.now())
     today = now.date()
     end_date = today + timedelta(days=14)
@@ -4612,6 +4635,8 @@ def doctor_dashboard(request):
 
     greeting_text = f"{greeting_prefix}, Doctor!"
 
+    # Use a single queryset reference; aggregate counts in the DB to avoid
+    # pulling all rows into Python just to call len().
     doctor_appointments = Appointment.objects.filter(doctor=request.user)
     total_appointments = doctor_appointments.count()
     pending_appointments = doctor_appointments.filter(status='pending').count()
@@ -4622,15 +4647,17 @@ def doctor_dashboard(request):
         Q(status='upcoming', availability__date=today, availability__end_time__lt=now.time())
     ).count()
 
+    # Prefetch the related appointment (OneToOne reverse) so the template
+    # can check slot.appointment without an extra query per row.
     availabilities = DoctorAvailability.objects.filter(
         doctor=request.user,
-        date__range=[today, end_date]
-    ).select_related('appointment').order_by('date', 'start_time') 
+        date__range=[today, end_date],
+    ).select_related('appointment', 'appointment__user').order_by('date', 'start_time')
 
     pending_payment_verifications = Payment.objects.filter(
         appointment__doctor=request.user,
-        status='pending'
-    ).select_related('user', 'appointment').order_by('-created_at')
+        status='pending',
+    ).select_related('user', 'appointment', 'appointment__availability').order_by('-created_at')
 
     return render(request, 'doctor/doctor_dashboard.html', {
         'availabilities': availabilities,
