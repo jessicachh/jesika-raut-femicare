@@ -11,6 +11,7 @@ urlpatterns = [
     path('service/', views.service, name='service'),
     path('contact/', views.contact, name='contact'),
     path('resources/', views.resources, name='resources'),
+    path('become-doctor/', views.become_doctor, name='become_doctor'),
     path('terms_and_conditions/', views.terms_and_conditions, name='terms_and_conditions'),
     path('doctor/', views.explore_doctors, name='explore_doctors'),
 
@@ -78,8 +79,9 @@ urlpatterns = [
     # This allows the "Accept/Reject" buttons to work
     path('appointment/respond/<int:appointment_id>/', views.respond_appointment, name='respond_appointment'),
     path('payment/<int:appointment_id>/', views.payment_page, name='payment_page'),
-    path('payment/<int:appointment_id>/submit/', views.submit_payment, name='submit_payment'),
-    path('payment/verify/<int:payment_id>/', views.verify_payment, name='verify_payment'),
+    path('payment/<int:appointment_id>/initiate/', views.initiate_esewa_payment, name='initiate_esewa_payment'),
+    path('payment/callback/', views.payment_callback, name='payment_callback'),
+    path('payment/failed/', views.payment_failed, name='payment_failed'),
     path('doctor/emergency/accept/<int:emergency_request_id>/', views.accept_emergency_request, name='accept_emergency_request'),
 
     path('dashboard/add-cycle-log/', views.add_cycle_log, name='add_cycle_log'),

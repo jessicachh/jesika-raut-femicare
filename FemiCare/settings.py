@@ -28,7 +28,9 @@ def load_env_file(env_path):
         key, value = line.split('=', 1)
         key = key.strip()
         value = value.strip().strip('"').strip("'")
-        os.environ.setdefault(key, value)
+        # Use .env values from this project to avoid stale shell-level vars
+        # forcing production behavior during local development.
+        os.environ[key] = value
 
 
 load_env_file(Path(__file__).resolve().parent / '.env')
@@ -40,13 +42,20 @@ load_env_file(Path(__file__).resolve().parent / '.env')
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv('SECRET_KEY')
 
+ENVIRONMENT = os.getenv('ENVIRONMENT', 'development').strip().lower()
+POSTGRES_LOCALLY = os.getenv('POSTGRES_LOCALLY', 'False').strip().lower() in ('1', 'true', 'yes')
+DEBUG = os.getenv('DEBUG', 'True' if ENVIRONMENT != 'production' else 'False').strip().lower() in ('1', 'true', 'yes')
 
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'femicare.up.railway.app']
 
-CSRF_TRUSTED_ORIGINS = ['https://femicare.up.railway.app']
+CSRF_TRUSTED_ORIGINS = [
+    'https://femicare.up.railway.app',
+    'http://localhost:8000',
+    'http://127.0.0.1:8000',
+]
 
 #Static Urls
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 
 STATICFILES_DIRS = [
     BASE_DIR / 'FemiCare' / 'static'
@@ -56,8 +65,6 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
-
-DEBUG = False  # local
 
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
@@ -154,8 +161,6 @@ WSGI_APPLICATION = 'FemiCare.wsgi.application'
 #     }
 # }
 
-ENVIRONMENT = os.getenv('ENVIRONMENT', 'development').strip().lower()
-POSTGRES_LOCALLY = os.getenv('POSTGRES_LOCALLY', 'False').strip().lower() in ('1', 'true', 'yes')
 database_url = os.getenv('DATABASE_URL', '').strip()
 
 if (ENVIRONMENT == 'production' or POSTGRES_LOCALLY) and database_url:
@@ -207,10 +212,6 @@ TIME_ZONE = 'Asia/Kathmandu'
 USE_I18N = True
 
 USE_TZ = True
-
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/5.2/howto/static-files/
-STATIC_URL = 'static/'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -274,3 +275,28 @@ TWO_FACTOR_CODE_TTL = 600
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "post_auth_redirect"
 LOGOUT_REDIRECT_URL = "login"
+
+# eSewa Payment Integration
+ESEWA_MERCHANT_CODE = os.getenv('ESEWA_MERCHANT_CODE')
+ESEWA_MERCHANT_SECRET = os.getenv('ESEWA_MERCHANT_SECRET')
+ESEWA_API_URL = os.getenv('ESEWA_API_URL')
+ESEWA_FORM_URL = os.getenv('ESEWA_FORM_URL')
+ESEWA_STATUS_CHECK_URL = os.getenv('ESEWA_STATUS_CHECK_URL')
+
+def _env_url_or_default(name, default=''):
+    value = os.getenv(name, '').strip()
+    if not value:
+        return default
+    if 'your-public-url' in value:
+        return default
+    return value
+
+
+ESEWA_SUCCESS_URL = _env_url_or_default('ESEWA_SUCCESS_URL')
+ESEWA_FAILURE_URL = _env_url_or_default('ESEWA_FAILURE_URL')
+
+# Platform Commission (percentage)
+PLATFORM_COMMISSION_PERCENTAGE = 25
+DOCTOR_EARNING_PERCENTAGE = 75
+PAYMENT_WINDOW_HOURS = int(os.getenv('PAYMENT_WINDOW_HOURS', '2'))
+DOCTOR_PAYOUT_SCHEDULE = os.getenv('DOCTOR_PAYOUT_SCHEDULE', 'Weekly (manual by admin)')

@@ -6,7 +6,7 @@ register = template.Library()
 
 @register.filter
 def has_doctor_profile(user):
-    return hasattr(user, 'doctorprofile')
+    return hasattr(user, 'doctor_profile')
 
 @register.filter
 def is_image_file(file_url):
@@ -65,13 +65,13 @@ def _profile_photo_url(user):
         return ''
 
     try:
-        if getattr(user, 'role', '') == 'doctor' and user.doctor_profile.photo:
+        if getattr(user, 'doctor_profile', None) and user.doctor_profile.photo:
             return user.doctor_profile.photo.url
     except Exception:
         pass
 
     try:
-        if getattr(user, 'role', '') == 'user' and user.user_profile.profile_picture:
+        if getattr(user, 'user_profile', None) and user.user_profile.profile_picture:
             return user.user_profile.profile_picture.url
     except Exception:
         pass

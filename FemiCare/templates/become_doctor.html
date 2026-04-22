@@ -1,0 +1,531 @@
+{% load static %} {% include 'components/navbar.html' %}
+
+<head>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Raleway:ital,wght@0,100..900;1,100..900&display=swap"
+  rel="stylesheet"
+/>
+<link
+  rel="stylesheet"
+  type="text/css"
+  href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/regular/style.css"
+/>
+<link
+  rel="stylesheet"
+  type="text/css"
+  href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/fill/style.css"
+/>
+<link rel="stylesheet" href="{% static 'css/style.css' %}" />
+<style>
+  :root {
+    --doc-primary: #b92222;
+    --doc-primary-dark: #7a1515;
+    --doc-soft: #fff3f3;
+    --doc-border: #f1d2d2;
+  }
+
+  .become-doctor-page {
+    position: relative;
+    overflow: hidden;
+    max-width: 1140px;
+    margin: 5.4rem auto 2.6rem;
+    padding: 0 1rem 0.5rem;
+    color: #2a2a2a;
+  }
+
+  .bg-orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(2px);
+    opacity: 0.55;
+    pointer-events: none;
+    z-index: 0;
+    transition: transform 180ms ease-out;
+  }
+
+  .orb-1 {
+    width: 320px;
+    height: 320px;
+    top: 70px;
+    right: -120px;
+    background: radial-gradient(circle at 30% 30%, #ffdede 0%, #ffcfcf 45%, #ffefef 100%);
+  }
+
+  .orb-2 {
+    width: 210px;
+    height: 210px;
+    bottom: 110px;
+    left: -70px;
+    background: radial-gradient(circle at 50% 50%, #ffe8e8 0%, #ffd9d9 48%, #fff3f3 100%);
+  }
+
+  .orb-3 {
+    width: 160px;
+    height: 160px;
+    top: 460px;
+    right: 160px;
+    background: radial-gradient(circle at 50% 50%, #fff0f0 0%, #ffe1e1 55%, #fff8f8 100%);
+  }
+
+  .doctor-hero {
+    position: relative;
+    z-index: 1;
+    background: linear-gradient(120deg, #fff3f3 0%, #ffe6e6 42%, #ffffff 100%);
+    border: 1px solid #f4d0d0;
+    border-radius: 20px;
+    padding: 2rem 1.5rem 1.8rem;
+    display: grid;
+    grid-template-columns: 1.15fr 0.85fr;
+    gap: 1.2rem;
+    align-items: center;
+    box-shadow: 0 14px 30px rgba(185, 34, 34, 0.1);
+  }
+
+  .hero-left {
+    position: relative;
+    z-index: 2;
+  }
+
+  .hero-left::after {
+    content: '';
+    position: absolute;
+    width: 130px;
+    height: 130px;
+    bottom: -10px;
+    left: -10px;
+    border: 1px dashed #efc1c1;
+    border-radius: 14px;
+    opacity: 0.6;
+    pointer-events: none;
+  }
+
+  .doctor-hero h1 {
+    font: 800 clamp(1.7rem, 2vw + 1rem, 2.6rem) / 1.2 'Raleway', sans-serif;
+    margin: 0 0 0.7rem;
+    color: var(--doc-primary-dark);
+  }
+
+  .doctor-hero p {
+    margin: 0;
+    font: 500 1rem/1.6 'Open Sans', sans-serif;
+    color: #5a5555;
+  }
+
+  .hero-badges {
+    margin-top: 1rem;
+    display: flex;
+    gap: 0.55rem;
+    flex-wrap: wrap;
+  }
+
+  .hero-badge {
+    font: 700 0.78rem/1 'Open Sans', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border: 1px solid #efbcbc;
+    background: #fff;
+    color: #9f1d1d;
+    border-radius: 999px;
+    padding: 0.42rem 0.76rem;
+    transition: transform 180ms ease, box-shadow 180ms ease;
+  }
+
+  .hero-badge:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 7px 14px rgba(185, 34, 34, 0.13);
+  }
+
+  .hero-right {
+    position: relative;
+    z-index: 2;
+  }
+
+  .hero-vector {
+    position: absolute;
+    right: -12px;
+    top: -24px;
+    width: 160px;
+    height: 160px;
+    opacity: 0.25;
+    pointer-events: none;
+  }
+
+  .income-card {
+    background: #fff;
+    border: 1px solid #f2d5d5;
+    border-radius: 16px;
+    padding: 1rem;
+    box-shadow: 0 8px 18px rgba(185, 34, 34, 0.08);
+    backdrop-filter: blur(1px);
+  }
+
+  .income-card h3 {
+    margin: 0 0 0.45rem;
+    font: 800 1.1rem/1.3 'Raleway', sans-serif;
+    color: var(--doc-primary-dark);
+  }
+
+  .split-grid {
+    margin-top: 0.7rem;
+    display: grid;
+    gap: 0.6rem;
+  }
+
+  .split-item {
+    border: 1px solid #f3dfdf;
+    border-radius: 10px;
+    padding: 0.75rem;
+    background: #fffcfc;
+    transition: transform 180ms ease, border-color 180ms ease;
+  }
+
+  .split-item:hover {
+    transform: translateY(-2px);
+    border-color: #ebbbbb;
+  }
+
+  .split-item strong {
+    display: block;
+    font: 800 1.2rem/1.2 'Raleway', sans-serif;
+    color: var(--doc-primary);
+  }
+
+  .section-title {
+    position: relative;
+    z-index: 1;
+    margin: 1.8rem 0 1rem;
+    font: 800 1.55rem/1.3 'Raleway', sans-serif;
+    color: #2d2d2d;
+  }
+
+  .section-title::after {
+    content: '';
+    display: block;
+    width: 88px;
+    height: 4px;
+    margin-top: 0.42rem;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #b92222 0%, #ed8f8f 100%);
+  }
+
+  .benefit-grid {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.9rem;
+  }
+
+  .benefit-card {
+    border: 1px solid #edd5d5;
+    border-radius: 14px;
+    padding: 0.95rem;
+    background: #fff;
+    box-shadow: 0 8px 18px rgba(185, 34, 34, 0.06);
+    transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
+    transform-style: preserve-3d;
+  }
+
+  .benefit-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 14px 24px rgba(185, 34, 34, 0.13);
+    border-color: #e7b9b9;
+  }
+
+  .benefit-card i {
+    font-size: 1.25rem;
+    color: var(--doc-primary);
+  }
+
+  .benefit-card h4 {
+    margin: 0.35rem 0 0.4rem;
+    font: 800 1.02rem/1.3 'Raleway', sans-serif;
+  }
+
+  .benefit-card p {
+    margin: 0;
+    font: 500 0.92rem/1.5 'Open Sans', sans-serif;
+    color: #5a5555;
+  }
+
+  .steps {
+    position: relative;
+    z-index: 1;
+    border: 1px solid #edd5d5;
+    border-radius: 14px;
+    background: #fff;
+    padding: 1rem;
+    box-shadow: 0 8px 18px rgba(185, 34, 34, 0.06);
+    overflow: hidden;
+  }
+
+  .steps::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 5px;
+    height: 100%;
+    background: linear-gradient(180deg, #b92222 0%, #efaaaa 100%);
+  }
+
+  .steps ol {
+    margin: 0;
+    padding-left: 1.2rem;
+  }
+
+  .steps li {
+    margin-bottom: 0.6rem;
+    font: 600 0.94rem/1.5 'Open Sans', sans-serif;
+    color: #3f3f3f;
+  }
+
+  .doctor-cta {
+    position: relative;
+    z-index: 1;
+    margin: 1.4rem 0 0.4rem;
+    border: 1px solid #efcdcd;
+    border-radius: 16px;
+    padding: 1.1rem;
+    background: linear-gradient(120deg, #fff9f9 0%, #fff 100%);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.8rem;
+    flex-wrap: wrap;
+  }
+
+  .doctor-cta h3 {
+    margin: 0;
+    font: 800 1.2rem/1.3 'Raleway', sans-serif;
+    color: var(--doc-primary-dark);
+  }
+
+  .doctor-cta p {
+    margin: 0.3rem 0 0;
+    color: #5a5555;
+    font: 500 0.95rem/1.5 'Open Sans', sans-serif;
+  }
+
+  .doctor-cta .btn {
+    background: var(--doc-primary);
+    color: #fff;
+    border: 0;
+    border-radius: 999px;
+    padding: 0.66rem 1.2rem;
+    font-weight: 700;
+    text-decoration: none;
+    transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease;
+  }
+
+  .doctor-cta .btn:hover {
+    background: #a31f1f;
+    color: #fff;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(185, 34, 34, 0.22);
+  }
+
+  .reveal-up {
+    opacity: 0;
+    transform: translateY(18px);
+    transition: opacity 420ms ease, transform 420ms ease;
+  }
+
+  .reveal-up.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  @media (max-width: 992px) {
+    .become-doctor-page {
+      margin-top: 4.8rem;
+    }
+
+    .hero-vector {
+      width: 120px;
+      height: 120px;
+      right: 4px;
+      top: -14px;
+    }
+
+    .doctor-hero {
+      grid-template-columns: 1fr;
+    }
+
+    .benefit-grid {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .become-doctor-page {
+      margin-top: 4.2rem;
+    }
+
+    .hero-left::after {
+      display: none;
+    }
+
+    .benefit-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+</head>
+<link rel="icon" type="image/png" href="{% static 'images/favicon.png' %}">
+
+<body>
+  {% include 'components/toast_notifications.html' %}
+
+  <section class="become-doctor-page">
+    <span class="bg-orb orb-1" data-parallax="0.03"></span>
+    <span class="bg-orb orb-2" data-parallax="0.045"></span>
+    <span class="bg-orb orb-3" data-parallax="0.025"></span>
+
+    <div class="doctor-hero reveal-up">
+      <div class="hero-left">
+        <h1>Become a Doctor on FemiCare</h1>
+        <p>
+          Join a trusted women&apos;s health platform where you can provide meaningful online consultations,
+          help users early, and grow a reliable consultation income with transparent payouts.
+        </p>
+        <div class="hero-badges">
+          <span class="hero-badge">Verified Doctors</span>
+          <span class="hero-badge">Secure Payments</span>
+          <span class="hero-badge">Flexible Slots</span>
+        </div>
+      </div>
+      <div class="hero-right">
+        <svg class="hero-vector" viewBox="0 0 160 160" aria-hidden="true">
+          <circle cx="80" cy="80" r="56" fill="#b92222" opacity="0.15"></circle>
+          <circle cx="80" cy="80" r="33" fill="#b92222" opacity="0.22"></circle>
+          <path d="M55 86 L72 102 L108 63" stroke="#8f1d1d" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>
+        <div class="income-card">
+        <h3>Commission and Earnings</h3>
+        <p style="margin:0; color:#555; font:500 0.92rem/1.5 'Open Sans', sans-serif;">
+          We keep pricing transparent so every doctor understands the revenue split before starting.
+        </p>
+        <div class="split-grid">
+          <div class="split-item">
+            <span>Platform Commission</span>
+            <strong>{{ commission_percent }}%</strong>
+          </div>
+          <div class="split-item">
+            <span>Doctor Earnings Share</span>
+            <strong>{{ doctor_share_percent }}%</strong>
+          </div>
+          <div class="split-item">
+            <span>Payout Schedule</span>
+            <strong style="font-size:1rem;">{{ payout_schedule }}</strong>
+          </div>
+        </div>
+        </div>
+      </div>
+    </div>
+
+    <h2 class="section-title reveal-up">How Doctors Benefit</h2>
+    <div class="benefit-grid">
+      <article class="benefit-card reveal-up">
+        <i class="ph ph-calendar-check"></i>
+        <h4>Flexible Schedule</h4>
+        <p>Set your own consultation slots and control your weekly availability from the dashboard.</p>
+      </article>
+      <article class="benefit-card reveal-up">
+        <i class="ph ph-wallet"></i>
+        <h4>Steady Online Earnings</h4>
+        <p>Earn from completed consultations with clear payment tracking and payout visibility.</p>
+      </article>
+      <article class="benefit-card reveal-up">
+        <i class="ph ph-shield-check"></i>
+        <h4>Verified Professional Presence</h4>
+        <p>Get listed as a verified doctor so users can trust your profile and book confidently.</p>
+      </article>
+      <article class="benefit-card reveal-up">
+        <i class="ph ph-heartbeat"></i>
+        <h4>Real Health Impact</h4>
+        <p>Support women with timely advice for cycle health, symptoms, and follow-up care.</p>
+      </article>
+      <article class="benefit-card reveal-up">
+        <i class="ph ph-chat-circle-text"></i>
+        <h4>Built-in Consultation Chat</h4>
+        <p>Consult users securely through the platform without sharing personal contact details.</p>
+      </article>
+      <article class="benefit-card reveal-up">
+        <i class="ph ph-chart-line-up"></i>
+        <h4>Profile Growth</h4>
+        <p>Build reputation with reviews and a complete doctor profile visible to interested users.</p>
+      </article>
+    </div>
+
+    <h2 class="section-title reveal-up">How It Works for Doctors</h2>
+    <div class="steps reveal-up">
+      <ol>
+        <li>Sign up as a doctor and submit your verification details.</li>
+        <li>Complete your profile with photo, qualifications, languages, and consultation fee.</li>
+        <li>Set your availability slots for upcoming days.</li>
+        <li>Accept appointment requests and guide patients through secure online consultation.</li>
+        <li>Receive earnings after platform commission based on completed paid sessions.</li>
+      </ol>
+    </div>
+
+    <div class="doctor-cta reveal-up">
+      <div>
+        <h3>Ready to Start Consulting on FemiCare?</h3>
+        <p>Login to your account to continue, or sign in first to create your doctor profile.</p>
+      </div>
+      <a class="btn" href="{% url 'login' %}">Become a Doctor</a>
+    </div>
+  </section>
+
+  {% include 'components/footer.html' %}
+</body>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  (function () {
+    const section = document.querySelector('.become-doctor-page');
+    const parallaxNodes = document.querySelectorAll('[data-parallax]');
+
+    if (section && parallaxNodes.length) {
+      section.addEventListener('mousemove', function (event) {
+        const bounds = section.getBoundingClientRect();
+        const x = event.clientX - bounds.left - bounds.width / 2;
+        const y = event.clientY - bounds.top - bounds.height / 2;
+
+        parallaxNodes.forEach(function (node) {
+          const speed = parseFloat(node.getAttribute('data-parallax')) || 0.02;
+          node.style.transform = 'translate(' + (-x * speed) + 'px, ' + (-y * speed) + 'px)';
+        });
+      });
+
+      section.addEventListener('mouseleave', function () {
+        parallaxNodes.forEach(function (node) {
+          node.style.transform = 'translate(0, 0)';
+        });
+      });
+    }
+
+    const revealTargets = document.querySelectorAll('.reveal-up');
+    if ('IntersectionObserver' in window && revealTargets.length) {
+      const observer = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-visible');
+            observer.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.15, rootMargin: '0px 0px -30px 0px' });
+
+      revealTargets.forEach(function (target, index) {
+        target.style.transitionDelay = (index * 45) + 'ms';
+        observer.observe(target);
+      });
+    } else {
+      revealTargets.forEach(function (target) {
+        target.classList.add('is-visible');
+      });
+    }
+  })();
+</script>

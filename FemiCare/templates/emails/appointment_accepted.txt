@@ -1,12 +1,19 @@
-FemiCare - Appointment Accepted
+FemiCare - Doctor Accepted, Payment Required
 
 Hello {{ greeting_name|default:"there" }},
 
-Your appointment has been accepted.
+Your doctor has accepted your appointment request.
 
 Doctor: {{ doctor_name }}
 Date: {{ appointment_date }}
 Time: {{ appointment_time }}
+{% if consultation_fee %}Consultation Fee: Rs {{ consultation_fee }}
+{% endif %}
+{% if payment_deadline %}Payment Deadline: {{ payment_deadline }}
+{% endif %}
+
+Please complete payment within {{ payment_window_hours|default:2 }} hour(s).
+If payment is not completed in time, the slot will be released automatically.
 
 Please check your dashboard for full details.
 {% if action_url %}Dashboard: {{ action_url }}

@@ -5,146 +5,138 @@
 <div class="fc-admin-layout">
   <aside class="fc-left-panel">
     <div class="fc-left-header">
-      <span class="fc-left-logo"><i class="bi bi-heart-pulse-fill"></i></span>
+      <div class="fc-left-logo"><i class="bi bi-heart-pulse-fill"></i></div>
       <div>
         <strong>FemiCare Admin</strong>
-        <p>Control Panel</p>
+        <p>Dashboard control panel</p>
       </div>
     </div>
 
     <div class="fc-left-search-wrap">
       <i class="bi bi-search"></i>
-      <input id="fcFeatureSearch" type="text" placeholder="Search features..." aria-label="Search admin features">
+      <input type="text" value="" placeholder="Search admin sections" disabled>
     </div>
 
-    <nav class="fc-feature-nav" aria-label="FemiCare admin features">
-      <section class="fc-nav-group" data-group="User Management">
-        <h4>User Management</h4>
-        <a class="fc-nav-item" data-label="Users" href="{% url 'admin:tracker_user_changelist' %}"><i class="bi bi-people"></i><span>Users</span></a>
-        <a class="fc-nav-item" data-label="User Profiles" href="{% url 'admin:tracker_userprofile_changelist' %}"><i class="bi bi-person-vcard"></i><span>User Profiles</span></a>
-        <a class="fc-nav-item" data-label="Documents" href="{% url 'admin:tracker_userdocument_changelist' %}"><i class="bi bi-file-earmark-text"></i><span>Documents</span></a>
-      </section>
+    <nav class="fc-feature-nav">
+      <div class="fc-nav-group">
+        <h4>Quick Access</h4>
+        <a class="fc-nav-item" href="{% url 'admin:index' %}"><i class="bi bi-speedometer2"></i><span>Overview</span></a>
+        {% for app in app_list %}
+          {% for model in app.models %}
+            {% if forloop.first %}
+              <a class="fc-nav-item" href="{{ model.admin_url|default:app.app_url }}"><i class="bi bi-folder2-open"></i><span>{{ app.name }}</span></a>
+            {% endif %}
+          {% endfor %}
+        {% endfor %}
+      </div>
 
-      <section class="fc-nav-group" data-group="Clinical Operations">
-        <h4>Clinical Operations</h4>
-        <a class="fc-nav-item" data-label="Doctor Profiles" href="{% url 'admin:tracker_doctorprofile_changelist' %}"><i class="bi bi-person-badge"></i><span>Doctor Profiles</span></a>
-        <a class="fc-nav-item" data-label="Doctor Reviews" href="{% url 'admin:tracker_doctorreview_changelist' %}"><i class="bi bi-stars"></i><span>Doctor Reviews</span></a>
-        <a class="fc-nav-item" data-label="Doctor Availability" href="{% url 'admin:tracker_doctoravailability_changelist' %}"><i class="bi bi-calendar2-check"></i><span>Doctor Availability</span></a>
-        <a class="fc-nav-item" data-label="Appointments" href="{% url 'admin:tracker_appointment_changelist' %}"><i class="bi bi-calendar-event"></i><span>Appointments</span></a>
-        <a class="fc-nav-item" data-label="Emergency Requests" href="{% url 'admin:tracker_emergencyrequest_changelist' %}"><i class="bi bi-exclamation-octagon"></i><span>Emergency Requests</span></a>
-      </section>
-
-      <section class="fc-nav-group" data-group="Health Tracking">
-        <h4>Health Tracking</h4>
-        <a class="fc-nav-item" data-label="Cycle Logs" href="{% url 'admin:tracker_cyclelog_changelist' %}"><i class="bi bi-activity"></i><span>Cycle Logs</span></a>
-        <a class="fc-nav-item" data-label="Period Check-ins" href="{% url 'admin:tracker_periodcheckin_changelist' %}"><i class="bi bi-calendar-heart"></i><span>Period Check-ins</span></a>
-        <a class="fc-nav-item" data-label="Mood Entries" href="{% url 'admin:tracker_moodentry_changelist' %}"><i class="bi bi-emoji-smile"></i><span>Mood Entries</span></a>
-        <a class="fc-nav-item" data-label="Symptom Logs" href="{% url 'admin:tracker_symptomlog_changelist' %}"><i class="bi bi-journal-medical"></i><span>Symptom Logs</span></a>
-        <a class="fc-nav-item" data-label="Prediction Feedback" href="{% url 'admin:tracker_predictionfeedback_changelist' %}"><i class="bi bi-bar-chart-line"></i><span>Prediction Feedback</span></a>
-        <a class="fc-nav-item" data-label="Health Logs" href="{% url 'admin:tracker_healthlog_changelist' %}"><i class="bi bi-heart"></i><span>Health Logs</span></a>
-      </section>
-
-      <section class="fc-nav-group" data-group="Messaging and Security">
-        <h4>Messaging & Security</h4>
-        <a class="fc-nav-item" data-label="Conversations" href="{% url 'admin:tracker_conversation_changelist' %}"><i class="bi bi-chat-dots"></i><span>Conversations</span></a>
-        <a class="fc-nav-item" data-label="Chat Messages" href="{% url 'admin:tracker_chatmessage_changelist' %}"><i class="bi bi-chat-left-text"></i><span>Chat Messages</span></a>
-        <a class="fc-nav-item" data-label="Notifications" href="{% url 'admin:tracker_notification_changelist' %}"><i class="bi bi-bell"></i><span>Notifications</span></a>
-        <a class="fc-nav-item" data-label="Two Factor Codes" href="{% url 'admin:tracker_twofactorcode_changelist' %}"><i class="bi bi-shield-lock"></i><span>Two Factor Codes</span></a>
-      </section>
-
-      <section class="fc-nav-group" data-group="System Settings">
-        <h4>System Settings</h4>
-        <a class="fc-nav-item" data-label="Groups" href="{% url 'admin:auth_group_changelist' %}"><i class="bi bi-diagram-3"></i><span>Groups</span></a>
-        <a class="fc-nav-item" data-label="Sites" href="{% url 'admin:sites_site_changelist' %}"><i class="bi bi-globe"></i><span>Sites</span></a>
-      </section>
+      <div class="fc-nav-group">
+        <h4>Common Tasks</h4>
+        {% for app in app_list %}
+          {% for model in app.models %}
+            {% if forloop.first %}
+              <a class="fc-nav-item" href="{{ model.add_url|default:model.admin_url }}"><i class="bi bi-plus-circle"></i><span>Add {{ model.name }}</span></a>
+            {% endif %}
+          {% endfor %}
+        {% endfor %}
+      </div>
     </nav>
   </aside>
 
   <main class="fc-center-panel">
-    <section class="fc-center-topbar">
-      <h1>Site Administration</h1>
-      <a href="{% url 'admin:index' %}">Dashboard Home</a>
-    </section>
+    <div class="fc-center-topbar">
+      <div>
+        <h1>Administration Dashboard</h1>
+        <p class="mb-0 text-muted">Manage users, doctors, appointments, resources, and payouts from one place.</p>
+      </div>
+      <a href="{% url 'admin:tracker_resourcecategory_add' %}">Create content</a>
+    </div>
 
     {% if messages %}
-    <section class="fc-flash-wrap">
-      {% for message in messages %}
-      <div class="fc-flash-item {{ message.tags|default:'info' }}">{{ message }}</div>
-      {% endfor %}
-    </section>
+      <section class="fc-flash-wrap">
+        {% for message in messages %}
+          <div class="fc-flash-item {{ message.tags|default:'info' }}">{{ message }}</div>
+        {% endfor %}
+      </section>
     {% endif %}
+
+    <section class="dashboard-hero-card">
+      <div>
+        <span class="dashboard-eyebrow">Admin Workspace</span>
+        <h1>Keep platform operations organized and fast</h1>
+        <p>Use the cards below to jump straight into the areas that need edits, approvals, or updates.</p>
+      </div>
+      <div class="dashboard-hero-actions">
+        <a class="hero-action primary" href="{% url 'admin:index' %}"><i class="bi bi-speedometer2"></i>Dashboard overview</a>
+        <a class="hero-action" href="{% url 'admin:tracker_appointment_changelist' %}"><i class="bi bi-calendar2-week"></i>Review appointments</a>
+      </div>
+    </section>
+
+    <section class="dashboard-quick-grid">
+      <a class="quick-card" href="{% url 'admin:tracker_user_changelist' %}"><i class="bi bi-people"></i><span>Users</span></a>
+      <a class="quick-card" href="{% url 'admin:tracker_doctorprofile_changelist' %}"><i class="bi bi-person-badge"></i><span>Doctors</span></a>
+      <a class="quick-card" href="{% url 'admin:tracker_appointment_changelist' %}"><i class="bi bi-calendar2-check"></i><span>Appointments</span></a>
+      <a class="quick-card" href="{% url 'admin:tracker_resourcecategory_changelist' %}"><i class="bi bi-journal-richtext"></i><span>Resources</span></a>
+    </section>
 
     <section class="fc-applications-wrap">
       {% for app in app_list %}
-      <article class="fc-module-card">
-        <div class="fc-module-head">
-          <h2>{{ app.name }}</h2>
-          <a href="{{ app.app_url }}">Open</a>
-        </div>
-
-        <ul class="fc-model-row-list">
-          {% for model in app.models %}
-          <li>
+        <article class="fc-module-card">
+          <div class="fc-module-head">
             <div>
-              <strong>{{ model.name }}</strong>
+              <h2>{{ app.name }}</h2>
+              <p class="mb-0 text-muted">Manage the records in this module.</p>
             </div>
-            <div class="fc-model-links">
-              {% if model.admin_url %}<a href="{{ model.admin_url }}">Change</a>{% endif %}
-              {% if model.add_url %}<a href="{{ model.add_url }}">Add</a>{% endif %}
-            </div>
-          </li>
-          {% endfor %}
-        </ul>
-      </article>
+            <a href="{{ app.app_url }}">Open app</a>
+          </div>
+
+          <ul class="fc-model-row-list">
+            {% for model in app.models %}
+              <li>
+                <div class="model-meta">
+                  <span class="model-dot"></span>
+                  <div>
+                    <strong>{{ model.name }}</strong>
+                    <span>View, edit, or add records</span>
+                  </div>
+                </div>
+                <div class="fc-model-links">
+                  {% if model.admin_url %}<a href="{{ model.admin_url }}">Change</a>{% endif %}
+                  {% if model.add_url %}<a href="{{ model.add_url }}">Add</a>{% endif %}
+                </div>
+              </li>
+            {% endfor %}
+          </ul>
+        </article>
       {% endfor %}
     </section>
   </main>
 
   <aside class="fc-right-panel">
     <div class="fc-right-head">
-      <h2>Recent actions</h2>
+      <h2>Recent Activity</h2>
+      <p class="mb-0 text-muted">Most recent admin actions</p>
     </div>
 
-    <div class="fc-right-list">
-      {% if log_entries %}
-      {% for entry in log_entries %}
-      <article class="fc-right-item">
-        <a href="{% if entry.get_admin_url %}{{ entry.get_admin_url }}{% else %}#{% endif %}">{{ entry.object_repr }}</a>
-        <p>{{ entry.content_type.name|capfirst }}</p>
-        <time datetime="{{ entry.action_time|date:'c' }}">{{ entry.action_time|date:"F j, Y, g:i a" }}</time>
-      </article>
-      {% endfor %}
-      {% else %}
+    {% if log_entries %}
+      <div class="fc-right-list">
+        {% for entry in log_entries %}
+          <article class="fc-right-item">
+            <a href="{% if entry.get_admin_url %}{{ entry.get_admin_url }}{% else %}#{% endif %}">{{ entry.object_repr }}</a>
+            <p>{{ entry.content_type.name|capfirst }}</p>
+            <time>{{ entry.action_time|date:"M d, Y g:i a" }}</time>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
       <p class="fc-empty-actions">No recent actions available.</p>
-      {% endif %}
+    {% endif %}
+
+    <div class="sidebar-mini-card mt-3">
+      <a href="{% url 'admin:tracker_resourcecategory_add' %}">Add content category</a>
+      <a href="{% url 'admin:tracker_resourceitem_add' %}">Add resource item</a>
+      <a href="{% url 'admin:tracker_doctorprofile_changelist' %}">Verify doctors</a>
     </div>
   </aside>
 </div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-  var searchInput = document.getElementById('fcFeatureSearch');
-  if (!searchInput) {
-    return;
-  }
-
-  var items = Array.prototype.slice.call(document.querySelectorAll('.fc-nav-item'));
-  var groups = Array.prototype.slice.call(document.querySelectorAll('.fc-nav-group'));
-
-  searchInput.addEventListener('input', function () {
-    var query = (searchInput.value || '').trim().toLowerCase();
-
-    items.forEach(function (item) {
-      var label = (item.getAttribute('data-label') || '').toLowerCase();
-      var show = !query || label.indexOf(query) !== -1;
-      item.style.display = show ? '' : 'none';
-    });
-
-    groups.forEach(function (group) {
-      var visibleItems = group.querySelectorAll('.fc-nav-item:not([style*="display: none"])');
-      group.style.display = visibleItems.length ? '' : 'none';
-    });
-  });
-});
-</script>
 {% endblock %}

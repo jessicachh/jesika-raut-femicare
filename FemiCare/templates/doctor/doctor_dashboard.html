@@ -155,47 +155,80 @@
         </div>
     </div>
 
-    <div class="card border-0 shadow-sm mb-4 doctor-availability-form-card">
-        <div class="card-header doctor-form-header" id="payment-verification-section">
-            <h5 class="mb-0">Payment Verification</h5>
+    <div class="card border-0 shadow-sm mb-4 doctor-availability-form-card" id="payment-verification-section">
+        <div class="card-header doctor-form-header">
+            <h5 class="mb-0">Earnings & Payouts</h5>
         </div>
         <div class="card-body p-4 border-bottom">
-            {% if pending_payment_verifications %}
+            <div class="row g-3 mb-3">
+                <div class="col-md-3">
+                    <div class="p-3 rounded border bg-light h-100">
+                        <small class="text-muted d-block">Gross Earnings</small>
+                        <strong>Rs {{ gross_total|floatformat:2 }}</strong>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="p-3 rounded border bg-light h-100">
+                        <small class="text-muted d-block">Commission Deducted</small>
+                        <strong>Rs {{ commission_total|floatformat:2 }}</strong>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="p-3 rounded border bg-light h-100">
+                        <small class="text-muted d-block">Net Earnings</small>
+                        <strong>Rs {{ net_total|floatformat:2 }}</strong>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="p-3 rounded border bg-light h-100">
+                        <small class="text-muted d-block">Pending Payout</small>
+                        <strong>Rs {{ pending_payout_total|floatformat:2 }}</strong>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                    <div class="alert alert-info mb-0">
+                        <strong>This Month (Net):</strong> Rs {{ this_month_net_total|floatformat:2 }}
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="alert alert-secondary mb-0">
+                        <strong>Payout Schedule:</strong> {{ payout_schedule }}
+                    </div>
+                </div>
+            </div>
+
+            {% if recent_payments %}
                 <div class="table-responsive">
                     <table class="table align-middle">
                         <thead>
                             <tr>
+                                <th>Date</th>
                                 <th>Patient</th>
-                                <th>Amount</th>
-                                <th>Screenshot</th>
-                                <th>Action</th>
+                                <th>Gross</th>
+                                <th>Commission</th>
+                                <th>Net</th>
+                                <th>Payout</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {% for p in pending_payment_verifications %}
+                            {% for p in recent_payments %}
                                 <tr>
+                                    <td>{{ p.created_at|date:"M d, Y" }}</td>
                                     <td>{{ p.user.username }}</td>
-                                    <td>Rs {{ p.total_amount }}</td>
+                                    <td>Rs {{ p.amount|floatformat:2 }}</td>
+                                    <td>Rs {{ p.commission_amount|floatformat:2 }}</td>
+                                    <td>Rs {{ p.doctor_earning|floatformat:2 }}</td>
                                     <td>
-                                        {% if p.payment_proof %}
-                                            <a href="{{ p.payment_proof.url }}" target="_blank" class="btn btn-sm btn-outline-secondary">View</a>
+                                        {% if p.payout_status == 'paid' %}
+                                            <span class="badge text-bg-success">Paid</span>
+                                        {% elif p.payout_status == 'processing' %}
+                                            <span class="badge text-bg-warning">Processing</span>
                                         {% else %}
-                                            <span class="text-muted small">No proof</span>
+                                            <span class="badge text-bg-secondary">Pending</span>
                                         {% endif %}
-                                    </td>
-                                    <td>
-                                        <div class="d-flex gap-2">
-                                            <form method="post" action="{% url 'verify_payment' p.id %}">
-                                                {% csrf_token %}
-                                                <input type="hidden" name="action" value="approve">
-                                                <button class="btn btn-sm btn-success" type="submit">Approve</button>
-                                            </form>
-                                            <form method="post" action="{% url 'verify_payment' p.id %}">
-                                                {% csrf_token %}
-                                                <input type="hidden" name="action" value="reject">
-                                                <button class="btn btn-sm btn-danger" type="submit">Reject</button>
-                                            </form>
-                                        </div>
                                     </td>
                                 </tr>
                             {% endfor %}
@@ -203,7 +236,7 @@
                     </table>
                 </div>
             {% else %}
-                <p class="text-muted mb-0">No payments pending verification.</p>
+                <p class="text-muted mb-0">No completed payments yet.</p>
             {% endif %}
         </div>
     </div>

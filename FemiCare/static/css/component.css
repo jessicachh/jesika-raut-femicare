@@ -207,6 +207,51 @@ form {
   display: flex;
   flex-direction: column;
 }
+
+.password-field {
+  position: relative;
+  width: 100%;
+}
+
+.password-field input {
+  width: 100%;
+  display: block;
+  padding-right: 52px;
+}
+
+.signup-form .password-field input,
+.login-form .password-field input {
+  padding-right: 52px;
+}
+
+.password-toggle-btn {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #6b7280;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+
+.password-toggle-btn:hover,
+.password-toggle-btn:focus-visible {
+  color: var(--color-primary);
+  background: #fff1f1;
+  outline: none;
+}
+
+.password-toggle-btn i {
+  font-size: 1.05rem;
+}
 label {
   margin-bottom: 6px;
   font-weight: 500;

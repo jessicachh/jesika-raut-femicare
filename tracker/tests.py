@@ -1,9 +1,11 @@
 import json
+from decimal import Decimal
 from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase
+from django.test.utils import override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -14,8 +16,10 @@ from .models import (
     Conversation,
     CycleLog,
     DoctorAvailability,
+    EmergencyRequest,
     DoctorProfile,
     Notification,
+    Payment,
     SymptomLog,
     User,
     UserProfile,
@@ -23,6 +27,22 @@ from .models import (
 from .views import trigger_emergency_alert
 
 
+@override_settings(
+    SECURE_SSL_REDIRECT=False,
+    SESSION_COOKIE_SECURE=False,
+    CSRF_COOKIE_SECURE=False,
+    ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1'],
+    EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+    STATICFILES_STORAGE='django.contrib.staticfiles.storage.StaticFilesStorage',
+    STORAGES={
+        'default': {
+            'BACKEND': 'django.core.files.storage.FileSystemStorage',
+        },
+        'staticfiles': {
+            'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
+        },
+    },
+)
 class TrackerTestCase(TestCase):
     def setUp(self):
         self.client = Client()
@@ -76,7 +96,7 @@ class TrackerTestCase(TestCase):
             has_accepted_terms=True,
         )
 
-        self.chat_now = timezone.now().replace(hour=12, minute=0, second=0, microsecond=0)
+        self.chat_now = timezone.localtime(timezone.now()).replace(hour=12, minute=0, second=0, microsecond=0)
         self.chat_room_name = self._chat_room_name(self.patient, self.doctor)
 
         self.active_chat_slot = self._create_availability(
@@ -89,7 +109,7 @@ class TrackerTestCase(TestCase):
             user=self.patient,
             doctor=self.doctor,
             availability=self.active_chat_slot,
-            status='approved',
+            status='upcoming',
             patient_message='Consultation request',
         )
         self.conversation = Conversation.objects.create(
@@ -133,16 +153,16 @@ class AuthenticationTests(TrackerTestCase):
 
         self.assertEqual(response.status_code, 302)
 
-        # ✅ Correct validation (based on your system logic)
+        # Verify user is created but inactive until email verification.
         created_user = User.objects.filter(username='new-patient').first()
         self.assertIsNotNone(created_user)
         self.assertEqual(created_user.email, 'new-patient@example.com')
         self.assertFalse(created_user.is_active)  # Email verification pending
 
-        # ✅ Check session
+        # Pending signup user id should be stored in session.
         self.assertEqual(self.client.session.get('pending_signup_user_id'), created_user.id)
 
-        # ✅ Check email function triggered
+        # Verification email sender should run once.
         mock_send_code.assert_called_once()
 
 
@@ -248,9 +268,40 @@ class AppointmentBookingTests(TrackerTestCase):
         mock_send_appointment_email.assert_called_once()
         mock_send_notification_email.assert_called_once()
 
+    @patch('tracker.views.send_appointment_template_email')
+    def test_doctor_approval_moves_status_to_awaiting_payment(self, mock_send_appointment_email):
+        slot = self._create_availability(
+            self.doctor,
+            self.chat_now.date() + timedelta(days=1),
+            (self.chat_now + timedelta(days=1, hours=1)).time().replace(microsecond=0),
+            (self.chat_now + timedelta(days=1, hours=2)).time().replace(microsecond=0),
+        )
+        appointment = Appointment.objects.create(
+            user=self.patient,
+            doctor=self.doctor,
+            availability=slot,
+            status='pending',
+            patient_message='Need consultation',
+        )
+
+        self._login_as(self.doctor)
+        response = self.client.post(
+            reverse('respond_appointment', args=[appointment.id]),
+            {'action': 'approve'},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        appointment.refresh_from_db()
+        self.assertEqual(appointment.status, 'awaiting_payment')
+        self.assertIsNotNone(appointment.payment_due_at)
+        self.assertIsNotNone(appointment.responded_at)
+        mock_send_appointment_email.assert_called_once()
+
 
 class ChatAccessTests(TrackerTestCase):
-    def test_chat_access_allowed_for_assigned_participants(self):
+    @patch('tracker.views.timezone.now')
+    def test_chat_access_allowed_for_assigned_participants(self, mock_now):
+        mock_now.return_value = self.chat_now
         self._login_as(self.patient)
 
         response = self.client.get(reverse('get_message_history', args=[self.active_chat_appointment.id]))
@@ -258,7 +309,7 @@ class ChatAccessTests(TrackerTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertTrue(payload['consultation']['can_chat'])
-        self.assertEqual(payload['consultation']['status'], 'approved')
+        self.assertEqual(payload['consultation']['status'], 'upcoming')
 
     def test_chat_access_blocked_for_non_participant(self):
         outsider_client = Client()
@@ -317,7 +368,7 @@ class ChatAccessTests(TrackerTestCase):
             user=self.patient,
             doctor=self.doctor,
             availability=future_slot,
-            status='approved',
+            status='upcoming',
             patient_message='Future appointment',
         )
 
@@ -415,11 +466,12 @@ class DoctorProfileValidationTests(TrackerTestCase):
 class NotificationAndCycleLogTests(TrackerTestCase):
     @patch('tracker.views.update_cycle_prediction')
     def test_cycle_log_submission_saves_data_and_creates_notification(self, mock_update_cycle_prediction):
+        submitted_period_start = timezone.now().date()
         self._login_as(self.patient)
         response = self.client.post(
             reverse('add_cycle_log'),
             {
-                'last_period_start': self.chat_now.date().isoformat(),
+                'last_period_start': submitted_period_start.isoformat(),
                 'length_of_cycle': '28',
                 'length_of_menses': '5',
                 'mean_bleeding_intensity': '2',
@@ -432,7 +484,7 @@ class NotificationAndCycleLogTests(TrackerTestCase):
         self.assertEqual(CycleLog.objects.filter(user=self.patient).count(), 1)
 
         cycle_log = CycleLog.objects.get(user=self.patient)
-        self.assertEqual(cycle_log.last_period_start, self.chat_now.date())
+        self.assertEqual(cycle_log.last_period_start, submitted_period_start)
         self.assertEqual(cycle_log.length_of_cycle, 28)
         self.assertEqual(cycle_log.length_of_menses, 5)
         self.assertEqual(cycle_log.mean_menses_length, 5)
@@ -444,13 +496,15 @@ class NotificationAndCycleLogTests(TrackerTestCase):
         symptom = 'Fatigue'
         today = timezone.localdate()
 
-        for offset in range(3):
-            SymptomLog.objects.create(
+        SymptomLog.objects.bulk_create([
+            SymptomLog(
                 user=self.patient,
                 symptom=symptom,
                 source='manual',
                 date=today - timedelta(days=offset),
             )
+            for offset in range(3)
+        ])
 
         assessment = trigger_emergency_alert(self.patient)
 
@@ -458,3 +512,123 @@ class NotificationAndCycleLogTests(TrackerTestCase):
         self.assertTrue(assessment['triggered'])
         self.assertTrue(Notification.objects.filter(user=self.patient, title='Health Warning').exists())
         mock_send_email_alert.assert_called_once_with(self.patient, symptom)
+
+
+class EmergencyTriggerTests(TrackerTestCase):
+    @patch('tracker.views.send_emergency_email')
+    def test_emergency_trigger_high_risk_creates_alert(self, mock_send_emergency_email):
+        today = timezone.localdate()
+
+        SymptomLog.objects.bulk_create([
+            SymptomLog(user=self.patient, symptom='Pelvic Pain', source='manual', date=today),
+            SymptomLog(user=self.patient, symptom='Pelvic Pain', source='manual', date=today - timedelta(days=1)),
+            SymptomLog(user=self.patient, symptom='Pelvic Pain', source='manual', date=today - timedelta(days=2)),
+            SymptomLog(user=self.patient, symptom='Fatigue', source='manual', date=today),
+        ])
+
+        assessment = trigger_emergency_alert(self.patient)
+
+        self.assertEqual(assessment['level'], 'high')
+        self.assertTrue(assessment['triggered'])
+        self.assertEqual(assessment.get('notification_title'), 'Health Alert')
+        self.assertTrue(
+            Notification.objects.filter(
+                user=self.patient,
+                title='Health Alert',
+                type='cycle',
+            ).exists()
+        )
+        mock_send_emergency_email.assert_called_once()
+
+class EmergencyDoctorBookingTests(TrackerTestCase):
+    @patch('tracker.views.send_patient_email', return_value=True)
+    def test_emergency_doctor_acceptance_books_appointment(self, mock_send_patient_email):
+        emergency_slot = self._create_availability(
+            self.doctor,
+            timezone.localdate() + timedelta(days=1),
+            (self.chat_now + timedelta(days=1, hours=1)).time().replace(microsecond=0),
+            (self.chat_now + timedelta(days=1, hours=2)).time().replace(microsecond=0),
+        )
+
+        emergency_request = EmergencyRequest.objects.create(
+            user=self.patient,
+            status='pending',
+            reason='Urgent abdominal pain',
+        )
+
+        self._login_as(self.doctor)
+        response = self.client.post(reverse('accept_emergency_request', args=[emergency_request.id]))
+
+        self.assertEqual(response.status_code, 302)
+        emergency_request.refresh_from_db()
+        emergency_slot.refresh_from_db()
+
+        self.assertEqual(emergency_request.status, 'assigned')
+        self.assertEqual(emergency_request.assigned_doctor_id, self.doctor.id)
+        self.assertEqual(emergency_request.assigned_slot_id, emergency_slot.id)
+        self.assertFalse(emergency_slot.is_active)
+        self.assertTrue(
+            Appointment.objects.filter(
+                user=self.patient,
+                doctor=self.doctor,
+                availability=emergency_slot,
+                status='upcoming',
+            ).exists()
+        )
+        mock_send_patient_email.assert_called_once()
+
+class PaymentFlowTests(TrackerTestCase):
+    def test_payment_submission_then_doctor_approval(self):
+        payment_slot = self._create_availability(
+            self.doctor,
+            timezone.localdate() + timedelta(days=2),
+            (self.chat_now + timedelta(days=2, hours=1)).time().replace(microsecond=0),
+            (self.chat_now + timedelta(days=2, hours=2)).time().replace(microsecond=0),
+        )
+        payment_appointment = Appointment.objects.create(
+            user=self.patient,
+            doctor=self.doctor,
+            availability=payment_slot,
+            status='awaiting_payment',
+            patient_message='Ready to pay',
+        )
+
+        self.doctor_profile.consultation_fee = Decimal('1200.00')
+        self.doctor_profile.save(update_fields=['consultation_fee'])
+
+        proof = SimpleUploadedFile('proof.jpg', b'payment-proof', content_type='image/jpeg')
+
+        self._login_as(self.patient)
+        submit_response = self.client.post(
+            reverse('submit_payment', args=[payment_appointment.id]),
+            {'payment_proof': proof},
+        )
+
+        self.assertEqual(submit_response.status_code, 302)
+        payment_appointment.refresh_from_db()
+        self.assertEqual(payment_appointment.status, 'payment_verification')
+
+        payment = Payment.objects.get(appointment=payment_appointment)
+        self.assertEqual(payment.status, 'pending')
+        self.assertEqual(payment.total_amount, Decimal('1200.00'))
+        self.assertEqual(payment.commission_amount, Decimal('300.00'))
+        self.assertEqual(payment.doctor_earning, Decimal('900.00'))
+
+        self._login_as(self.doctor)
+        verify_response = self.client.post(
+            reverse('verify_payment', args=[payment.id]),
+            {'action': 'approve'},
+        )
+
+        self.assertEqual(verify_response.status_code, 302)
+        payment.refresh_from_db()
+        payment_appointment.refresh_from_db()
+        self.assertEqual(payment.status, 'approved')
+        self.assertEqual(payment_appointment.status, 'upcoming')
+        self.assertTrue(
+            Notification.objects.filter(
+                user=self.patient,
+                title='Payment Approved',
+                type='appointment_accepted',
+            ).exists()
+        )

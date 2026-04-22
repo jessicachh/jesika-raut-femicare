@@ -1,4 +1,4 @@
-{% load static %}
+z{% load static %}
 {% load socialaccount %}
 
 <head>
@@ -36,7 +36,12 @@
           <input type="text" name="username" placeholder="yourusername" required>
 
           <label>Password</label>
-          <input type="password" name="password" placeholder="********" required>
+          <div class="password-field">
+            <input type="password" name="password" placeholder="********" required data-password-input>
+            <button type="button" class="password-toggle-btn" aria-label="Show password" data-password-toggle>
+              <i class="ph ph-eye"></i>
+            </button>
+          </div>
 
           <label class="remember-me-row" for="rememberMe">
             <input id="rememberMe" type="checkbox" name="remember_me">
@@ -78,6 +83,24 @@
 
   </div>
 </section>
+
+<script>
+  (function () {
+    var field = document.querySelector('[data-password-input]');
+    var toggle = document.querySelector('[data-password-toggle]');
+    if (!field || !toggle) return;
+
+    var icon = toggle.querySelector('i');
+    toggle.addEventListener('click', function () {
+      var isHidden = field.type === 'password';
+      field.type = isHidden ? 'text' : 'password';
+      toggle.setAttribute('aria-label', isHidden ? 'Hide password' : 'Show password');
+      if (icon) {
+        icon.className = isHidden ? 'ph ph-eye-slash' : 'ph ph-eye';
+      }
+    });
+  })();
+</script>
 
 {% if messages %}
   <div class="auth-toast-container" aria-live="polite" aria-atomic="true">

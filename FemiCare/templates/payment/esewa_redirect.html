@@ -1,0 +1,77 @@
+{% extends 'dashboard/main.html' %}
+{% load static %}
+
+{% block dashboard_content %}
+<div class="container py-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      <div class="card border-0 shadow-lg">
+        <div class="card-header bg-gradient text-white py-4" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+          <h4 class="mb-0"><i class="fas fa-lock me-2"></i>Redirecting to eSewa...</h4>
+        </div>
+        <div class="card-body p-4 text-center">
+          
+          <div class="spinner-border text-primary mb-4" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+          
+          <p class="text-muted mb-4">
+            You are being redirected to eSewa for secure payment processing.<br>
+            <strong>Please do not close this window.</strong>
+          </p>
+
+          <div class="alert alert-info mb-4">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>Amount to Pay:</strong> Rs. {{ appointment.doctor.payment_details.consultation_fee }}
+          </div>
+
+          <!-- Hidden eSewa Form -->
+          <form id="esewa-form" method="POST" action="{{ api_url }}" style="display: none;">
+            {% for key, value in payment_data.items %}
+              <input type="hidden" name="{{ key }}" value="{{ value }}">
+            {% endfor %}
+          </form>
+
+          <!-- Fallback Submit Button -->
+          <button class="btn btn-danger btn-lg" onclick="document.getElementById('esewa-form').submit();">
+            <i class="fas fa-arrow-right me-2"></i> Click here if not redirected automatically
+          </button>
+
+          <p class="text-muted mt-4 small">
+            <a href="{% url 'payment_page' appointment.id %}">Cancel and go back</a>
+          </p>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Auto-submit form on page load
+  document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('esewa-form').submit();
+  });
+</script>
+
+<style>
+  .card-header {
+    border-radius: 12px 12px 0 0;
+  }
+
+  .spinner-border {
+    width: 3rem;
+    height: 3rem;
+  }
+
+  .btn-danger {
+    background: linear-gradient(130deg, #b92222 0%, #971d1d 100%);
+    border: none;
+    border-radius: 8px;
+  }
+
+  .btn-danger:hover {
+    background: linear-gradient(130deg, #971d1d 0%, #7f1d1d 100%);
+  }
+</style>
+{% endblock %}

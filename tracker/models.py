@@ -6,6 +6,7 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db.models import Avg
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
+from django.utils.text import slugify
 
 class User(AbstractUser):
     ROLE_CHOICES = (
@@ -51,7 +52,7 @@ class UserProfile(models.Model):
     height_cm = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     weight_kg = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     address = models.CharField(max_length=255, blank=True)
-    cycle_length = models.IntegerField(null=True, blank=True)  # ✅ FIX
+    cycle_length = models.IntegerField(null=True, blank=True)
     last_period_date = models.DateField(null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -73,7 +74,7 @@ class CycleLog(models.Model):
     end_date = models.DateField(null=True, blank=True)
     expected_end_date = models.DateField(null=True, blank=True)
     
-    # Cycle basics (USER INPUT)
+    # User-entered cycle values
     length_of_cycle = models.IntegerField(
         help_text="Average number of days between periods"
     )
@@ -107,7 +108,7 @@ class CycleLog(models.Model):
     weight_kg = models.FloatField()
     bmi = models.FloatField(null=True, blank=True)
 
-    # 🔮 PREDICTIONS (SYSTEM GENERATED)
+    # Generated cycle predictions
     actual_start_date = models.DateField(null=True, blank=True)
     predicted_start_date = models.DateField(null=True, blank=True)
     is_confirmed = models.BooleanField(default=False)
@@ -233,7 +234,6 @@ class Appointment(models.Model):
     STATUS_CHOICES = (
         ('pending', 'Pending'),
         ('awaiting_payment', 'Awaiting Payment'),
-        ('payment_verification', 'Payment Verification'),
         ('upcoming', 'Upcoming'),
         ('completed', 'Completed'),
         ('rejected', 'Rejected'),
@@ -245,6 +245,8 @@ class Appointment(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     responded_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
+    payment_due_at = models.DateTimeField(null=True, blank=True)
+    payment_expired_at = models.DateTimeField(null=True, blank=True)
 
     # optional fields
     cancel_reason = models.TextField(blank=True)
@@ -255,62 +257,156 @@ class Appointment(models.Model):
 
 
 class DoctorPaymentDetails(models.Model):
-    PAYMENT_METHOD_CHOICES = [
-        ('bank', 'Bank Transfer'),
-        ('esewa', 'eSewa'),
-        ('khalti', 'Khalti'),
-        ('qr', 'QR Code'),
-    ]
-
     doctor = models.OneToOneField(
         User,
         on_delete=models.CASCADE,
         related_name='payment_details',
         limit_choices_to={'role': 'doctor'},
     )
-    payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES)
-
-    account_name = models.CharField(max_length=255, blank=True, null=True)
-    account_number = models.CharField(max_length=255, blank=True, null=True)
-    bank_name = models.CharField(max_length=255, blank=True, null=True)
-
-    esewa_id = models.CharField(max_length=255, blank=True, null=True)
-    khalti_id = models.CharField(max_length=255, blank=True, null=True)
-
-    qr_code_image = models.ImageField(upload_to='payment_qr/', blank=True, null=True)
-    is_completed = models.BooleanField(default=False)
-
+    
+    esewa_id = models.CharField(max_length=255, unique=True, help_text="eSewa merchant ID")
+    consultation_fee = models.DecimalField(
+        max_digits=10, 
+        decimal_places=2,
+        validators=[MinValueValidator(0)],
+        help_text="Consultation fee in NPR"
+    )
+    
+    is_payment_setup_complete = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.doctor.username} Payment Details"
+        return f"{self.doctor.username} - Payment Setup"
 
 
 class Payment(models.Model):
     STATUS_CHOICES = [
-        ('pending', 'Pending Verification'),
-        ('approved', 'Approved'),
-        ('rejected', 'Rejected'),
+        ('pending', 'Pending'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+        ('cancelled', 'Cancelled'),
+    ]
+
+    PAYOUT_STATUS_CHOICES = [
+        ('pending', 'Pending Payout'),
+        ('processing', 'Processing'),
+        ('paid', 'Paid'),
     ]
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='payments')
     appointment = models.OneToOneField('Appointment', on_delete=models.CASCADE, related_name='payment')
 
-    total_amount = models.DecimalField(max_digits=10, decimal_places=2)
-    commission_amount = models.DecimalField(max_digits=10, decimal_places=2)
-    doctor_earning = models.DecimalField(max_digits=10, decimal_places=2)
-
-    payment_proof = models.ImageField(upload_to='payment_proofs/', blank=True, null=True)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    transaction_id = models.CharField(max_length=255, unique=True, help_text="eSewa transaction ID")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    
+    # Commission breakdown (25% platform, 75% doctor)
+    commission_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    doctor_earning = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    payout_status = models.CharField(max_length=20, choices=PAYOUT_STATUS_CHOICES, default='pending')
+    payout_paid_at = models.DateTimeField(null=True, blank=True)
+    payout_batch = models.ForeignKey('PayoutBatch', null=True, blank=True, on_delete=models.SET_NULL, related_name='payments')
 
     created_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ['-created_at']
 
     def __str__(self):
         return f"Payment #{self.id} - {self.user.username} - {self.status}"
+
+
+class PayoutBatch(models.Model):
+    FREQUENCY_CHOICES = [
+        ('weekly', 'Weekly'),
+        ('monthly', 'Monthly'),
+    ]
+
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('processed', 'Processed'),
+        ('paid', 'Paid'),
+    ]
+
+    reference = models.CharField(max_length=50, unique=True)
+    frequency = models.CharField(max_length=20, choices=FREQUENCY_CHOICES, default='weekly')
+    period_start = models.DateField()
+    period_end = models.DateField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_doctors = models.PositiveIntegerField(default=0)
+    notes = models.TextField(blank=True)
+    processed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='processed_payout_batches',
+    )
+    processed_at = models.DateTimeField(null=True, blank=True)
+    paid_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.reference} ({self.get_status_display()})"
+
+
+class ResourceCategory(models.Model):
+    name = models.CharField(max_length=120, unique=True)
+    slug = models.SlugField(max_length=140, unique=True, blank=True)
+    description = models.CharField(max_length=255, blank=True)
+    icon_class = models.CharField(max_length=80, default='ph ph-book-open-text')
+    sort_order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['sort_order', 'name']
+        verbose_name = 'Resource Category'
+        verbose_name_plural = 'Resource Categories'
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.name)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+
+
+class ResourceItem(models.Model):
+    TYPE_ARTICLE = 'article'
+    TYPE_VIDEO = 'video'
+    RESOURCE_TYPE_CHOICES = [
+        (TYPE_ARTICLE, 'Article'),
+        (TYPE_VIDEO, 'Video'),
+    ]
+
+    category = models.ForeignKey(ResourceCategory, on_delete=models.CASCADE, related_name='resources')
+    title = models.CharField(max_length=180)
+    summary = models.TextField(blank=True)
+    source_name = models.CharField(max_length=120, blank=True)
+    external_url = models.URLField(max_length=500)
+    resource_type = models.CharField(max_length=20, choices=RESOURCE_TYPE_CHOICES, default=TYPE_ARTICLE)
+    sort_order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['sort_order', 'title']
+        verbose_name = 'Resource Item'
+        verbose_name_plural = 'Resource Items'
+
+    def __str__(self):
+        return self.title
     
 
 

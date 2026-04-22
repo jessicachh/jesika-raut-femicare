@@ -125,6 +125,49 @@
         box-shadow: 0 0 0 2px rgba(217, 83, 79, 0.15);
     }
 
+    .profile-toast-container {
+        position: fixed;
+        top: 14px;
+        right: 14px;
+        z-index: 2147483647;
+        display: grid;
+        gap: 10px;
+        width: min(92vw, 360px);
+    }
+
+    .profile-toast {
+        border-radius: 10px;
+        color: #fff;
+        padding: 12px 14px;
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 10px;
+        transition: opacity 0.25s ease, transform 0.25s ease;
+    }
+
+    .profile-toast.hide {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+
+    .profile-toast.success { background: #1f8f4e; }
+    .profile-toast.error,
+    .profile-toast.danger { background: #b92222; }
+    .profile-toast.warning { background: #d08a05; }
+    .profile-toast.info { background: #1d6fa5; }
+
+    .profile-toast-close {
+        border: none;
+        background: transparent;
+        color: #fff;
+        cursor: pointer;
+        font-size: 18px;
+        line-height: 1;
+        padding: 0;
+    }
+
     @media (max-width: 768px) {
         form {
             grid-template-columns: 1fr;
@@ -140,6 +183,17 @@
 </head>
     <link rel="icon" type="image/png" href="{% static 'images/favicon.png' %}">
 <body>
+{% if messages %}
+    <div class="profile-toast-container" aria-live="polite" aria-atomic="true">
+        {% for message in messages %}
+            <div class="profile-toast {{ message.tags|default:'info' }}" data-profile-toast>
+                <div>{{ message }}</div>
+                <button type="button" class="profile-toast-close" data-profile-toast-close aria-label="Close notification">&times;</button>
+            </div>
+        {% endfor %}
+    </div>
+{% endif %}
+
 <div class="container">
     <div class="logo">
         <img src="{% static 'images/logo1.png' %}" alt="Logo">
@@ -148,14 +202,6 @@
 
 <form method="post" class="profile-form-validation">
   {% csrf_token %}
-
-    {% if messages %}
-        <div class="full-width">
-            {% for message in messages %}
-                <p style="color:#b92222; margin:0 0 8px 0; font-family:'Open Sans', sans-serif;">{{ message }}</p>
-            {% endfor %}
-        </div>
-    {% endif %}
 
   <div class="form-group">
     <label>Date of Birth</label>
@@ -179,5 +225,26 @@
 </div>
 
 <script src="{% static 'js/profile-validation.js' %}"></script>
+<script>
+    (function () {
+        var toasts = document.querySelectorAll('[data-profile-toast]');
+        toasts.forEach(function (toast) {
+            setTimeout(function () {
+                toast.classList.add('hide');
+                setTimeout(function () { toast.remove(); }, 250);
+            }, 4200);
+        });
+
+        var closeButtons = document.querySelectorAll('[data-profile-toast-close]');
+        closeButtons.forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var toast = btn.closest('[data-profile-toast]');
+                if (!toast) return;
+                toast.classList.add('hide');
+                setTimeout(function () { toast.remove(); }, 250);
+            });
+        });
+    })();
+</script>
 </body>
 </html>

@@ -758,6 +758,154 @@ textarea:focus {
 
 .fc-left-search-wrap input {
   border: none;
+
+/* Simplified admin index layout (no extra sidebars) */
+.admin-dashboard-main-simple {
+  display: grid;
+  gap: 18px;
+  margin-top: 12px;
+}
+
+.admin-dashboard-head,
+.app-card-simple,
+.admin-recent-simple {
+  background: #ffffff;
+  border: 1px solid #ececec;
+  border-radius: 12px;
+  box-shadow: 0 4px 14px rgba(17, 24, 39, 0.04);
+}
+
+.admin-dashboard-head {
+  padding: 18px;
+}
+
+.admin-dashboard-head h1 {
+  margin: 0;
+  color: #111827;
+}
+
+.admin-dashboard-head p {
+  margin: 6px 0 0;
+  color: #6b7280;
+}
+
+.admin-app-grid-simple {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.app-card-simple {
+  padding: 16px;
+}
+
+.app-card-head-simple {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.app-card-head-simple h2 {
+  margin: 0;
+  color: #111827;
+}
+
+.app-card-head-simple a {
+  color: #b92222;
+  font-weight: 700;
+}
+
+.app-model-list-simple {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.app-model-list-simple li {
+  border-top: 1px solid #f1f1f1;
+  padding: 10px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.app-model-list-simple li:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.model-actions-simple {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.model-actions-simple a {
+  border: 1px solid #f0d7d7;
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-weight: 700;
+  color: #b92222;
+  background: #fff8f8;
+  text-decoration: none;
+}
+
+.model-actions-simple a:hover {
+  background: #b92222;
+  color: #fff;
+}
+
+.admin-recent-simple {
+  padding: 16px;
+}
+
+.admin-recent-simple h2 {
+  margin-top: 0;
+}
+
+.admin-recent-simple ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.admin-recent-simple li {
+  border: 1px solid #f1f1f1;
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: grid;
+  gap: 4px;
+}
+
+.admin-recent-simple li a {
+  color: #1f2937;
+  font-weight: 700;
+}
+
+.admin-recent-simple li span {
+  color: #6b7280;
+  font-size: 0.82rem;
+}
+
+/* Hide legacy custom dashboard sidebar wrappers to prevent duplicate sidebars. */
+.fc-admin-layout,
+.admin-dashboard-shell,
+.admin-sidebar,
+.admin-rightbar,
+.fc-left-panel,
+.fc-right-panel {
+  display: none !important;
+}
+
+@media (max-width: 980px) {
+  .admin-app-grid-simple {
+    grid-template-columns: 1fr;
+  }
+}
   outline: none;
   width: 100%;
   padding: 0;

@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.html import format_html
+from django.utils import timezone
 
 from .models import (
     Appointment,
@@ -16,8 +17,11 @@ from .models import (
     MoodEntry,
     Notification,
     Payment,
+    PayoutBatch,
     PeriodCheckIn,
     PredictionFeedback,
+    ResourceCategory,
+    ResourceItem,
     SymptomLog,
     TwoFactorCode,
     User,
@@ -30,6 +34,7 @@ admin.site.site_header = 'FemiCare Admin Portal'
 admin.site.site_title = 'FemiCare Admin'
 admin.site.index_title = 'Administration Dashboard'
 admin.site.empty_value_display = '-'
+admin.site.enable_nav_sidebar = False
 
 
 @admin.register(User)
@@ -320,9 +325,9 @@ class TwoFactorCodeAdmin(admin.ModelAdmin):
 
 @admin.register(DoctorPaymentDetails)
 class DoctorPaymentDetailsAdmin(admin.ModelAdmin):
-    list_display = ('doctor', 'payment_method', 'is_completed', 'created_at', 'updated_at')
-    list_filter = ('payment_method', 'is_completed', 'created_at')
-    search_fields = ('doctor__username', 'doctor__email', 'account_name', 'account_number', 'esewa_id', 'khalti_id')
+    list_display = ('doctor', 'esewa_id', 'consultation_fee', 'is_payment_setup_complete', 'created_at', 'updated_at')
+    list_filter = ('is_payment_setup_complete', 'created_at')
+    search_fields = ('doctor__username', 'doctor__email', 'esewa_id')
     ordering = ('-updated_at',)
     list_select_related = ('doctor',)
 
@@ -333,13 +338,72 @@ class PaymentAdmin(admin.ModelAdmin):
         'id',
         'user',
         'appointment',
-        'total_amount',
+        'amount',
+        'transaction_id',
         'commission_amount',
         'doctor_earning',
         'status',
+        'payout_status',
+        'payout_batch',
         'created_at',
     )
-    list_filter = ('status', 'created_at')
+    list_filter = ('status', 'payout_status', 'created_at')
     search_fields = ('user__username', 'user__email', 'appointment__id')
     ordering = ('-created_at',)
     list_select_related = ('user', 'appointment')
+    actions = ('mark_payout_processing', 'mark_payout_paid')
+
+    @admin.action(description='Mark payout as processing')
+    def mark_payout_processing(self, request, queryset):
+        updated = queryset.update(payout_status='processing')
+        self.message_user(request, f'{updated} payment(s) marked as processing.')
+
+    @admin.action(description='Mark payout as paid')
+    def mark_payout_paid(self, request, queryset):
+        now = timezone.now()
+        updated = queryset.update(payout_status='paid', payout_paid_at=now)
+        self.message_user(request, f'{updated} payment(s) marked as paid.')
+
+
+@admin.register(PayoutBatch)
+class PayoutBatchAdmin(admin.ModelAdmin):
+    list_display = (
+        'reference',
+        'frequency',
+        'period_start',
+        'period_end',
+        'status',
+        'total_amount',
+        'total_doctors',
+        'processed_by',
+        'created_at',
+    )
+    list_filter = ('frequency', 'status', 'created_at')
+    search_fields = ('reference',)
+    ordering = ('-created_at',)
+
+
+@admin.register(ResourceCategory)
+class ResourceCategoryAdmin(admin.ModelAdmin):
+    list_display = ('name', 'slug', 'icon_class', 'sort_order', 'is_active', 'updated_at')
+    list_filter = ('is_active', 'created_at', 'updated_at')
+    search_fields = ('name', 'slug', 'description')
+    prepopulated_fields = {'slug': ('name',)}
+    ordering = ('sort_order', 'name')
+
+
+@admin.register(ResourceItem)
+class ResourceItemAdmin(admin.ModelAdmin):
+    list_display = (
+        'title',
+        'category',
+        'resource_type',
+        'source_name',
+        'sort_order',
+        'is_active',
+        'updated_at',
+    )
+    list_filter = ('resource_type', 'is_active', 'category', 'created_at', 'updated_at')
+    search_fields = ('title', 'summary', 'source_name', 'external_url', 'category__name')
+    list_select_related = ('category',)
+    ordering = ('category__sort_order', 'sort_order', 'title')

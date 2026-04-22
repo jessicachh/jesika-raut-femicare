@@ -1,14 +1,22 @@
 {% extends "emails/base.html" %}
 
-{% block email_title %}Appointment Accepted{% endblock %}
+{% block email_title %}Doctor Accepted - Payment Required{% endblock %}
 {% block email_intro %}
-Great news. Your appointment has been accepted by the doctor.
+Your doctor has accepted your consultation request. Please complete payment within the allowed time window.
 {% endblock %}
 {% block email_details %}
 <p style="margin:0 0 6px 0;font-size:14px;"><strong>Doctor:</strong> {{ doctor_name }}</p>
 <p style="margin:0 0 6px 0;font-size:14px;"><strong>Date:</strong> {{ appointment_date }}</p>
 <p style="margin:0;font-size:14px;"><strong>Time:</strong> {{ appointment_time }}</p>
+{% if consultation_fee %}
+<p style="margin:6px 0 0 0;font-size:14px;"><strong>Consultation Fee:</strong> Rs {{ consultation_fee }}</p>
+{% endif %}
+{% if payment_deadline %}
+<p style="margin:6px 0 0 0;font-size:14px;"><strong>Payment Deadline:</strong> {{ payment_deadline }}</p>
+{% endif %}
 {% endblock %}
 {% block email_reassurance %}
-<p style="margin:0;font-size:14px;line-height:1.7;color:#374151;">Please join on time and keep your health notes ready for a smoother consultation.</p>
+<p style="margin:0;font-size:14px;line-height:1.7;color:#374151;">
+	If payment is not completed within {{ payment_window_hours|default:2 }} hour(s), the appointment slot will be released automatically for other users.
+</p>
 {% endblock %}
