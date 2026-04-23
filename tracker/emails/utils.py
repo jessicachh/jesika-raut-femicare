@@ -127,16 +127,39 @@ def _send_templated_email(
     fail_silently: bool = False,
 ) -> bool:
     if not recipient_email:
+        logger.warning("_send_templated_email called with empty recipient_email; skipping.")
         return False
 
     recipient_email = recipient_email.strip()
+
+    email_host = getattr(settings, "EMAIL_HOST", "<not set>")
+    email_port = getattr(settings, "EMAIL_PORT", "<not set>")
+    email_use_tls = getattr(settings, "EMAIL_USE_TLS", "<not set>")
+    email_host_user = getattr(settings, "EMAIL_HOST_USER", "") or "<not set>"
+    from_email = getattr(settings, "DEFAULT_FROM_EMAIL", None)
+
+    logger.info(
+        "Preparing to send email: recipient=%s subject=%r template=%s",
+        recipient_email,
+        subject,
+        html_template,
+    )
+    logger.info(
+        "SMTP config: EMAIL_HOST=%s EMAIL_PORT=%s EMAIL_USE_TLS=%s EMAIL_HOST_USER=%s DEFAULT_FROM_EMAIL=%s",
+        email_host,
+        email_port,
+        email_use_tls,
+        email_host_user,
+        from_email,
+    )
+
     html_content = render_to_string(html_template, context)
     text_content = render_to_string(text_template, context)
 
     message = EmailMultiAlternatives(
         subject=subject,
         body=text_content,
-        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
+        from_email=from_email,
         to=[recipient_email],
         cc=[],
         bcc=[],
@@ -148,9 +171,21 @@ def _send_templated_email(
 
     try:
         message.send(fail_silently=fail_silently)
+        logger.info(
+            "Email sent successfully: recipient=%s subject=%r template=%s",
+            recipient_email,
+            subject,
+            html_template,
+        )
         return True
-    except Exception:
-        logger.exception("Failed sending email template=%s recipient=%s", html_template, recipient_email)
+    except Exception as exc:
+        logger.exception(
+            "Failed to send email: recipient=%s subject=%r template=%s error=%s",
+            recipient_email,
+            subject,
+            html_template,
+            exc,
+        )
         if fail_silently:
             return False
         raise
@@ -218,18 +253,40 @@ def send_notification_email(user: Any, message: str, data: Optional[Dict[str, An
 
 
 def send_verification_email(user: Any, verification_type: str, data: Optional[Dict[str, Any]] = None) -> bool:
+    username = getattr(user, "username", None) or getattr(user, "email", None) or repr(user)
+    logger.info(
+        "send_verification_email called: user=%s verification_type=%s data_keys=%s",
+        username,
+        verification_type,
+        list((data or {}).keys()),
+    )
+
     config = VERIFICATION_EMAIL_CONFIG.get(verification_type)
     if not config:
+        logger.warning(
+            "send_verification_email: unknown verification_type=%r; no email sent.",
+            verification_type,
+        )
         return False
 
     payload = data or {}
     recipient_email = payload.get("recipient_email") or getattr(user, "email", "")
     if not recipient_email:
+        logger.warning(
+            "send_verification_email: no recipient email resolved for user=%s; no email sent.",
+            username,
+        )
         return False
 
     admin_email = _resolve_admin_notification_email().strip().lower()
     if admin_email and recipient_email.strip().lower() == admin_email:
         raise ValueError("Verification emails cannot be sent to the admin email address.")
+
+    logger.info(
+        "send_verification_email: dispatching %r email to %s",
+        verification_type,
+        recipient_email,
+    )
 
     context = _default_context(user)
     context.update(payload)
